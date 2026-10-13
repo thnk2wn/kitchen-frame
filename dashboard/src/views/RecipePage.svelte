@@ -3,12 +3,16 @@
   import { recipeTitle } from '../lib/format.js';
   import { withKey } from '../lib/api.js';
   import { recipes, saveRecipe, removeRecipe, addToGroceries } from '../lib/state.svelte.js';
+  import { startTimer, splitDurations } from '../lib/timers.svelte.js';
   let { recipe, onback } = $props();
+  let showNutrition = $state(false);
 
   // A recipe opened from Explore has an "mdb:" id; a saved one has its own id, savedAt and maybe ref.
   // While loading, recipe is a stand-in with the card's title and photo (loading: true).
   let savedCopy = $derived((recipes.saved || []).find((r) => r.id === recipe.id || (r.ref && r.ref === recipe.id)));
   let isSavedView = $derived(!!recipe.savedAt);
+  // Ours (synced from Paprika): already in our library, so no Save or Remove.
+  let isOurs = $derived(String(recipe.id || '').startsWith('pap:'));
   let image = $derived(isSavedView
     ? (recipe.hasImage ? withKey('/api/recipes/' + recipe.id + '/image') : null)
     : recipe.image);
@@ -31,7 +35,8 @@
   <button class="back" onclick={onback}><Icon name="chevronLeft" size={26} />Recipes</button>
   <div class="actions">
     {#if toast}<span class="toast">{toast}</span>{/if}
-    {#if isSavedView}
+    {#if isOurs}
+    {:else if isSavedView}
       <button class="btn" disabled={busy} onclick={() => { removeRecipe(recipe.id); onback(); }}><Icon name="trash" size={20} />Remove</button>
     {:else if savedCopy}
       <span class="saved"><Icon name="check" size={20} />Saved</span>
@@ -50,9 +55,20 @@
     {#if image}<img src={image} alt="" />{:else if recipe.loading}<span class="ghost photo"></span>{/if}
     {#if recipe.title}<h1>{recipeTitle(recipe.title)}</h1>{:else}<span class="ghost wide"></span>{/if}
     <p class="meta">
-      {[recipe.category, recipe.area, recipe.time, recipe.servings && 'Serves ' + recipe.servings].filter(Boolean).join(' · ')}
+      {[recipe.category, recipe.area, recipe.time, recipe.servings && 'Serves ' + recipe.servings, recipe.yield && 'Makes ' + recipe.yield].filter(Boolean).join(' · ')}
     </p>
     {#if recipe.from}<p class="meta">Saved by {recipe.from}</p>{/if}
+    <!-- Our own notes and tweaks (Paprika's Notes), then the recipe's description and nutrition. -->
+    {#if recipe.notes || recipe.description || recipe.nutrition}
+      <div class="extra">
+        {#if recipe.notes}<h3>Notes</h3><p class="notes">{recipe.notes}</p>{/if}
+        {#if recipe.description}<p class="desc">{recipe.description}</p>{/if}
+        {#if recipe.nutrition}
+          <button class="nut" onclick={() => (showNutrition = !showNutrition)}>Nutrition {showNutrition ? '▾' : '▸'}</button>
+          {#if showNutrition}<p class="nutrition">{recipe.nutrition}</p>{/if}
+        {/if}
+      </div>
+    {/if}
   </section>
 
   <section class="sheet ingredients">
@@ -76,7 +92,8 @@
     <ol class="scroll">
       {#if recipe.loading}{#each Array(4) as _, i (i)}<span class="ghost para"></span>{/each}{/if}
       {#each recipe.steps as step, i (i)}
-        <li><span class="num">{i + 1}</span><p>{step}</p></li>
+        <!-- Times in a step ("bake 25 minutes") are buttons that start a timer named after the recipe. -->
+        <li><span class="num">{i + 1}</span><p>{#each splitDurations(step) as part, j (j)}{#if typeof part === 'string'}{part}{:else}<button class="tm" onclick={() => startTimer(recipeTitle(recipe.title), part.seconds)}>⏱ {part.text}</button>{/if}{/each}</p></li>
       {/each}
     </ol>
   </section>
@@ -99,6 +116,11 @@
   .side img { width: 100%; height: 230px; object-fit: cover; }
   .side h1 { margin: 16px 20px 0; font-size: 24px; font-weight: 600; line-height: 1.2; }
   .meta { margin: 8px 20px 0; font-size: 17px; color: var(--secondary); }
+  .extra { flex: 1; min-height: 0; overflow-y: auto; margin: 12px 0 0; padding: 10px 20px 0; border-top: 1px solid var(--sep); }
+  .extra h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--orange-text); }
+  .notes, .desc, .nutrition { margin: 0 0 10px; font-size: 17px; line-height: 1.4; white-space: pre-line; }
+  .desc, .nutrition { color: var(--secondary); font-size: 16px; }
+  .nut { padding: 4px 0; font-size: 15px; font-weight: 600; color: var(--secondary); }
   .ingredients, .steps { display: flex; flex-direction: column; padding: 18px 22px 8px; }
   h2 { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 21px; font-weight: 700; }
   h2 .num { font-size: 16px; color: var(--secondary); font-weight: 600; }
@@ -119,4 +141,6 @@
   .ghost.row { height: 22px; margin: 12px 0 18px; width: 75%; }
   .ghost.para { height: 60px; margin: 10px 0 16px; }
   li p { margin: 3px 0 0; font-size: 20px; line-height: 1.4; }
+  .tm { display: inline; padding: 1px 10px; margin: 0 2px; border-radius: 14px; background: var(--orange); color: #fff; font: inherit; font-weight: 700; }
+  .tm:active { opacity: .7; }
 </style>

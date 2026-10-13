@@ -1,6 +1,11 @@
 // The frame opens the dashboard once with ?key=..., then remembers it.
 const q = new URLSearchParams(location.search);
-if (q.get('key')) localStorage.setItem('frame-key', q.get('key'));
+if (q.get('key')) {
+  localStorage.setItem('frame-key', q.get('key'));
+  // Saved now, so take it out of the address bar (and browser history).
+  q.delete('key');
+  history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+}
 
 export async function api(path, init = {}) {
   const res = await fetch(path, {

@@ -9,7 +9,12 @@
   import Music from './views/Music.svelte';
   import Recipes from './views/Recipes.svelte';
   import Message from './components/Message.svelte';
-  import { connectHA, haConfigured } from './lib/ha.svelte.js';
+  import Timers from './components/Timers.svelte';
+  import TimerAlert from './components/TimerAlert.svelte';
+  import WeatherSheet from './components/WeatherSheet.svelte';
+  import { timers } from './lib/timers.svelte.js';
+  import { connectHA, haConfigured, haDashboard } from './lib/ha.svelte.js';
+  import House from './views/House.svelte';
   import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible } from './lib/state.svelte.js';
   import { noteAlbum, prepare } from './lib/slides.js';
   import { time, weatherInfo } from './lib/format.js';
@@ -17,11 +22,13 @@
   const TABS = [
     { id: 'home', label: 'Home' },
     { id: 'calendar', label: 'Calendar' },
-    { id: 'groceries', label: 'Groceries' },
-    { id: 'todo', label: 'Tasks' },
+    // Groceries and Tasks share one tab with a switch inside; it reopens the list used last.
+    { id: 'lists', label: 'Lists', views: ['groceries', 'todo'] },
     { id: 'recipes', label: 'Recipes' },
     // Music appears once the frame has a Home Assistant token (see docs/frame.md).
-    ...(haConfigured() ? [{ id: 'music', label: 'Music' }] : []),
+    ...(haConfigured() || ui.demo ? [{ id: 'music', label: 'Music' }] : []), // demo: an invented player
+    // House mirrors a Home Assistant dashboard, once the frame has its URL path (frame-ha-dashboard).
+    ...((haConfigured() && haDashboard()) || ui.demo ? [{ id: 'house', label: 'House' }] : []), // demo: an invented house
   ];
   let wx = $derived(weather.data);
   let info = $derived(wx ? weatherInfo(wx.code, wx.day) : null);
@@ -36,20 +43,27 @@
     if (warm && !ui.demo && photosVisible()) prepare();
   });
 
+  // The Lists tab reopens whichever list was shown last.
+  const lastList = () => (localStorage.getItem('frame-list') === 'todo' ? 'todo' : 'groceries');
+  $effect(() => { if (ui.tab === 'groceries' || ui.tab === 'todo') localStorage.setItem('frame-list', ui.tab); });
+
   // A list tab shows fresh items when opened (Groceries isn't polled while it's closed).
-  $effect(() => { if (ui.tab === 'groceries' || ui.tab === 'todo') loadList(ui.tab); });
+  $effect(() => { if (ui.tab === 'groceries' || ui.tab === 'todo') loadList(ui.tab); else if (ui.tab === 'home') loadList('groceries'); });
 </script>
 
 <div class="stage">
   <header class="top">
     <nav class="seg" role="tablist" aria-label="Sections">
       {#each TABS as t (t.id)}
-        <button role="tab" aria-selected={ui.tab === t.id} class:on={ui.tab === t.id} onclick={() => (ui.tab = t.id)}>{t.label}</button>
+        {@const on = t.views ? t.views.includes(ui.tab) : ui.tab === t.id}
+        <button role="tab" aria-selected={on} class:on onclick={() => (ui.tab = t.views ? (on ? ui.tab : lastList()) : t.id)}>{t.label}</button>
       {/each}
     </nav>
     <div class="edge right">
+      <Timers />
       {#if ui.tab !== 'home'}<span class="num now">{time(clock.now)}</span>{/if}
-      {#if wx}<span class="wx {info.tint}"><Icon name={info.icon} size={26} /></span><span class="num">{wx.temp}°</span>{/if}
+      <!-- While a timer runs its chip takes this space; Home still shows the weather. -->
+      {#if wx && !timers.list.some((t) => !t.done)}<button class="wxbtn" onclick={() => (ui.weatherDay = 0)} aria-label="Weather details"><span class="wx {info.tint}"><Icon name={info.icon} size={26} /></span><span class="num">{wx.temp}°</span></button>{/if}
       <button class="gear play" onclick={startSlideshow} aria-label="Start slideshow"><Icon name="play" size={24} /></button>
       <button class="gear" onclick={() => (ui.settingsOpen = !ui.settingsOpen)} aria-label="Settings"><Icon name="gear" size={26} /></button>
     </div>
@@ -62,6 +76,7 @@
     {#if ui.tab === 'home'}<Home />
     {:else if ui.tab === 'calendar'}<Week />
     {:else if ui.tab === 'music'}<Music />
+    {:else if ui.tab === 'house'}<House />
     {:else if ui.tab === 'recipes'}<Recipes />
     {:else if ui.tab === 'groceries'}<List name="groceries" title="Groceries" accent="var(--orange)" accentText="var(--orange-text)" />
     {:else}<List name="todo" title="Tasks" accent="var(--blue)" accentText="var(--blue-text)" board />{/if}
@@ -72,6 +87,9 @@
   {#if ui.idle}<Ambient />{/if}
   <!-- Agent messages cover everything, the slideshow included; held back in demo mode. -->
   {#if messages.items.length && !ui.demo}<Message />{/if}
+  <!-- Timer alerts cover everything, messages and the slideshow included. -->
+  <WeatherSheet />
+  <TimerAlert />
 </div>
 
 <style>
@@ -81,8 +99,10 @@
   .top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px 14px; }
   .edge { font-size: 22px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .right { justify-content: flex-end; }
-  .now { margin-right: 14px; }
+  .now { margin-right: 14px; white-space: nowrap; }
   .wx { color: var(--secondary); }
+  .wxbtn { display: flex; align-items: center; gap: inherit; font: inherit; color: inherit; }
+  .wxbtn:active { opacity: .6; }
   .wx.sun { color: var(--yellow); }
   .wx.rain { color: var(--blue); }
   .gear { width: 48px; height: 48px; margin: 0 -10px 0 0; border-radius: 50%; display: grid; place-items: center; color: var(--secondary); }

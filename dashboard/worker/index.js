@@ -11,14 +11,18 @@
 //   GET  /api/messages/live          WebSocket: messages pushed the moment they change
 //   POST /api/messages/:id/dismiss   the frame's X button
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
+//   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
+//   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
 //
 // Secrets (`wrangler secret put`, or .dev.vars locally):
+//   CALENDAR_NAMES optional names for the frame's Calendars list, comma-separated, in link order.
 //   CALENDAR_URLS  iCal links separated by spaces, commas or newlines. Google "Secret address in
 //                  iCal format" and iCloud public calendar links (webcal://) both work.
 //   DASHBOARD_KEY  shared key the frame sends with every API call. Unset = no check (dev only).
 //   TODOIST_TOKEN  Todoist API token.
 //   ALBUM_URL      iCloud shared album link with Public Website on.
 //   AGENT_TOKEN    lets AI agents post messages and save recipes; it can't read anything.
+//   PAPRIKA_EMAIL, PAPRIKA_PASSWORD  optional: a Paprika Cloud Sync account to show our recipes.
 // Optional: DISPLAY_TZ  IANA zone for times with no TZID and no X-WR-TIMEZONE (default UTC).
 import { expand, merge } from './calendar.js';
 import { getWeather } from './weather.js';
@@ -27,6 +31,7 @@ import { listPhotos, photoResponse } from './photos.js';
 import { room } from './messages.js';
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage } from './recipes.js';
+import { syncPaprika, listPaprika, getPaprika, paprikaImage, listMeals } from './paprika.js';
 
 const KEY = 'calendar';
 const DAY = 864e5;
@@ -36,6 +41,7 @@ const DAYS_BACK = 40;   // month view shows the whole current month, so include 
 // (so `updated` stays meaningful). Requests refresh it themselves only if the cron has fallen behind.
 const HEARTBEAT_MS = 60 * 60 * 1000;
 const STALE_MS = 75 * 60 * 1000;
+const PAPRIKA_CRON = '*/15 * * * *'; // must match wrangler.jsonc
 
 export default {
   async fetch(req, env, ctx) {
@@ -83,6 +89,17 @@ export default {
         const random = url.searchParams.has('random');
         return json(await explore(url.searchParams), 200, random ? 'no-store' : 'private, max-age=86400');
       }
+      if (url.pathname === '/api/meals' && req.method === 'GET') return json(await listMeals(env));
+      if (url.pathname === '/api/recipes/paprika' && req.method === 'GET') {
+        if (url.searchParams.has('sync')) await syncPaprika(env);
+        return json(await listPaprika(env));
+      }
+      const pap = /^\/api\/recipes\/paprika\/([\w-]+)(\/image)?$/.exec(url.pathname);
+      if (pap && req.method === 'GET') {
+        if (pap[2]) return paprikaImage(env, pap[1]);
+        const recipe = await getPaprika(env, pap[1]);
+        return recipe ? json({ recipe }) : json({ error: 'not found' }, 404);
+      }
       if (url.pathname === '/api/recipes' && req.method === 'GET') return json(await listSaved(env));
       if (url.pathname === '/api/recipes' && req.method === 'POST') {
         const { status, body } = await saveRecipe(env, await req.json().catch(() => ({})));
@@ -121,6 +138,12 @@ export default {
   },
 
   async scheduled(controller, env) {
+    // Paprika has its own cron so its requests and CPU don't share a run with the calendar's.
+    if (controller.cron === PAPRIKA_CRON) {
+      const r = await syncPaprika(env);
+      console.log('cron ' + controller.cron + ': paprika ' + JSON.stringify(r));
+      return;
+    }
     const data = await updateCalendar(env, await env.CALENDAR.get(KEY, 'json'));
     console.log('cron ' + controller.cron + ': ' + data.events.length + ' events, ' + data.errors.length + ' errors');
   },
@@ -129,7 +152,7 @@ export default {
 // Fetches the feeds and stores the result when the events or errors changed, or hourly.
 async function updateCalendar(env, previous) {
   const data = await refresh(env, previous);
-  const same = previous && JSON.stringify([previous.events, previous.errors]) === JSON.stringify([data.events, data.errors]);
+  const same = previous && JSON.stringify([previous.events, previous.errors, previous.names]) === JSON.stringify([data.events, data.errors, data.names]);
   if (!same || Date.now() - Date.parse(previous.updated) > HEARTBEAT_MS) await env.CALENDAR.put(KEY, JSON.stringify(data));
   return data;
 }
@@ -139,6 +162,7 @@ async function refresh(env, previous) {
   const now = Date.now(), from = now - DAYS_BACK * DAY, to = now + DAYS_AHEAD * DAY;
   const tz = env.DISPLAY_TZ || 'UTC';
   const errors = [];
+  const names = [];
 
   const lists = await Promise.all(urls.map(async (link, cal) => {
     try {
@@ -146,6 +170,9 @@ async function refresh(env, previous) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
       if (!text.includes('BEGIN:VCALENDAR')) throw new Error('not an iCal feed');
+      // The feed's own name (X-WR-CALNAME), for the frame's show/hide list.
+      const named = /\nX-WR-CALNAME:([^\r\n]+)/.exec(text);
+      names[cal] = named ? named[1].trim() : null;
       const events = expand(text, cal, from, to, tz);
       // Holiday feeds (Google's or Apple's) are marked, so the frame can leave them out of counts.
       if (/holiday/i.test(link)) for (const e of events) e.holiday = true;
@@ -153,12 +180,15 @@ async function refresh(env, previous) {
     } catch (err) {
       // Keep this calendar's last good events so a blip doesn't blank the wall display.
       errors.push({ cal, error: String(err.message || err) });
+      names[cal] = previous?.names?.[cal] ?? null;
       console.error('calendar ' + cal + ' failed:', err);
       return (previous?.events || []).filter((e) => e.cal === cal).map((e) => ({ ...e, startMs: Date.parse(e.start) }));
     }
   }));
 
-  return { updated: new Date(now).toISOString(), calendars: urls.length, errors, events: merge(lists) };
+  // CALENDAR_NAMES (optional, comma-separated, same order as the links) overrides the feeds' names.
+  const custom = String(env.CALENDAR_NAMES || '').split(',').map((x) => x.trim());
+  return { updated: new Date(now).toISOString(), calendars: urls.length, names: urls.map((_, i) => custom[i] || names[i] || null), errors, events: merge(lists) };
 }
 
 function authorized(req, env) {
@@ -166,7 +196,7 @@ function authorized(req, env) {
   if (req.headers.get('Authorization') === 'Bearer ' + env.DASHBOARD_KEY) return true;
   // <img> and WebSocket can't send headers, so they may carry the key in the URL instead (GET only).
   const url = new URL(req.url);
-  const keyInUrl = url.pathname.startsWith('/api/photos/') || url.pathname === '/api/messages/live' || /^\/api\/recipes\/[\w-]+\/image$/.test(url.pathname);
+  const keyInUrl = url.pathname.startsWith('/api/photos/') || url.pathname === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(url.pathname);
   return req.method === 'GET' && keyInUrl && url.searchParams.get('key') === env.DASHBOARD_KEY;
 }
 

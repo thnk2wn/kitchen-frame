@@ -5,7 +5,8 @@
   // person: assignee's name (shared projects); section: section name, shown with the due date and
   // the item's note (its Todoist description, e.g. "For: Beef Mandi") on the small line underneath.
   // lines: the iOS inset separator under each row (off inside the Tasks/Groceries cards).
-  let { item, now, ondone, person = null, section = null, lines = true } = $props();
+  // brief: one line, no due date or note (Home's grocery card, where space is tight).
+  let { item, now, ondone, person = null, section = null, lines = true, brief = false } = $props();
   let checking = $state(false);
   let due = $derived(item.due ? dueLabel(item.due, now) : '');
   let rest = $derived([section, item.note].filter(Boolean).join(' · '));
@@ -18,12 +19,12 @@
   }
 </script>
 
-<button class="row" class:checking class:plain={!lines} onclick={tap} aria-label={'Complete ' + item.content}>
+<button class="row" class:checking class:plain={!lines} class:brief onclick={tap} aria-label={'Complete ' + item.content}>
   <span class="ring">{#if checking}<Icon name="check" size={17} />{/if}</span>
   <span class="body">
     <span class="main">
       <span class="text">{item.content}</span>
-      {#if due || rest}<span class="due"><span class:late={due === 'Overdue'}>{due}</span>{due && rest ? ' · ' : ''}{rest}</span>{/if}
+      {#if !brief && (due || rest)}<span class="due"><span class:late={due === 'Overdue'}>{due}</span>{due && rest ? ' · ' : ''}{rest}</span>{/if}
     </span>
     {#if person}<Avatar id={item.assignee} name={person} size={30} />{/if}
   </span>
@@ -43,4 +44,7 @@
   .due .late { color: var(--red-text); }
   .plain { padding-top: 9px; }
   .plain .body { border-bottom: 0; padding-bottom: 9px; }
+  .brief { gap: 10px; padding-top: 9px; }
+  .brief .body { padding-bottom: 9px; }
+  .brief .text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>

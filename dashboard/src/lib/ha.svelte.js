@@ -7,17 +7,40 @@ export const ha = $state({
   error: null,
   players: [],     // media players, Music Assistant ones first
   tts: [],         // text-to-speech engines (tts.* entities)
+  notify: [],      // notify entities [{ entity_id, name }] (e.g. an Echo's "Announce", for timer alerts)
 });
+
+// One-time setup from the URL, like ?key=: ?ha_url=…&ha_token=…&ha_dashboard=… are saved, then
+// removed from the address bar so the token doesn't linger in it. (Or set them over ADB.)
+{
+  const q = new URLSearchParams(location.search);
+  const keys = { ha_url: 'frame-ha-url', ha_token: 'frame-ha-token', ha_dashboard: 'frame-ha-dashboard' };
+  let found = false;
+  for (const [param, key] of Object.entries(keys)) {
+    if (q.has(param)) { found = true; const v = q.get(param); v ? localStorage.setItem(key, v) : localStorage.removeItem(key); q.delete(param); }
+  }
+  if (found) history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+}
 
 const entities = new Map(); // entity_id -> { state, attributes }
 let ws = null;
 let nextId = 0;
 let pending = new Map();
+let listeners = new Map(); // subscription id -> handler for its events
+const connectHooks = new Set(); // run after every (re)connection, to (re)subscribe
 let retryMs = 1000;
 
 const base = () => (localStorage.getItem('frame-ha-url') || '').replace(/\/$/, '');
 const token = () => localStorage.getItem('frame-ha-token') || '';
 export const haConfigured = () => !!(base() && token());
+// The HA dashboard the House tab mirrors (its URL path, e.g. "dashboard-favorites"). Unset = no House tab.
+export const haDashboard = () => localStorage.getItem('frame-ha-dashboard') || '';
+// fn runs now if connected and again after every reconnection; returns an unsubscribe function.
+export function onHAConnect(fn) {
+  connectHooks.add(fn);
+  if (ha.status === 'connected') fn();
+  return () => connectHooks.delete(fn);
+}
 
 // Absolute URL for an entity picture (HA returns a path with its own short-lived token).
 export const haUrl = (path) => (!path ? null : /^https?:/.test(path) ? path : base() + path);
@@ -31,6 +54,7 @@ export function connectHA() {
   ws.onclose = () => {
     pending.forEach((p) => p.reject(new Error('Disconnected from Home Assistant')));
     pending = new Map();
+    listeners = new Map();
     if (ha.status === 'error') return; // bad token: don't hammer HA with retries
     ha.status = 'connecting';
     setTimeout(connectHA, retryMs);
@@ -40,7 +64,10 @@ export function connectHA() {
 
 function onMessage(m) {
   if (m.type === 'auth_required') ws.send(JSON.stringify({ type: 'auth', access_token: token() }));
-  else if (m.type === 'auth_ok') { retryMs = 1000; ha.error = null; ha.status = 'connected'; subscribe(); }
+  else if (m.type === 'auth_ok') {
+    retryMs = 1000; ha.error = null; ha.status = 'connected'; subscribe();
+    for (const fn of connectHooks) { try { fn(); } catch (e) { console.error(e); } }
+  }
   else if (m.type === 'auth_invalid') { ha.status = 'error'; ha.error = 'Home Assistant rejected the frame’s token'; ws.close(); }
   else if (m.type === 'result') {
     const p = pending.get(m.id);
@@ -48,14 +75,19 @@ function onMessage(m) {
     pending.delete(m.id);
     if (m.success) p.resolve(m.result);
     else p.reject(new Error((m.error && m.error.message) || 'Home Assistant error'));
-  } else if (m.type === 'event' && m.event) applyDiff(m.event);
+  } else if (m.type === 'event' && m.event) {
+    const fn = listeners.get(m.id);
+    if (fn) fn(m.event); else applyDiff(m.event);
+  }
 }
 
-export function send(msg) {
+// onEvent: for subscriptions, receives each event sent for this message's id.
+export function send(msg, onEvent) {
   return new Promise((resolve, reject) => {
     if (!ws || ws.readyState !== 1) return reject(new Error('Not connected to Home Assistant'));
     const id = ++nextId;
     pending.set(id, { resolve, reject });
+    if (onEvent) listeners.set(id, onEvent);
     ws.send(JSON.stringify({ id, ...msg }));
   });
 }
@@ -64,6 +96,8 @@ export function send(msg) {
 async function subscribe() {
   const states = await send({ type: 'get_states' });
   ha.tts = states.filter((s) => s.entity_id.startsWith('tts.')).map((s) => s.entity_id);
+  ha.notify = states.filter((s) => s.entity_id.startsWith('notify.') && s.state !== 'unavailable')
+    .map((s) => ({ entity_id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id }));
   const ids = states.filter((s) => s.entity_id.startsWith('media_player.')).map((s) => s.entity_id);
   entities.clear();
   if (!ids.length) { ha.players = []; return; }
@@ -71,16 +105,20 @@ async function subscribe() {
 }
 
 // subscribe_entities sends compact diffs: a = added/full, c = changed (+ set, - removed), r = removed.
-function applyDiff(ev) {
-  for (const [id, s] of Object.entries(ev.a || {})) entities.set(id, { state: s.s, attributes: s.a || {} });
+// Applies one to `map` (entity_id -> { state, attributes }); the House tab keeps its own map.
+export function applyEntityDiff(map, ev) {
+  for (const [id, s] of Object.entries(ev.a || {})) map.set(id, { state: s.s, attributes: s.a || {} });
   for (const [id, d] of Object.entries(ev.c || {})) {
-    const cur = entities.get(id) || { state: null, attributes: {} };
+    const cur = map.get(id) || { state: null, attributes: {} };
     const attributes = { ...cur.attributes };
     if (d['-'] && d['-'].a) for (const k of d['-'].a) delete attributes[k];
     if (d['+']) { if (d['+'].a) Object.assign(attributes, d['+'].a); }
-    entities.set(id, { state: d['+'] && d['+'].s !== undefined ? d['+'].s : cur.state, attributes });
+    map.set(id, { state: d['+'] && d['+'].s !== undefined ? d['+'].s : cur.state, attributes });
   }
-  for (const id of ev.r || []) entities.delete(id);
+  for (const id of ev.r || []) map.delete(id);
+}
+function applyDiff(ev) {
+  applyEntityDiff(entities, ev);
   publish();
 }
 
@@ -101,6 +139,16 @@ function publish() {
   for (const p of list) p.label = counts[p.friendly_name] > 1 ? p.friendly_name + ' · ' + roomName(p.entity_id) : (p.friendly_name || roomName(p.entity_id));
   list.sort((a, b) => ((b.state === 'playing') - (a.state === 'playing')) || a.label.localeCompare(b.label));
   ha.players = list;
+}
+
+// A subscription whose events go to onEvent. Resolves to its id, for unsubscribeFrom(id).
+export function subscribeTo(msg, onEvent) {
+  const id = nextId + 1; // send() takes the next id
+  return send(msg, onEvent).then(() => id);
+}
+export function unsubscribeFrom(id) {
+  listeners.delete(id);
+  return send({ type: 'unsubscribe_events', subscription: id }).catch(() => {});
 }
 
 export function callService(domain, service, data = {}, target = undefined) {

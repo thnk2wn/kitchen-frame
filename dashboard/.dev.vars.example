@@ -2,6 +2,8 @@
 # Google: Settings → your calendar → Integrate calendar → "Secret address in iCal format".
 # iCloud: Calendar app → right-click the calendar → Share Calendar → Public Calendar → copy link.
 CALENDAR_URLS="https://calendar.google.com/calendar/ical/.../basic.ics webcal://p00-caldav.icloud.com/published/2/..."
+# Optional: names for the Calendars show/hide list, comma-separated, in the same order as the links.
+# CALENDAR_NAMES="Personal, Family, Work"
 # Any long random string. The frame opens the dashboard once with ?key=<this>.
 DASHBOARD_KEY=""
 # Optional: IANA zone for event times that carry no zone at all (rare). Defaults to the feed's own.
@@ -16,3 +18,6 @@ TODOIST_TOKEN=""
 # ALBUM_URL="https://photos.icloud.com/shared/album/<token>"
 # Optional: token AI agents use to post messages and save recipes (any long random string).
 # AGENT_TOKEN=""
+# Optional: a Paprika Cloud Sync account, to show your own recipes (read-only).
+# PAPRIKA_EMAIL=""
+# PAPRIKA_PASSWORD=""

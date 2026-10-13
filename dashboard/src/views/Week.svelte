@@ -1,6 +1,7 @@
 <script>
   import Icon from '../components/Icon.svelte';
   import { clock, calendar, loadCalendar } from '../lib/state.svelte.js';
+  import CalendarPicker from '../components/CalendarPicker.svelte';
   import { calVars, eventsOn, addDays, time, isPast } from '../lib/format.js';
   import Month from './Month.svelte';
 
@@ -38,6 +39,7 @@
     <h2>{label}</h2>
     <div class="pager">
       {#if page > 0}<button class="today-btn" onclick={() => go(0)}>Today</button>{/if}
+      <CalendarPicker />
       <div class="seg" role="tablist" aria-label="Calendar view">
         <button role="tab" aria-selected={view === 'week'} class:on={view === 'week'} onclick={() => setView('week')}>Week</button>
         <button role="tab" aria-selected={view === 'month'} class:on={view === 'month'} onclick={() => setView('month')}>Month</button>

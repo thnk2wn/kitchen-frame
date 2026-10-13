@@ -13,12 +13,21 @@ The approach here (a full-screen kiosk WebView, a small web app served from Clou
 slideshow) follows his. The code in this repository is an independent implementation: none of it
 is copied from his repository, which has no license. Go watch the video and star his repo.
 
+## Forked from
+
+This repository is a fork of **Hunter Yeagley**'s
+[huntsyea/kitchen-frame](https://github.com/huntsyea/kitchen-frame) (MIT), which built the
+dashboard, Worker, kiosk app and frame notes this fork extends. "This project" above is his
+description of that work.
+
 ## Data and services
 
 - Weather data by [Open-Meteo](https://open-meteo.com) (CC BY 4.0).
+- Forecast text and alerts from the US [National Weather Service](https://www.weather.gov) (public domain).
 - Recipes from [TheMealDB](https://www.themealdb.com) (free API key for personal use).
-- Calendars, Todoist, iCloud Shared Albums and Home Assistant / Music Assistant are each the
-  household's own accounts, accessed through their APIs.
+- Calendars, Todoist, iCloud Shared Albums, Paprika, Spotify and Home Assistant / Music Assistant
+  are each the household's own accounts, accessed through their APIs. Paprika and iCloud's shared
+  album feed are undocumented APIs, read-only here.
 
 ## Open-source software
 

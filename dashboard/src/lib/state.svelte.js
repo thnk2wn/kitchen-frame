@@ -2,7 +2,7 @@
 // needs it (see start()), one request at a time, and unchanged results don't touch the screen.
 import { api, cached, remember, changed, forget, withKey } from './api.js';
 import { dayKey, recipeTitle } from './format.js';
-import { demoCalendar, demoList, demoMeta } from './demo.js';
+import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
 import { ha, announce } from './ha.svelte.js';
 
 const MIN = 60 * 1000;
@@ -17,12 +17,21 @@ function single(key, fn) {
 }
 // Preferred speaker for reading messages aloud until one is picked in Settings; if Home Assistant
 // has no such speaker, the first Music Assistant speaker is used instead (see announceTarget).
-const DEFAULT_SPEAKER = 'media_player.kitchen_mini';
+const DEFAULT_SPEAKER = 'media_player.kitchen_display';
 const pref = (k, d) => { try { return localStorage.getItem('frame-' + k) || d; } catch { return d; } };
+// ?demo=on|off is saved like the other settings; ?tab= opens a tab once (screenshots, setup links),
+// and ?weather=<day> opens that day's weather sheet.
+const q = new URLSearchParams(location.search);
+if (q.get('demo') === 'on' || q.get('demo') === 'off') { try { localStorage.setItem('frame-demo', q.get('demo')); } catch {} }
+const TAB_IDS = ['home', 'calendar', 'groceries', 'todo', 'recipes', 'music', 'house'];
 
 // Settings live in localStorage so they survive reboots. ?theme= still works for ADB setup.
 export const ui = $state({
-  tab: 'home', idle: false, theme: 'light', settingsOpen: false,
+  tab: TAB_IDS.includes(q.get('tab')) ? q.get('tab') : 'home', idle: false,
+  // { id, title } for Recipes to open on arrival (a meal tapped on Home, or ?open=<recipe id>).
+  openRecipe: q.get('open') ? { id: q.get('open'), title: '' } : null, theme: 'light', settingsOpen: false,
+  // Index into weather.data.days while its detail sheet is open (?weather=<n> opens it, for screenshots).
+  weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,
   themePref: pref('theme', 'auto'),          // auto | light | dark
   idleMinutes: Number(pref('idle', '5')),    // 0 = never
   nightPhotos: pref('night-photos', 'on') === 'on', // slideshow after sunset (dimmed)
@@ -46,7 +55,7 @@ export function setSetting(key, value) {
 }
 export const clock = $state({ now: new Date() });
 // In demo mode nothing real is shown at boot, even briefly, and nothing demo is cached as real.
-export const calendar = $state({ data: ui.demo ? demoCalendar(new Date()) : cached('calendar'), offline: false });
+export const calendar = $state({ data: null, raw: null, offline: false }); // filled by showCalendar below
 export const weather = $state({ data: cached('weather'), error: null });
 export const photos = $state({ items: ui.demo ? [] : cached('photos') || [] });
 // Recipes saved by agents or from Explore (GET /api/recipes).
@@ -58,6 +67,32 @@ export function loadRecipes() {
       if (changed('recipes', list)) recipes.saved = list;
       recipes.error = null;
     } catch (err) { recipes.error = err.message; }
+  });
+}
+// Paprika meal plan around today (GET /api/meals): [{ date, type, title, id?, hasImage? }].
+export const meals = $state({ items: cached('meals') || [], configured: null });
+// What the screen shows: the real plan, or an invented week in demo mode.
+export const mealItems = () => (ui.demo ? demoMeals(clock.now) : meals.items);
+export function loadMeals() {
+  return single('meals', async () => {
+    try {
+      const data = await api('/api/meals');
+      meals.configured = data.configured;
+      if (changed('meals', data.meals)) meals.items = data.meals;
+    } catch {}
+  });
+}
+
+// Our own recipes, synced read-only from Paprika by the Worker (GET /api/recipes/paprika).
+// configured: null until the first answer, then whether the Worker has a Paprika account.
+export const paprika = $state({ configured: cached('paprika')?.configured ?? null, recipes: cached('paprika')?.recipes || null, error: null });
+export function loadPaprika() {
+  return single('paprika', async () => {
+    try {
+      const data = await api('/api/recipes/paprika');
+      if (changed('paprika', data)) { paprika.configured = data.configured; paprika.recipes = data.recipes; }
+      paprika.error = null;
+    } catch (err) { paprika.error = err.message; }
   });
 }
 export async function saveRecipe(recipe) {
@@ -90,12 +125,37 @@ export const lists = $state({
   todo: { items: ui.demo ? demoList('todo', new Date()) : cached('todo'), error: null, ...(ui.demo ? demoMeta('todo') : cached('todo-meta') || { sections: [], people: {} }) },
 });
 
+// Calendars hidden on this device (Calendar tab → Calendars), by position in CALENDAR_URLS.
+// calendar.raw is the whole feed; calendar.data is what the screens show, without hidden ones.
+export const hiddenCals = $state({ set: new Set(JSON.parse(pref('hidden-cals', '[]'))) });
+function showCalendar(raw) {
+  calendar.raw = raw;
+  calendar.data = raw && hiddenCals.set.size ? { ...raw, events: raw.events.filter((e) => !hiddenCals.set.has(e.cal)) } : raw;
+}
+export function toggleCalendar(cal) {
+  const set = new Set(hiddenCals.set);
+  set.has(cal) ? set.delete(cal) : set.add(cal);
+  hiddenCals.set = set;
+  try { localStorage.setItem('frame-hidden-cals', JSON.stringify([...set])); } catch {}
+  showCalendar(calendar.raw);
+}
+showCalendar(ui.demo ? demoCalendar(new Date()) : cached('calendar')); // last copy, at boot
+
+// Display names for the show/hide list: the feed's own name, numbered when names repeat.
+export function calendarNames() {
+  const raw = calendar.raw;
+  if (!raw) return [];
+  const n = raw.calendars || 0;
+  const base = Array.from({ length: n }, (_, i) => (raw.names && raw.names[i]) || 'Calendar ' + (i + 1));
+  return base.map((name, i) => (base.filter((x) => x === name).length > 1 ? name + ' ' + (base.slice(0, i + 1).filter((x) => x === name).length) : name));
+}
+
 export function loadCalendar() {
-  if (ui.demo) { calendar.data = demoCalendar(new Date()); calendar.offline = false; return Promise.resolve(); }
+  if (ui.demo) { showCalendar(demoCalendar(new Date())); calendar.offline = false; return Promise.resolve(); }
   return single('calendar', async () => {
     try {
       const data = await api('/api/calendar');
-      if (changed('calendar', data)) calendar.data = data;
+      if (changed('calendar', data)) showCalendar(data);
       calendar.offline = false;
     } catch (err) {
       calendar.offline = true;
@@ -293,10 +353,11 @@ export function start() {
     setTimeout(tick, MIN - (Date.now() % MIN) + 50);
   })();
   every(5 * MIN, loadCalendar);
+  every(30 * MIN, loadMeals);
   every(15 * MIN, loadWeather);
-  // Tasks show on Home and Tasks; Groceries only on its own tab (App loads a list when its tab opens).
+  // Both lists show on Home; each also has its own tab (App loads a list when its tab opens).
   every(MIN, () => loadList('todo'), () => !ui.idle);
-  every(MIN, () => loadList('groceries'), () => !ui.idle && ui.tab === 'groceries');
+  every(MIN, () => loadList('groceries'), () => !ui.idle && (ui.tab === 'groceries' || ui.tab === 'home'));
   // Photos: once at start (for the next slide), then while the clock screen is up and showing photos.
   let photosOnce = true;
   every(5 * MIN, () => { photosOnce = false; return loadPhotos(); }, () => photosOnce || (ui.idle && photosVisible()));
@@ -327,4 +388,5 @@ export function startSlideshow() {
 export function exitIdle() {
   ui.idle = false;
   loadList('todo');
+  if (ui.tab === 'home' || ui.tab === 'groceries') loadList('groceries');
 }

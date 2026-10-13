@@ -1,5 +1,7 @@
 // Photos for the idle screen, from an iCloud Shared Album with "Public Website" turned on.
-// Secret: ALBUM_URL (https://photos.icloud.com/shared/album/<token>).
+// Secret: ALBUM_URL, either link format iCloud hands out:
+//   https://photos.icloud.com/shared/album/<token>   (newer: CloudKit, below)
+//   https://www.icloud.com/sharedalbum/#<token>       (classic: the sharedstreams web feed, further down)
 //
 // Uses the same anonymous CloudKit calls the album's public web page makes: resolve the share
 // token, then query the shared zone with the short-lived publicAccessAuthToken it returns. This
@@ -33,6 +35,8 @@ async function ck(url, body) {
 
 // Album -> [{ id, w, h, date, url }], newest first. Prefers the edited version of a photo.
 export async function fetchAlbum(albumUrl) {
+  const classic = classicToken(albumUrl);
+  if (classic) return fetchClassic(classic);
   const token = albumToken(albumUrl);
   if (!token) throw new Error('ALBUM_URL is not an iCloud shared album link');
   const resolved = await ck(CK + '/public/records/resolve?remapEnums=true', { shortGUIDs: [{ value: token }] });
@@ -83,6 +87,61 @@ export function toPhotos(records) {
     if (photos.length >= MAX_PHOTOS) break;
   }
   return photos;
+}
+
+// ---- Classic shared albums (www.icloud.com/sharedalbum/#<token>)
+// The album's public web page reads two endpoints: webstream (every photo with its sizes, by
+// checksum) and webasseturls (short-lived download links for chosen checksums). The first call may
+// answer 330 with the album's real host. Videos come with a PosterFrame still, used as a photo.
+export function classicToken(albumUrl) {
+  const m = /icloud\.com\/sharedalbum\/[^#]*#([A-Za-z0-9_;-]+)/.exec(albumUrl || ''); // newer tokens include - _ ;
+  return m ? m[1] : null;
+}
+async function stream(host, token, path, body) {
+  const res = await fetch('https://' + host + '/' + encodeURIComponent(token) + '/sharedstreams/' + path, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain', Origin: 'https://www.icloud.com' }, body: JSON.stringify(body),
+  });
+  if (res.status === 330) return { redirect: (await res.json().catch(() => ({})))['X-Apple-MMe-Host'] || res.headers.get('X-Apple-MMe-Host') };
+  if (!res.ok) throw new Error('iCloud HTTP ' + res.status);
+  return { data: await res.json() };
+}
+// Largest JPEG size that's at most 2560 px on its long side (iCloud's are ~2048), else the smallest.
+export function pickDerivative(photo) {
+  const ds = Object.entries(photo.derivatives || {}).map(([key, d]) => ({ key, ...d, w: Number(d.width), h: Number(d.height) }))
+    .filter((d) => d.checksum && d.w && d.h && (photo.mediaAssetType !== 'video' || d.key === 'PosterFrame'));
+  const fit = ds.filter((d) => Math.max(d.w, d.h) <= 2560).sort((a, b) => b.w * b.h - a.w * a.h);
+  return fit[0] || ds.sort((a, b) => a.w * a.h - b.w * b.h)[0] || null;
+}
+// The token's leading characters name the album's server partition (base 62), as the web page does.
+export function classicHost(token) {
+  const B62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+  const digits = token[0] === 'A' ? token.slice(1, 2) : token.slice(1, 3);
+  let n = 0;
+  for (const c of digits) n = n * 62 + B62.indexOf(c);
+  return 'p' + String(n).padStart(2, '0') + '-sharedstreams.icloud.com';
+}
+async function fetchClassic(token) {
+  let host = classicHost(token);
+  let r = await stream(host, token, 'webstream', { streamCtag: null });
+  if (r.redirect) { host = r.redirect; r = await stream(host, token, 'webstream', { streamCtag: null }); }
+  if (!r.data) throw new Error('Album is not public (turn on Public Website in the album settings)');
+  const items = (r.data.photos || [])
+    .map((p) => ({ p, d: pickDerivative(p) }))
+    .filter((x) => x.d)
+    .sort((a, b) => String(b.p.dateCreated || '').localeCompare(String(a.p.dateCreated || '')))
+    .slice(0, MAX_PHOTOS);
+  const urls = {};
+  for (let i = 0; i < items.length; i += 100) {
+    const u = await stream(host, token, 'webasseturls', { photoGuids: items.slice(i, i + 100).map((x) => x.p.photoGuid) });
+    Object.assign(urls, (u.data && u.data.items) || {});
+  }
+  return items.filter(({ d }) => urls[d.checksum]).map(({ p, d }) => ({
+    id: String(p.photoGuid).replace(/[^A-Za-z0-9-]/g, '') + '-' + String(d.checksum).replace(/[^A-Za-z0-9]/g, '').slice(0, 12),
+    w: d.w,
+    h: d.h,
+    date: p.dateCreated || null,
+    url: 'https://' + urls[d.checksum].url_location + urls[d.checksum].url_path,
+  }));
 }
 
 // Cached album list (with signed links) from KV. When it's older than MAX_AGE_MS the cached copy

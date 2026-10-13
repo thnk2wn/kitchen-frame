@@ -8,7 +8,7 @@
   import { time } from '../lib/format.js';
 
   const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
-  const IDLE = [[2, '2 min'], [5, '5 min'], [15, '15 min'], [0, 'Never']];
+  const IDLE = [[5, '5 min'], [15, '15 min'], [60, '1 hr'], [120, '2 hr'], [0, 'Never']];
   // Slideshow clock colours: white plus the iOS system colours that read well over photos.
   const CLOCK = [['#ffffff', 'White'], ['#ffd60a', 'Yellow'], ['#ff9f0a', 'Orange'], ['#ff375f', 'Pink'], ['#bf5af2', 'Purple'], ['#64d2ff', 'Blue'], ['#30d158', 'Green']];
   const close = () => (ui.settingsOpen = false);
@@ -25,6 +25,10 @@
     try { await api('/api/calendar?refresh'); } catch {}
     location.reload();
   }
+  // Timer alerts: "Announce" notify entities (Echos through Alexa Devices), kitchen ones first, up to 3.
+  import { timerSpeakerId, setTimerSpeaker } from '../lib/timers.svelte.js';
+  let announcers = $derived(ha.notify.filter((n) => /_announce$/.test(n.entity_id))
+    .sort((a, b) => (/kitchen/i.test(b.entity_id) - /kitchen/i.test(a.entity_id)) || a.name.localeCompare(b.name)).slice(0, 3));
 </script>
 
 <!-- Tap outside the sheet to close; the sheet itself swallows the tap. -->
@@ -88,6 +92,18 @@
         <div class="seg">
           <button class:on={ui.announceOn === announceSpeaker.entity_id} onclick={() => setSetting('announceOn', announceSpeaker.entity_id)}>{announceSpeaker.label}</button>
           <button class:on={ui.announceOn === 'off'} onclick={() => setSetting('announceOn', 'off')}>Off</button>
+        </div>
+      </div>
+    {/if}
+
+    {#if haConfigured() && announcers.length}
+      <div class="row">
+        <span>Timer alerts<small>Also announced on this speaker when a timer ends</small></span>
+        <div class="seg">
+          {#each announcers as n (n.entity_id)}
+            <button class:on={timerSpeakerId() === n.entity_id} onclick={() => setTimerSpeaker(n.entity_id)}>{n.name.replace(/\s*announce$/i, '')}</button>
+          {/each}
+          <button class:on={!timerSpeakerId()} onclick={() => setTimerSpeaker('off')}>Off</button>
         </div>
       </div>
     {/if}

@@ -85,3 +85,15 @@ test('fast-forwarded monthly and yearly rules match a full walk', () => {
     assert.deepEqual(fast, expected, rule);
   }
 });
+
+test('events tagged #private or marked private never reach the frame', () => {
+  const ev = (uid, lines) => `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTART:20261013T150000Z\r\nDTEND:20261013T160000Z\r\n${lines}\r\nEND:VEVENT\r\n`;
+  const feed = 'BEGIN:VCALENDAR\r\n' +
+    ev('a', 'SUMMARY:Dentist') +
+    ev('b', 'SUMMARY:Anniversary dinner #private') +
+    ev('c', 'SUMMARY:Pick up gift\r\nDESCRIPTION:Jeweller on Main St. #Private') +
+    ev('d', 'SUMMARY:Planning call\r\nCLASS:CONFIDENTIAL') +
+    ev('e', 'SUMMARY:Lunch #privateish') +
+    'END:VCALENDAR\r\n';
+  assert.deepEqual(expand(feed, 0, from, to).map((e) => e.title).sort(), ['Dentist', 'Lunch #privateish']);
+});

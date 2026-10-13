@@ -20,21 +20,98 @@
   import RecipePage from './RecipePage.svelte';
   import { api, cached, remember, withKey } from '../lib/api.js';
   import { recipeTitle } from '../lib/format.js';
-  import { recipes, loadRecipes } from '../lib/state.svelte.js';
+  import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui } from '../lib/state.svelte.js';
+  import { dayKey, addDays } from '../lib/format.js';
 
-  // Explore (TheMealDB) and Saved (agents or Save on the frame). Tapping a card opens its page
-  // over the grid, so going back keeps the scroll position and doesn't rebuild the cards.
-  const startSaved = localStorage.getItem('frame-recipes-mode') === 'saved';
-  let mode = $state(startSaved ? 'saved' : 'explore');
+  // Paprika (our library, synced by the Worker when it has an account), Explore (TheMealDB) and Saved
+  // (agents or Save on the frame). Tapping a card opens its page over the grid, so going back
+  // keeps the scroll position and doesn't rebuild the cards.
+  const stored = localStorage.getItem('frame-recipes-mode');
+  // The Paprika view appears when the Worker has a Paprika account.
+  const oursOn = () => paprika.configured !== false;
+  const startMode = stored === 'saved' || stored === 'explore' || (stored === 'meals' && oursOn()) ? stored : oursOn() ? 'ours' : 'explore';
+  let mode = $state(startMode);
   // Each pane is built the first time it's shown and then kept; switching only hides one (no
   // rebuilding cards or re-decoding photos).
-  let savedSeen = $state(startSaved);
-  let exploreSeen = $state(!startSaved);
+  let oursSeen = $state(startMode === 'ours');
+  let mealsSeen = $state(startMode === 'meals');
+  let savedSeen = $state(startMode === 'saved');
+  let exploreSeen = $state(startMode === 'explore');
   function setMode(m) {
     mode = m;
     localStorage.setItem('frame-recipes-mode', m);
+    if (m === 'ours') { oursSeen = true; loadPaprika(); }
+    if (m === 'meals') { mealsSeen = true; loadMeals(); }
     if (m === 'saved') { savedSeen = true; loadRecipes(); }
     if (m === 'explore' && !exploreSeen) { exploreSeen = true; loadCat(cat); }
+  }
+  // No Paprika account on the Worker: fall back to Explore.
+  $effect(() => { if (!oursOn() && (mode === 'ours' || mode === 'meals')) setMode('explore'); });
+
+  // Meals: the Paprika meal plan, today and the next six days.
+  let week = $derived.by(() => {
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = addDays(today, i), key = dayKey(d);
+      const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+      return { key, label, items: mealItems().filter((m) => m.date === key) };
+    });
+  });
+
+  // A meal tapped on Home opens its recipe here.
+  $effect(() => {
+    const want = ui.openRecipe;
+    if (!want) return;
+    ui.openRecipe = null;
+    openOurs({ id: want.id, title: want.title, hasImage: true });
+  });
+
+  // Paprika: filter chips are All, Favorites (if any), then the most-used Paprika categories.
+  let ourCat = $state('All');
+  let ourCats = $derived.by(() => {
+    const counts = new Map();
+    for (const r of paprika.recipes || []) for (const c of r.categories) counts.set(c, (counts.get(c) || 0) + 1);
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12).map(([c]) => c);
+    return ['All', ...((paprika.recipes || []).some((r) => r.favorite) ? ['Favorites'] : []), ...top];
+  });
+  // Search (by name) and an A–Z index strip to jump through a long library without typing.
+  let searching = $state(false);
+  let query = $state('');
+  let ourGrid = $state();
+  const fold = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const letterOf = (t) => { const c = fold(t).replace(/^[^a-z0-9]+/, '').charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : '#'; };
+  let ours = $derived((paprika.recipes || []).filter((r) =>
+    (ourCat === 'All' || (ourCat === 'Favorites' ? r.favorite : r.categories.includes(ourCat)))
+    && (!query.trim() || fold(r.title).includes(fold(query.trim())))));
+  let letters = $derived([...new Set(ours.map((r) => letterOf(r.title)))]);
+  function jump(letter) {
+    const i = ours.findIndex((r) => letterOf(r.title) === letter);
+    const el = ourGrid && ourGrid.children[i];
+    if (!el) return;
+    // Cards not yet rendered (content-visibility) are laid out at a placeholder size, so the target
+    // moves as the cards before it render: correct over a few frames until it sits at the top.
+    let tries = 6;
+    const settle = () => {
+      const off = el.getBoundingClientRect().top - ourGrid.getBoundingClientRect().top;
+      if (Math.abs(off) < 2 || !tries--) return;
+      ourGrid.scrollTop += off;
+      requestAnimationFrame(settle);
+    };
+    settle();
+  }
+  function toggleSearch() { searching = !searching; if (!searching) query = ''; }
+  const ourThumb = (r) => (r.hasImage ? withKey('/api/recipes/paprika/' + r.id.slice(4) + '/image') : null);
+  async function openOurs(card) {
+    open = { id: card.id, title: card.title, image: ourThumb(card), ingredients: [], steps: [], loading: true };
+    const want = open;
+    try {
+      const full = (await api('/api/recipes/paprika/' + encodeURIComponent(card.id.slice(4)))).recipe;
+      if (open === want) open = { ...full, image: ourThumb(card) };
+    } catch (e) { if (open === want) open = { ...want, loading: false, error: e.message }; }
+  }
+  function surprise() {
+    if (mode === 'ours') { if (ours.length) openOurs(ours[Math.floor(Math.random() * ours.length)]); }
+    else openRecipe(null, 'random=1');
   }
 
   const last = cached('recipes-cards'); // { cat, cards }: the last category shows instantly on boot
@@ -69,8 +146,10 @@
     } catch (e) { if (open === want) open = { ...want, loading: false, error: e.message }; }
   }
 
-  if (!startSaved) loadCat(first);
+  if (startMode === 'explore') loadCat(first);
+  loadMeals();
   loadRecipes();
+  loadPaprika();
 
   const savedThumb = (r) => (r.hasImage ? withKey('/api/recipes/' + r.id + '/image') : null);
 </script>
@@ -79,15 +158,94 @@
   <div class="list" class:hidden={open}>
     <header class="bar">
       <div class="seg" role="tablist" aria-label="Recipes">
+        {#if oursOn()}
+          <button role="tab" aria-selected={mode === 'meals'} class:on={mode === 'meals'} onclick={() => setMode('meals')}>Meals</button>
+          <button role="tab" aria-selected={mode === 'ours'} class:on={mode === 'ours'} onclick={() => setMode('ours')}>Paprika{#if paprika.recipes?.length}<span class="n num">{paprika.recipes.length}</span>{/if}</button>
+        {/if}
         <button role="tab" aria-selected={mode === 'explore'} class:on={mode === 'explore'} onclick={() => setMode('explore')}>Explore</button>
         <button role="tab" aria-selected={mode === 'saved'} class:on={mode === 'saved'} onclick={() => setMode('saved')}>Saved{#if recipes.saved?.length}<span class="n num">{recipes.saved.length}</span>{/if}</button>
       </div>
-      {#if mode === 'explore'}
-        <button class="btn tint" onclick={() => openRecipe(null, 'random=1')}><Icon name="shuffle" size={20} />Surprise me</button>
-      {/if}
+      <div class="actions">
+        {#if mode === 'ours'}
+          <button class="btn tint" class:on={searching} onclick={toggleSearch} aria-label="Search recipes"><Icon name="search" size={20} />Search</button>
+        {/if}
+        {#if mode === 'explore' || mode === 'ours'}
+          <button class="btn tint" onclick={surprise}><Icon name="shuffle" size={20} />Surprise me</button>
+        {/if}
+      </div>
     </header>
 
     <div class="panes">
+      {#if mealsSeen}
+        <div class="pane" class:off={mode !== 'meals'}>
+          <div class="week">
+            {#each week as d (d.key)}
+              <section class="day" class:today={d.label === 'Today'}>
+                <h3>{d.label}</h3>
+                <div class="dmeals">
+                  {#each d.items as m (m.type + m.title)}
+                    <button class="mcard sheet" class:bare={!m.id} disabled={!m.id} onclick={() => openOurs({ id: m.id, title: m.title, hasImage: m.hasImage })}>
+                      {#if m.id && m.hasImage}<img src={ourThumb({ id: m.id, hasImage: true })} alt="" loading="lazy" decoding="async" use:fade />{:else}<span class="mnoimg"><Icon name="utensils" size={22} /></span>{/if}
+                      <span class="mlabel"><span class="mtype">{m.type}</span><span class="mtitle">{recipeTitle(m.title)}</span></span>
+                    </button>
+                  {:else}
+                    <span class="nothing">Nothing planned</span>
+                  {/each}
+                </div>
+              </section>
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      {#if oursSeen}
+        <div class="pane" class:off={mode !== 'ours'}>
+          {#if paprika.recipes && !paprika.recipes.length}
+            <div class="sheet empty">
+              <span class="empty-icon"><Icon name="utensils" size={30} /></span>
+              <h2>Bringing in your recipes</h2>
+              <p>The first sync from Paprika runs a batch every 15 minutes. They’ll show up here as they arrive.</p>
+            </div>
+          {:else}
+            {#if searching}
+              <!-- svelte-ignore a11y_autofocus -->
+              <input class="search" bind:value={query} placeholder="Search {paprika.recipes?.length || ''} recipes by name" autofocus autocomplete="off" enterkeyhint="search" />
+            {:else}
+              <div class="chips scrollx">
+                {#each ourCats as c (c)}
+                  <button class="chip" class:on={c === ourCat} onclick={() => (ourCat = c)}>{c}</button>
+                {/each}
+              </div>
+            {/if}
+            <div class="withindex">
+            <div class="grid" bind:this={ourGrid}>
+              {#if !paprika.recipes}
+                {#each Array(10) as _, i (i)}<div class="card sheet ghost"></div>{/each}
+              {/if}
+              {#each ours as r (r.id)}
+                <button class="card sheet" class:bare={!ourThumb(r)} onclick={() => openOurs(r)}>
+                  <span class="ph">
+                    {#if ourThumb(r)}<img src={ourThumb(r)} alt="" loading="lazy" decoding="async" use:fade />{:else}<span class="noimg"><Icon name="utensils" size={36} /></span>{/if}
+                  </span>
+                  <span class="label">
+                    <span class="title">{recipeTitle(r.title)}</span>
+                    {#if r.categories.length}<span class="sub">{r.categories.join(' · ')}</span>{/if}
+                  </span>
+                </button>
+              {:else}
+                {#if paprika.recipes}<p class="note">No recipes match.</p>{/if}
+              {/each}
+            </div>
+            {#if letters.length > 6}
+              <div class="index" aria-label="Jump to letter">
+                {#each letters as l (l)}<button onclick={() => jump(l)}>{l}</button>{/each}
+              </div>
+            {/if}
+            </div>
+          {/if}
+        </div>
+      {/if}
+
       {#if exploreSeen}
       <div class="pane" class:off={mode !== 'explore'}>
         <div class="chips">
@@ -165,6 +323,35 @@
   .chips { flex: none; display: flex; gap: 6px; }
   .chip { flex: 1 0 auto; height: 40px; padding: 0 10px; border-radius: 20px; background: var(--track); font-size: 16px; font-weight: 600; white-space: nowrap; text-align: center; }
   .chip.on { background: var(--label); color: var(--sheet); }
+  /* Ours: as many chips as we have categories, so the row scrolls sideways instead of stretching. */
+  /* Meals: one row per day, its meals as wide cards. */
+  .week { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+  .day { display: grid; grid-template-columns: 190px 1fr; align-items: center; gap: 14px; }
+  .day h3 { margin: 0 6px; font-size: 19px; font-weight: 700; color: var(--secondary); }
+  .day.today h3 { color: var(--orange-text); }
+  .dmeals { display: flex; gap: 10px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .mcard { flex: 0 0 340px; display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 16px; text-align: left; }
+  .mcard:not(:disabled):active { opacity: .7; }
+  .mcard:disabled { opacity: 1; }
+  .mcard img, .mnoimg { flex: none; width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: var(--track); }
+  .mnoimg { display: grid; place-items: center; color: var(--secondary); }
+  .mlabel { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .mtype { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--orange-text); }
+  .mtitle { font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nothing { padding: 20px 6px; font-size: 17px; color: var(--tertiary); }
+  .actions { display: flex; gap: 10px; }
+  .btn.tint.on { background: var(--label); color: var(--sheet); }
+  .search { flex: none; height: 46px; padding: 0 18px; border: 0; border-radius: 23px; background: var(--sheet); font: inherit; font-size: 19px; color: var(--label); outline: none; }
+  .search::placeholder { color: var(--secondary); }
+  /* Paprika grid with an A–Z strip down its right edge (tap a letter to jump). */
+  .withindex { flex: 1; min-height: 0; display: flex; gap: 8px; }
+  .withindex .grid { flex: 1; }
+  .index { flex: none; width: 30px; display: flex; flex-direction: column; justify-content: space-between; padding: 4px 0; border-radius: 15px; background: var(--track); }
+  .index button { flex: 1; max-height: 34px; font-size: 13px; font-weight: 700; color: var(--blue-text); text-align: center; }
+  .index button:active { background: var(--thumb); border-radius: 8px; }
+  .chips.scrollx { overflow-x: auto; scrollbar-width: none; }
+  .chips.scrollx::-webkit-scrollbar { display: none; }
+  .chips.scrollx .chip { flex: none; padding: 0 16px; }
   .chip:not(.on):active { opacity: .6; }
   .note { grid-column: 1 / -1; margin: 0 6px; font-size: 18px; color: var(--secondary); }
   .retry { font-size: 18px; font-weight: 600; color: var(--blue-text); }

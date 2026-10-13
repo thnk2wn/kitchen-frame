@@ -1,7 +1,7 @@
 <script>
   import Icon from '../components/Icon.svelte';
   import TaskRow from '../components/TaskRow.svelte';
-  import { clock, lists, completeItem, addItem } from '../lib/state.svelte.js';
+  import { clock, lists, ui, completeItem, addItem } from '../lib/state.svelte.js';
   // board: Tasks, one card per Todoist section. Otherwise (Groceries) one card, items in columns,
   // grouped under section names when the project has sections.
   let { name, title, accent, accentText, board = false } = $props();
@@ -55,7 +55,14 @@
         <button type="button" class="btn" onclick={() => { adding = false; draft = ''; }}>Done</button>
       </form>
     {:else}
-      <h1>{list.project || title}<span class="count">{items.length} {items.length === 1 ? noun[0] : noun[1]}</span></h1>
+      <!-- Groceries | Tasks: both Todoist lists live in one tab. -->
+      <div class="seg" role="tablist" aria-label="Lists">
+        {#each [['groceries', 'Groceries'], ['todo', 'Tasks']] as [id, label] (id)}
+          <button role="tab" aria-selected={name === id} class:on={name === id} onclick={() => (ui.tab = id)}>
+            {label}{#if lists[id].items}<span class="n num">{lists[id].items.length}</span>{/if}
+          </button>
+        {/each}
+      </div>
       <button class="btn tint" onclick={openAdd}><Icon name="plus" size={20} />Add</button>
     {/if}
   </header>
@@ -109,8 +116,10 @@
 <style>
   .wrap { height: 100%; padding: 6px 28px 28px; display: flex; flex-direction: column; gap: 16px; }
   .bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 56px; padding: 0 6px; }
-  h1 { margin: 0; display: flex; align-items: baseline; gap: 14px; font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
-  .count { font-size: 19px; font-weight: 500; color: var(--secondary); letter-spacing: 0; }
+  .seg { display: flex; padding: 3px; border-radius: 14px; background: var(--track); }
+  .seg button { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 150px; height: 46px; padding: 0 20px; border-radius: 11px; font-size: 19px; font-weight: 500; }
+  .seg button.on { background: var(--thumb); font-weight: 700; color: var(--accent-text); }
+  .seg .n { font-size: 16px; font-weight: 600; color: var(--secondary); }
   .btn { display: inline-flex; align-items: center; gap: 6px; height: 48px; padding: 0 20px; border-radius: 24px; font-size: 19px; font-weight: 600; color: var(--accent-text); }
   .btn.tint { background: var(--track); }
   .btn.solid { background: var(--accent); color: #fff; }

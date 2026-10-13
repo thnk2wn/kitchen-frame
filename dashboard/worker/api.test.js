@@ -99,12 +99,37 @@ test('unknown list and missing token', async () => {
 test('weather is reduced to what the screen shows', () => {
   const w = shape({
     current: { temperature_2m: 61.6, apparent_temperature: 59.2, weather_code: 3, is_day: 1 },
-    daily: { time: ['2026-10-12'], temperature_2m_max: [68.4], temperature_2m_min: [50.5], precipitation_probability_max: [20], weather_code: [61], sunrise: ['2026-10-12T07:03'], sunset: ['2026-10-12T18:21'] },
-  }, 'fahrenheit');
+    daily: { time: ['2026-10-12'], temperature_2m_max: [68.4], temperature_2m_min: [50.5], precipitation_probability_max: [20], weather_code: [61], sunrise: ['2026-10-12T07:03'], sunset: ['2026-10-12T18:21'],
+      precipitation_sum: [0.12], wind_speed_10m_max: [9.6], wind_gusts_10m_max: [21.2], wind_direction_10m_dominant: [225], uv_index_max: [5.4] },
+    hourly: { time: ['2026-10-12T23:00', '2026-10-13T00:00'], temperature_2m: [55.4, 54], precipitation_probability: [10, 0], weather_code: [2, 0], is_day: [0, 0] },
+  }, 'fahrenheit', {
+    periods: [
+      { name: 'This Afternoon', startTime: '2026-10-12T14:00:00-04:00', isDaytime: true, shortForecast: 'Cloudy', detailedForecast: 'Cloudy, with a high near 68.' },
+      { name: 'Tonight', startTime: '2026-10-12T18:00:00-04:00', isDaytime: false, detailedForecast: 'Clear, with a low around 51.' },
+      { name: 'Tuesday', startTime: '2026-10-13T06:00:00-04:00', isDaytime: true, detailedForecast: 'Sunny.' },
+    ],
+    alerts: [{ properties: { event: 'Heat Advisory', headline: 'Heat Advisory until 8 PM', severity: 'Moderate', ends: '2026-10-12T20:00:00-04:00', description: 'Hot.', instruction: 'Drink water.' } }],
+  });
   assert.deepEqual({ ...w, updated: undefined }, {
     unit: 'F', temp: 62, feels: 59, code: 3, day: true, updated: undefined,
-    days: [{ date: '2026-10-12', hi: 68, lo: 51, rain: 20, code: 61, sunrise: '2026-10-12T07:03', sunset: '2026-10-12T18:21' }],
+    days: [{
+      date: '2026-10-12', hi: 68, lo: 51, rain: 20, code: 61, sunrise: '2026-10-12T07:03', sunset: '2026-10-12T18:21',
+      precip: 0.12, wind: 10, gusts: 21, windDir: 'SW', uv: 5, short: 'Cloudy', shortNight: false,
+      text: [{ name: 'This Afternoon', night: false, text: 'Cloudy, with a high near 68.' }, { name: 'Tonight', night: true, text: 'Clear, with a low around 51.' }],
+      hours: [{ hour: 23, temp: 55, rain: 10, code: 2, day: false }],
+    }],
+    alerts: [{ event: 'Heat Advisory', headline: 'Heat Advisory until 8 PM', severity: 'Moderate', ends: '2026-10-12T20:00:00-04:00', text: 'Hot.\n\nDrink water.' }],
   });
+});
+
+test('weather without NWS (outside the US, or NWS down) has no text or alerts', () => {
+  const w = shape({
+    current: { temperature_2m: 20, apparent_temperature: 19, weather_code: 0, is_day: 1 },
+    daily: { time: ['2026-10-12'], temperature_2m_max: [22], temperature_2m_min: [12], precipitation_probability_max: [null], weather_code: [0], sunrise: ['2026-10-12T07:03'], sunset: ['2026-10-12T18:21'] },
+  }, 'celsius');
+  assert.equal(w.unit, 'C');
+  assert.deepEqual(w.alerts, []);
+  assert.deepEqual([w.days[0].text, w.days[0].short, w.days[0].hours, w.days[0].rain, w.days[0].wind, w.days[0].windDir], [[], null, [], 0, null, null]);
 });
 
 test('stale calendar copy is served now and refreshed in the background', async () => {
@@ -312,7 +337,7 @@ test('calendar cron writes KV only when events change, or hourly', async () => {
     return puts.length;
   };
   const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
-  assert.equal(await run({ updated: ago(20), calendars: 1, errors: [], events: [] }), 0); // unchanged, recent
+  assert.equal(await run({ updated: ago(20), calendars: 1, names: [null], errors: [], events: [] }), 0); // unchanged, recent
   assert.equal(await run({ updated: ago(90), calendars: 1, errors: [], events: [] }), 1); // unchanged, hourly heartbeat
   assert.equal(await run({ updated: ago(5), calendars: 1, errors: [], events: [{ uid: 'gone' }] }), 1); // changed
   assert.equal(await run(null), 1); // first run
@@ -333,4 +358,15 @@ test('messages: posts and dismissals are pushed to connected frames at once; exp
   // The socket route needs the frame key (in the URL) and a WebSocket upgrade.
   assert.equal((await worker.fetch(new Request('https://frame.test/api/messages/live?key=wrong'), menv, {})).status, 401);
   assert.equal((await worker.fetch(new Request('https://frame.test/api/messages/live?key=k'), menv, {})).status, 426);
+});
+
+import { classicToken, pickDerivative } from './photos.js';
+test('classic shared album links and the size picked for each photo', () => {
+  assert.equal(classicToken('https://www.icloud.com/sharedalbum/#B0aGWZuqDGh2xyz'), 'B0aGWZuqDGh2xyz');
+  assert.equal(classicToken('https://www.icloud.com/sharedalbum/#D0abcdefghij-K_lm'), 'D0abcdefghij-K_lm');
+  assert.equal(classicToken('https://photos.icloud.com/shared/album/abc'), null);
+  const photo = { derivatives: { 342: { checksum: 's', width: '342', height: '256' }, 2049: { checksum: 'l', width: '2049', height: '1536' }, 4032: { checksum: 'o', width: '4032', height: '3024' } } };
+  assert.equal(pickDerivative(photo).checksum, 'l');
+  const video = { mediaAssetType: 'video', derivatives: { PosterFrame: { checksum: 'p', width: '1280', height: '720' }, '720p': { checksum: 'v', width: '1280', height: '720' } } };
+  assert.equal(pickDerivative(video).checksum, 'p');
 });

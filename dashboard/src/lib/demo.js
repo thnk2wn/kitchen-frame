@@ -55,3 +55,49 @@ export function demoMeta(name) {
     people: { p1: 'Alex Morgan', p2: 'Sam Rivera' },
   };
 }
+
+// Demo House tab: an invented home, shaped like a mirrored HA dashboard. Taps change it locally.
+export function demoHouse() {
+  const s = (state, attributes = {}) => ({ state, attributes });
+  return {
+    title: 'Home',
+    header: '## ☀️ Sunny 72°F · 🏠 70.5°F\n\n## 🔒 Locked · 🚪 All closed\n\n## 📍 Alex: Home · Sam: Away',
+    groups: [
+      { title: 'Key Devices', items: [
+        { kind: 'climate', entity: 'climate.downstairs' }, { kind: 'climate', entity: 'climate.upstairs' },
+        { kind: 'toggle', entity: 'light.kitchen' }, { kind: 'toggle', entity: 'light.porch' },
+        { kind: 'toggle', entity: 'fan.bedroom' }, { kind: 'lock', entity: 'lock.front_door' },
+        { kind: 'cover', entity: 'cover.office_shade' }, { kind: 'value', entity: 'sensor.office_temperature' },
+      ] },
+      { title: 'Cameras', items: [{ kind: 'camera', entity: 'camera.front_door' }, { kind: 'camera', entity: 'camera.backyard' }] },
+      { title: 'Laundry', items: [{ kind: 'text', key: 'laundry' }] },
+    ],
+    text: { laundry: '## 🧺 Dryer running\nAbout **18 min** left · started 7:42 PM' },
+    states: {
+      'climate.downstairs': s('heat_cool', { friendly_name: 'Downstairs', current_temperature: 71, target_temp_low: 68, target_temp_high: 74, hvac_action: 'heating' }),
+      'climate.upstairs': s('heat_cool', { friendly_name: 'Upstairs', current_temperature: 70, target_temp_low: 67, target_temp_high: 73, hvac_action: 'idle' }),
+      'light.kitchen': s('on', { friendly_name: 'Kitchen lights', brightness: 204 }),
+      'light.porch': s('off', { friendly_name: 'Porch light' }),
+      'fan.bedroom': s('off', { friendly_name: 'Bedroom fan' }),
+      'lock.front_door': s('locked', { friendly_name: 'Front door' }),
+      'cover.office_shade': s('closed', { friendly_name: 'Office shade' }),
+      'sensor.office_temperature': s('69.8', { friendly_name: 'Office temperature', unit_of_measurement: '°F', device_class: 'temperature' }),
+      'camera.front_door': s('idle', { friendly_name: 'Front Door' }),
+      'camera.backyard': s('idle', { friendly_name: 'Backyard' }),
+    },
+  };
+}
+
+// Demo meal plan: an invented week (text-only entries, so no recipe pages or photos).
+export function demoMeals(now) {
+  const day = (n) => dayKey(addDays(now, n));
+  return [
+    { date: day(0), type: 'Dinner', title: 'Sheet-pan lemon chicken' },
+    { date: day(1), type: 'Dinner', title: 'Taco night' },
+    { date: day(2), type: 'Breakfast', title: 'Blueberry pancakes' },
+    { date: day(2), type: 'Dinner', title: 'Leftovers' },
+    { date: day(3), type: 'Dinner', title: 'Salmon and rice bowls' },
+    { date: day(4), type: 'Dinner', title: 'Pizza and a movie' },
+    { date: day(6), type: 'Lunch', title: 'Family brunch' },
+  ];
+}

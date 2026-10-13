@@ -3,6 +3,15 @@
 import ICAL from 'ical.js';
 
 const DAY = 864e5;
+// Events kept off the frame: "#private" anywhere in the title or notes (say, a surprise in a
+// personal calendar that is published for the frame), or marked Private/Confidential in the app.
+const PRIVATE_TAG = /#private\b/i;
+export function isPrivate(comp) {
+  const cls = String(comp.getFirstPropertyValue('class') || '').toUpperCase();
+  if (cls === 'PRIVATE' || cls === 'CONFIDENTIAL') return true;
+  return PRIVATE_TAG.test(String(comp.getFirstPropertyValue('summary') || '')) ||
+    PRIVATE_TAG.test(String(comp.getFirstPropertyValue('description') || ''));
+}
 const MAX_OCCURRENCES = 20000; // per recurring event; a daily event from 1990 is ~13,000
 
 // Cron runs get 10 ms of CPU on the Workers Free plan, and a Google feed holds every event ever
@@ -44,6 +53,7 @@ export function expand(text, cal, from, to, fallbackTz = 'UTC') {
 
   function emit(comp, uid, start, end, startTz) {
     if (String(comp.getFirstPropertyValue('status')).toUpperCase() === 'CANCELLED') return;
+    if (isPrivate(comp)) return;
     const ev = toEvent(comp, uid, cal, start, end, startTz);
     if (ev.endMs > from && ev.startMs < to) events.push(ev);
   }

@@ -91,6 +91,7 @@ public class MainActivity extends Activity {
     WebSettings s = web.getSettings();
     s.setJavaScriptEnabled(true);
     s.setDomStorageEnabled(true); // the dashboard keeps its key and last data in localStorage
+    s.setMediaPlaybackRequiresUserGesture(false); // timer chimes must sound without a tap first
     s.setUseWideViewPort(true);   // honour <meta name="viewport" content="width=1280">
     s.setLoadWithOverviewMode(true);
     s.setSupportZoom(false);

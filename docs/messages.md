@@ -27,7 +27,7 @@ curl -X POST https://photo-frame-dashboard.<your-subdomain>.workers.dev/api/mess
   out of memory and not billed, while the connection stays open. The frame's keep-alive "ping"
   every 30 seconds is answered by Cloudflare's runtime ("pong") without waking it. It wakes only
   to accept a connection, store a post or dismissal, or remove a message whose `ttl_minutes`
-  ran out (a scheduled alarm). This fits well inside the Durable Objects usage included with Workers Paid (and would on Free too).
+  ran out (a scheduled alarm). This fits well inside the free plan's Durable Objects allowance.
 - **Demo mode** holds messages back; they appear when demo mode is switched off.
 - **Read aloud:** the frame has Home Assistant speak each new message on the Kitchen Mini (Piper voice,
   local): "Message from <from>. <title>. <body>", up to 400 characters. Music on that speaker pauses and

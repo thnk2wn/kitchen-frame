@@ -71,6 +71,24 @@ export function weatherInfo(code, day = true) {
   if (code <= 86) return { label: 'Snow Showers', icon: 'snow', tint: '' };
   return { label: 'Thunderstorms', icon: 'storm', tint: 'rain' };
 }
+
+// A forecast day's label and icon: the National Weather Service's short forecast when there is one
+// ("Sunny", "Chance Rain Showers then Mostly Sunny"), otherwise Open-Meteo's daily code. The daily
+// code is the day's worst hour, so a sunny day with evening clouds would otherwise read "Cloudy".
+export function dayInfo(d) {
+  const s = d.short ? d.short.split(/ then /i)[0].toLowerCase() : '';
+  const night = !!d.shortNight;
+  const pick = (icon, tint) => ({ label: d.short, icon, tint });
+  if (!s) return weatherInfo(d.code);
+  if (/thunder/.test(s)) return pick('storm', 'rain');
+  if (/snow|flurr|sleet|ice|wintry/.test(s)) return pick('snow', '');
+  if (/rain|shower|drizzle/.test(s)) return pick('rain', 'rain');
+  if (/fog|haze|smoke/.test(s)) return pick('fog', '');
+  if (/partly|mostly sunny|mostly clear/.test(s)) return pick(night ? 'cloud' : 'cloudSun', night ? '' : 'sun');
+  if (/cloud|overcast/.test(s)) return pick('cloud', '');
+  if (/sunny|clear|fair/.test(s)) return pick(night ? 'moon' : 'sun', night ? '' : 'sun');
+  return { ...weatherInfo(d.code), label: d.short };
+}
 export function dow(date) {
   return new Date(date + 'T12:00').toLocaleDateString([], { weekday: 'short' });
 }
