@@ -13,6 +13,8 @@
   const CLOCK = [['#ffffff', 'White'], ['#ffd60a', 'Yellow'], ['#ff9f0a', 'Orange'], ['#ff375f', 'Pink'], ['#bf5af2', 'Purple'], ['#64d2ff', 'Blue'], ['#30d158', 'Green']];
   const close = () => (ui.settingsOpen = false);
   let reloading = $state(false);
+  // The running version: the hash in the page's script name (a new deploy changes it).
+  const version = ((/assets\/index-([\w-]+)\.js/.exec(document.documentElement.innerHTML) || [])[1] || 'dev').slice(0, 6);
 
   // Brightness goes through the kiosk app (window.FrameKiosk); not available in a normal browser.
   const kiosk = typeof window !== 'undefined' ? window.FrameKiosk : null;
@@ -125,7 +127,7 @@
     </div>
 
     <div class="row last">
-      <span>{ui.demo ? 'Showing demo data' : (calendar.data ? 'Calendar updated ' + time(new Date(calendar.data.updated)) : 'Calendar not loaded') + ' · ' + photos.items.length + ' photos'}</span>
+      <span>{ui.demo ? 'Showing demo data' : (calendar.data ? 'Calendar updated ' + time(new Date(calendar.data.updated)) : 'Calendar not loaded') + ' · ' + photos.items.length + ' photos'} · version {version}</span>
       <button class="reload" disabled={reloading} onclick={reload}><Icon name="reload" size={20} />{reloading ? 'Reloading…' : 'Reload'}</button>
     </div>
   </section>

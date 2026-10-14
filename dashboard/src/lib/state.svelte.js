@@ -368,8 +368,33 @@ export function start() {
   every(MIN, loadMessages, () => !socketUp);
 
   // Idle: no touch for the chosen time -> ambient screen. Any touch wakes it back to Home.
-  addEventListener('pointerdown', rearmIdle, { passive: true });
+  addEventListener('pointerdown', () => { lastTouch = Date.now(); rearmIdle(); }, { passive: true });
   rearmIdle();
+  // Back on the clock screen if a new version reloaded the page from there.
+  try { if (sessionStorage.getItem('frame-resume-idle')) { sessionStorage.removeItem('frame-resume-idle'); startSlideshow(); } } catch {}
+  every(10 * MIN, checkForUpdate);
+  every(MIN, reloadIfUpdated, () => updateReady);
+}
+
+// New deploys: the page's script is named after its content hash (assets/index-<hash>.js), so a
+// different name in a fresh copy of the page means a new version. It loads at a quiet moment: on
+// the clock screen, or after 10 minutes untouched, and never over a timer alert or the doorbell.
+// Timers and settings live in localStorage, so they carry over.
+let lastTouch = Date.now();
+let updateReady = false;
+const scriptName = (html) => (/assets\/(index-[\w-]+\.js)/.exec(html) || [])[1] || null;
+async function checkForUpdate() {
+  if (updateReady || import.meta.env.DEV) return;
+  const mine = scriptName(document.documentElement.innerHTML);
+  const res = await fetch('/', { cache: 'no-store' });
+  const latest = res.ok ? scriptName(await res.text()) : null;
+  if (mine && latest && latest !== mine) updateReady = true;
+}
+function reloadIfUpdated() {
+  const quiet = ui.idle || Date.now() - lastTouch > 10 * MIN;
+  if (!quiet || document.querySelector('[role="alertdialog"]')) return;
+  try { if (ui.idle) sessionStorage.setItem('frame-resume-idle', '1'); } catch {}
+  location.reload();
 }
 
 let idleTimer;
