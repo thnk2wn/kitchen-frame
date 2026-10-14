@@ -18,7 +18,7 @@ lists other frames that work.
 | --- | --- | --- |
 | ![Week view](docs/images/calendar-dark.jpg) | ![Tasks](docs/images/tasks-light.jpg) | ![Recipes](docs/images/recipes-light.jpg) |
 
-| Recipe with step timers | Music | House |
+| Recipe with timers in its directions | Music | House |
 | --- | --- | --- |
 | ![Recipe page](docs/images/recipe-page-light.jpg) | ![Music](docs/images/music-light.jpg) | ![House](docs/images/house-light.jpg) |
 
@@ -61,7 +61,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 
 | Feature | What it does |
 | --- | --- |
-| **[Paprika recipes](#our-recipes-from-paprika)** | A read-only sync of your library: categories, search, an A–Z index, your notes and nutrition. |
+| **[Paprika recipes](#our-recipes-from-paprika)** | A read-only sync of your library: categories, search, an A–Z index, your notes and nutrition. Tap a direction to mark your place; earlier ones are checked off. |
 | **Meal plan** | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
 | **[Timers](#timers)** | Tap a time, then a name (Pasta, Oven). Recipe steps' times are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
 | **Lists** | Groceries and Tasks in one tab, and side by side on Home. |

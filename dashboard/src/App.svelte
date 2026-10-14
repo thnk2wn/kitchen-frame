@@ -72,7 +72,8 @@
       {#if ui.tab !== 'home'}<span class="num now">{time(clock.now)}</span>{/if}
       <!-- While a timer runs its chip takes this space; Home still shows the weather. -->
       {#if wx && !timers.list.some((t) => !t.done)}<button class="wxbtn" onclick={() => (ui.weatherDay = 0)} aria-label="Weather details"><span class="wx {info.tint}"><Icon name={info.icon} size={26} /></span><span class="num">{wx.temp}°</span></button>{/if}
-      <button class="gear play" onclick={startSlideshow} aria-label="Start slideshow"><Icon name="play" size={24} /></button>
+      <!-- The slideshow button also gives way to a running timer (with a notice chip there'd be no room). -->
+      {#if !timers.list.some((t) => !t.done)}<button class="gear play" onclick={startSlideshow} aria-label="Start slideshow"><Icon name="play" size={24} /></button>{/if}
       <button class="gear" onclick={() => (ui.settingsOpen = !ui.settingsOpen)} aria-label="Settings"><Icon name="gear" size={26} /></button>
     </div>
   </header>

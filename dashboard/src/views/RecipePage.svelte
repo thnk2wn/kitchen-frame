@@ -1,3 +1,10 @@
+<script module>
+  // Where you are in each recipe's directions, kept while the page is open so leaving a recipe (or
+  // the clock screen taking over) and coming back keeps your place. Forgotten after 4 hours.
+  const places = new Map(); // recipe id -> { step, at }
+  const PLACE_MS = 4 * 3600 * 1000;
+</script>
+
 <script>
   import Icon from '../components/Icon.svelte';
   import { recipeTitle } from '../lib/format.js';
@@ -6,6 +13,15 @@
   import { startTimer, splitDurations } from '../lib/timers.svelte.js';
   let { recipe, onback } = $props();
   let showNutrition = $state(false);
+
+  // Tap a step to make it the current one: it's highlighted and the steps before it are checked off.
+  // Tap it again to clear. Times inside a step still start timers.
+  const saved = places.get(recipe.id);
+  let current = $state(saved && Date.now() - saved.at < PLACE_MS ? saved.step : -1);
+  function setStep(i) {
+    current = current === i ? -1 : i;
+    if (current < 0) places.delete(recipe.id); else places.set(recipe.id, { step: current, at: Date.now() });
+  }
 
   // A recipe opened from Explore has an "mdb:" id; a saved one has its own id, savedAt and maybe ref.
   // While loading, recipe is a stand-in with the card's title and photo (loading: true).
@@ -88,12 +104,15 @@
   </section>
 
   <section class="sheet steps">
-    <h2>Steps</h2>
+    <h2>Directions</h2>
     <ol class="scroll">
       {#if recipe.loading}{#each Array(4) as _, i (i)}<span class="ghost para"></span>{/each}{/if}
       {#each recipe.steps as step, i (i)}
         <!-- Times in a step ("bake 25 minutes") are buttons that start a timer named after the recipe. -->
-        <li><span class="num">{i + 1}</span><p>{#each splitDurations(step) as part, j (j)}{#if typeof part === 'string'}{part}{:else}<button class="tm" onclick={() => startTimer(recipeTitle(recipe.title), part.seconds)}>⏱ {part.text}</button>{/if}{/each}</p></li>
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <li class:on={i === current} class:done={i < current} onclick={() => setStep(i)} onkeydown={(e) => e.key === 'Enter' && setStep(i)}>
+          <span class="num">{#if i < current}<Icon name="check" size={18} />{:else}{i + 1}{/if}</span><p>{#each splitDurations(step) as part, j (j)}{#if typeof part === 'string'}{part}{:else}<button class="tm" onclick={(e) => { e.stopPropagation(); startTimer(recipeTitle(recipe.title), part.seconds); }}>⏱ {part.text}</button>{/if}{/each}</p>
+        </li>
       {/each}
     </ol>
   </section>
@@ -132,8 +151,16 @@
   .name { flex: 1; min-width: 0; font-size: 19px; }
   .have .name { color: var(--secondary); text-decoration: line-through; }
   .measure { font-size: 16px; color: var(--secondary); white-space: nowrap; }
-  ol { margin: 8px 0 0; padding: 0; list-style: none; }
-  li { display: flex; gap: 14px; padding: 8px 0 10px; }
+  /* overflow-x: the highlighted step reaches into the card's padding (negative margins) without a sideways scroll. */
+  ol { margin: 8px 0 0; padding: 0; list-style: none; overflow-x: hidden; }
+  .steps ol { margin-left: -10px; margin-right: -10px; padding: 0 10px; }
+  li { display: flex; gap: 14px; margin: 0 -10px; padding: 8px 10px 10px; border-radius: 14px; }
+  li:active { background: var(--press); }
+  /* The current step: highlighted like Paprika's tapped paragraph; earlier ones dim with a check. */
+  li.on { background: var(--press); }
+  li.on .num { background: var(--orange); color: #fff; }
+  li.done p { color: var(--secondary); }
+  li.done .num { color: var(--secondary); }
   li .num { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--track); font-size: 16px; font-weight: 700; }
   .ghost { display: block; border-radius: 8px; background: var(--track); }
   .ghost.photo { height: 230px; border-radius: 0; }
