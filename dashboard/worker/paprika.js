@@ -17,11 +17,11 @@ const API = 'https://www.paprikaapp.com/api';
 const KEY = 'paprika';
 const TOKEN_KEY = 'paprika-token';
 const IMAGE_KEY = 'paprika-image:';
-const BATCH = 12;          // recipes fetched per run (each may also fetch its photo)
+const BATCH = 10;          // recipes fetched per run (each may also fetch its photo: up to 4 requests)
 const PHOTO_WIDTH = 640;   // same as saved recipes
 const MAX_IMAGE = 3 * 1024 * 1024;
 // Bumped when fromPaprika keeps more fields, so already-synced recipes are fetched again (in batches).
-const RECIPE_VERSION = 2;
+const RECIPE_VERSION = 4; // 3: the full-size photo (photo_large); 4: renamed categories, trashed recipes
 
 export const paprikaConfigured = (env) => !!(env.PAPRIKA_EMAIL && env.PAPRIKA_PASSWORD);
 
@@ -177,7 +177,15 @@ export async function syncPaprika(env) {
       }
       const prev = byUid.get(uid);
       const recipe = fromPaprika({ ...p, hash: p.hash || hash }, categoryNames);
-      recipe.hasImage = !!(prev && prev.hasImage && prev.photoHash === recipe.photoHash);
+      recipe.photoLarge = p.photo_large || '';
+      recipe.hasImage = !!(prev && prev.hasImage && prev.photoHash === recipe.photoHash && (prev.photoLarge || '') === recipe.photoLarge);
+      // The full-size photo when the recipe has one; photo_url is only Paprika's 280px thumbnail.
+      if (!recipe.hasImage && p.photo_large) {
+        try {
+          const full = await get(env, '/v2/sync/photo/' + encodeURIComponent(p.photo_large.replace(/\.\w+$/, '')) + '/', state);
+          if (full && full.photo_url) recipe.hasImage = await storePhoto(env, uid, full.photo_url);
+        } catch {}
+      }
       if (!recipe.hasImage && p.photo_url) recipe.hasImage = await storePhoto(env, uid, p.photo_url);
       if (!recipe.hasImage && /^https:/.test(p.image_url || '')) recipe.hasImage = await storePhoto(env, uid, p.image_url);
       byUid.set(uid, recipe);
@@ -216,6 +224,8 @@ async function load(env) {
 
 const card = (r) => ({
   id: r.id, title: r.title, categories: r.categories || [], hasImage: !!r.hasImage,
+  // Photo version: part of the photo's address, so a replaced photo isn't served from a week-long cache.
+  ...(r.hasImage ? { img: String(r.photoLarge || r.photoHash || '').replace(/\W/g, '').slice(0, 8) } : {}),
   ...(r.favorite ? { favorite: true } : {}), ...(r.rating ? { rating: r.rating } : {}),
 });
 
@@ -229,7 +239,7 @@ export async function getPaprika(env, uid) {
   const data = await load(env);
   const r = data.recipes.find((x) => x.uid === uid && !x.trashed);
   if (!r) return null;
-  const { hash, photoHash, servings, yield: y, ...recipe } = r;
+  const { hash, photoHash, photoLarge, servings, yield: y, ...recipe } = r;
   return { ...recipe, ...servingsOf(servings || y) }; // also tidies recipes stored before servingsOf
 }
 

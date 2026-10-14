@@ -74,13 +74,15 @@ async function projectMeta(env, pid) {
 }
 
 
-// Groceries keep Todoist's own order. To-dos put dated items first (overdue at the top).
+// Groceries keep Todoist's own order. To-dos put dated items first (overdue at the top), and
+// within a day untimed ones, then by time.
 export function sortTasks(tasks, list) {
+  const when = (t) => (t.due?.date ? t.due.date.slice(0, 10) + (dueTime(t) || '') : '9999');
   return tasks
     .filter((t) => !t.parent_id && !t.checked)
     .sort((a, b) => {
       if (list === 'todo') {
-        const da = a.due?.date || '9999', db = b.due?.date || '9999';
+        const da = when(a), db = when(b);
         if (da !== db) return da < db ? -1 : 1;
       }
       return (a.child_order ?? 0) - (b.child_order ?? 0);
@@ -89,10 +91,21 @@ export function sortTasks(tasks, list) {
       id: t.id,
       content: t.content,
       ...(t.due?.date ? { due: t.due.date.slice(0, 10) } : {}),
+      ...(dueTime(t) ? { time: dueTime(t) } : {}),
+      // Todoist's API counts up (4 is p1, the highest; 1 is none); the frame uses 3 high, 2, 1 low.
+      ...(t.priority > 1 ? { priority: Math.min(3, t.priority - 1) } : {}),
       ...(t.section_id ? { section: t.section_id } : {}),
       ...(t.responsible_uid ? { assignee: String(t.responsible_uid) } : {}),
       ...(note(t.description) ? { note: note(t.description) } : {}),
     }));
+}
+
+// A timed task's time: "16:30" for a floating time (Todoist's default), or the full UTC time when
+// the task has a fixed time zone, which the frame shows in its own.
+function dueTime(t) {
+  const dt = t.due?.datetime;
+  if (!dt || dt.length < 16) return '';
+  return /Z|[+-]\d\d:?\d\d$/.test(dt.slice(19)) ? dt : dt.slice(11, 16);
 }
 
 // The description's first line, kept short, as a small note under the item (e.g. "For: Beef Mandi").
@@ -101,13 +114,23 @@ function note(description) {
   return line.length > 120 ? line.slice(0, 119) + '…' : line;
 }
 
-// description is Todoist's note under the task (e.g. "For: Chicken Fried Rice").
-export async function addItem(env, list, content, description) {
+// description is Todoist's note under the task (e.g. "For: Chicken Fried Rice"); priority is the
+// frame's 1 (low) to 3 (high).
+export async function addItem(env, list, content, description, priority = 0) {
   const t = await call(env, '/tasks', {
     method: 'POST',
-    body: JSON.stringify({ content, project_id: await projectId(env, list), ...(description ? { description } : {}) }),
+    body: JSON.stringify({ content, project_id: await projectId(env, list), ...(description ? { description } : {}), ...(priority ? { priority: priority + 1 } : {}) }),
   });
-  return { id: t.id, content: t.content };
+  return { id: t.id, content: t.content, ...(priority ? { priority } : {}) };
+}
+
+// changes: { content?, priority? } (priority 0 clears it).
+export async function updateItem(env, id, changes) {
+  const body = {};
+  if (changes.content) body.content = changes.content;
+  if (changes.priority !== undefined) body.priority = changes.priority + 1;
+  await call(env, '/tasks/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify(body) });
+  return { ok: true };
 }
 
 export async function completeItem(env, id) {

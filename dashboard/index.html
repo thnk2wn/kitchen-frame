@@ -15,8 +15,20 @@
     // A script error is shown on screen instead, so the frame can be diagnosed without a cable.
     (function () {
       var boot = document.getElementById('boot');
-      function fail(msg) { window.__failed = true; if (boot) boot.textContent = 'Couldn’t start: ' + msg; }
-      window.addEventListener('error', function (e) { fail((e.message || e.type) + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : '')); }, true);
+      // A failed start is shown, then retried: right after a deploy the page can briefly ask for a
+      // script that hasn't reached every Cloudflare location yet, and a wall display must not stay stuck.
+      function fail(msg) {
+        if (window.__booted || window.__failed) return;
+        window.__failed = true;
+        if (boot) boot.textContent = 'Couldn’t start: ' + msg + ' (trying again shortly)';
+        setTimeout(function () { location.reload(); }, 15000);
+      }
+      window.addEventListener('error', function (e) {
+        var t = e.target;
+        // A file that failed to load (script or stylesheet) has no message; name it.
+        if (t && t !== window && (t.src || t.href)) return fail('couldn’t load ' + String(t.src || t.href).split('/').pop());
+        fail((e.message || e.type) + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : ''));
+      }, true);
       window.addEventListener('unhandledrejection', function (e) { fail(String(e.reason && e.reason.message || e.reason)); });
       setTimeout(function () { if (!window.__booted && !window.__failed) location.reload(); }, 10000);
     })();

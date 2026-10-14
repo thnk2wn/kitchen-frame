@@ -54,4 +54,7 @@ export const ICONS = {
   mapPin: "<path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\" /><circle cx=\"12\" cy=\"10\" r=\"3\" />", // lucide: map-pin
   notes: "<path d=\"M21 5H3\" /><path d=\"M15 12H3\" /><path d=\"M17 19H3\" />", // lucide: text
   calendar: "<path d=\"M8 2v3\" /><path d=\"M16 2v3\" /><rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\" /><path d=\"M3 9h18\" />", // lucide: calendar
+  sortAz: "<path d=\"m3 16 4 4 4-4\" /><path d=\"M7 20V4\" /><path d=\"M20 8h-5\" /><path d=\"M15 10V6.5a2.5 2.5 0 0 1 5 0V10\" /><path d=\"M15 14h5l-5 6h5\" />", // lucide: arrow-down-a-z
+  sortTime: "<path d=\"M12 6v6l2 1\" /><path d=\"M12.337 21.994a10 10 0 1 1 9.588-8.767\" /><path d=\"m14 18 4 4 4-4\" /><path d=\"M18 14v8\" />", // lucide: clock-arrow-down
+  flag: "<path d=\"M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528\" />", // lucide: flag
 };

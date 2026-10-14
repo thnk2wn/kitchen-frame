@@ -71,3 +71,56 @@ test('lists not set to Reminders still go to Todoist', async () => {
   const r = await call(env(b, { TODOIST_TOKEN: '' }), '/api/lists/todo');
   assert.equal(r.status, 503); // Todoist path: "Add TODOIST_TOKEN"
 });
+
+test('priority and due time come through from the Mac, and adds carry a priority', async () => {
+  const b = fakeBridge(), e = env(b, { TODO_SOURCE: 'reminders' });
+  const snap = (body) => call(e, '/api/bridge/snapshot', { method: 'POST', body: JSON.stringify(body) }, 'mac').then((r) => r.json());
+  await snap({ lists: { todo: { name: 'To Do', items: [
+    { id: 'r1', title: 'Dentist', due: '2026-10-15', time: '16:30', priority: 3 },
+    { id: 'r2', title: 'Gutters', time: '09:00', priority: 7 }, // a time without a day, and an out-of-range priority: dropped
+  ] } } });
+  await call(e, '/api/lists/todo', { method: 'POST', body: JSON.stringify({ content: 'Call plumber', priority: 2 }) });
+  const view = await (await call(e, '/api/lists/todo')).json();
+  assert.deepEqual(view.items.map(({ id, ...i }) => i), [
+    { content: 'Dentist', due: '2026-10-15', time: '16:30', priority: 3 },
+    { content: 'Gutters' },
+    { content: 'Call plumber', priority: 2, pending: true },
+  ]);
+  const { ops } = await snap({ lists: {} });
+  assert.equal(ops[0].priority, 2);
+});
+
+test('edits queue for the Mac, show at once, and merge until applied', async () => {
+  const b = fakeBridge(), e = env(b, { TODO_SOURCE: 'reminders' });
+  const snap = (body) => call(e, '/api/bridge/snapshot', { method: 'POST', body: JSON.stringify(body) }, 'mac').then((r) => r.json());
+  await snap({ lists: { todo: { name: 'To Do', items: [{ id: 'r1', title: 'Dentist', priority: 3 }] } } });
+  const edit = (id, body) => call(e, '/api/lists/todo/' + id, { method: 'POST', body: JSON.stringify(body) });
+  await edit('r1', { content: 'Dentist at 4' });
+  await edit('r1', { priority: 0 }); // merged with the title change; 0 clears the priority
+  let view = await (await call(e, '/api/lists/todo')).json();
+  assert.deepEqual(view.items.map(({ id, ...i }) => i), [{ content: 'Dentist at 4', pending: true }]);
+
+  // An edit to an add the Mac hasn't made yet changes the queued add.
+  await call(e, '/api/lists/todo', { method: 'POST', body: JSON.stringify({ content: 'Gutters', priority: 1 }) });
+  view = await (await call(e, '/api/lists/todo')).json();
+  await edit(view.items[1].id, { content: 'Clean gutters', priority: 3 });
+
+  const { ops } = await snap({ lists: {} });
+  assert.deepEqual(ops.map(({ type, itemId, content, priority }) => [type, itemId, content, priority]), [
+    ['update', 'r1', 'Dentist at 4', 0],
+    ['add', undefined, 'Clean gutters', 3],
+  ]);
+});
+
+test('with REMINDERS_EXTRAS the Mac is asked for sections, flags and assignees, and they reach the frame', async () => {
+  const b = fakeBridge(), e = env(b, { REMINDERS_EXTRAS: 'on' });
+  assert.equal((await (await call(e, '/api/bridge/config', {}, 'mac')).json()).extras, true);
+  assert.equal((await (await call(env(b), '/api/bridge/config', {}, 'mac')).json()).extras, undefined);
+  await call(e, '/api/bridge/snapshot', { method: 'POST', body: JSON.stringify({ lists: { groceries: { name: 'Groceries',
+    sections: ['Produce', 'Dairy', 'Bakery', 'Produce'],
+    items: [{ id: 'r1', title: 'Milk', section: 'Dairy', flagged: true, assignee: 'Sam' }, { id: 'r2', title: 'Limes', section: 'Produce' }, { id: 'r3', title: 'Foil' }] } } }) }, 'mac');
+  const view = await (await call(e, '/api/lists/groceries')).json();
+  assert.deepEqual(view.sections, [{ id: 'Produce', name: 'Produce' }, { id: 'Dairy', name: 'Dairy' }]); // Bakery is empty
+  assert.deepEqual(view.people, { Sam: 'Sam' });
+  assert.deepEqual(view.items[0], { id: 'r1', content: 'Milk', section: 'Dairy', flagged: true, assignee: 'Sam' });
+});

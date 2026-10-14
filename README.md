@@ -250,6 +250,15 @@ sync with (see `dashboard/worker/paprika.js`); if that changes, the last copy ke
 The same sync reads Paprika's meal plan (2 days back to 3 weeks ahead): today's meals appear at the
 top of Home's Today list, and Recipes gets a **Meals** view of the next seven days.
 
+Photos come from a recipe's full-size photo in Paprika when it has one, otherwise Paprika's 280px
+thumbnail. Many web imports only ever gave Paprika a thumbnail, which looks soft on the frame (and
+in Paprika). `dashboard/scripts/paprika-photos.mjs`, run by hand on a Mac, fixes that in Paprika
+itself: it finds the full photo on each recipe's source page, writes a before-and-after page to
+look over, then uploads the ones you keep the way the Paprika app does, saving each recipe first
+so `undo` can put it back. It's the one thing here that writes to Paprika. For sites that block
+scripts, find the photo in a browser and give it to `use`. Run it with no arguments for its
+commands.
+
 ## House tab (Home Assistant devices)
 
 With a Home Assistant URL, token and dashboard set on the frame, a **House** tab mirrors that HA

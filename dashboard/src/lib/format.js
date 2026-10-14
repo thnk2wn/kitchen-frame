@@ -64,6 +64,18 @@ export function timeRange(e) {
   const [at, ap] = a.split(/\s/), [, bp] = b.split(/\s/);
   return (ap === bp ? at : a) + ' – ' + b;
 }
+// A timed task's moment: "16:30" on its due day (Reminders, or a floating Todoist time), or a full
+// ISO time (a Todoist task pinned to a time zone). null when it has no time.
+export function dueAt(item) {
+  if (!item.due || !item.time) return null;
+  if (item.time.length > 5) return new Date(item.time);
+  const [y, m, d] = item.due.split('-').map(Number), [h, min] = item.time.split(':').map(Number);
+  return new Date(y, m - 1, d, h, min);
+}
+// "4 PM", "4:30 PM".
+export function shortTime(d) {
+  return time(d).replace(':00', '');
+}
 export function dueLabel(due, now) {
   const today = dayKey(now), tomorrow = dayKey(addDays(now, 1));
   if (due < today) return 'Overdue';

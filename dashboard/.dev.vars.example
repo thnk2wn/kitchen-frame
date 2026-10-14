@@ -40,3 +40,5 @@ TODOIST_TOKEN=""
 # TODO_SOURCE="reminders"
 # REMINDERS_TODO_LIST="To Do"
 # BRIDGE_TOKEN=""
+# Sections, flags and assignees too, read from the Reminders database (needs Full Disk Access on the Mac).
+# REMINDERS_EXTRAS="on"

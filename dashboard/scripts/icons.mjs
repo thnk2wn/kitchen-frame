@@ -12,6 +12,7 @@ const ICONS = {
   blinds: 'blinds', camera: 'cctv', toggle: 'toggle-right', gauge: 'gauge', house: 'house', timer: 'timer', search: 'search',
   wind: 'wind', sunrise: 'sunrise', sunset: 'sunset', alert: 'triangle-alert', droplets: 'droplets', umbrella: 'umbrella',
   bell: 'bell-ring', volumeOff: 'volume-x', mapPin: 'map-pin', notes: 'text', calendar: 'calendar',
+  sortAz: 'arrow-down-a-z', sortTime: 'clock-arrow-down', flag: 'flag',
 };
 const inner = (name) => readFileSync(new URL(`../node_modules/lucide-static/icons/${name}.svg`, import.meta.url), 'utf8')
   .replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').replace(/\s*\n\s*/g, '').trim();

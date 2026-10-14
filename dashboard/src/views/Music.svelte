@@ -1,6 +1,7 @@
 <script>
   import { untrack } from 'svelte';
   import Icon from '../components/Icon.svelte';
+  import SortButton from '../components/SortButton.svelte';
   import { ha, haUrl, callService, send } from '../lib/ha.svelte.js';
   import { ui } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
@@ -267,10 +268,7 @@
     {#if spotify && playlists.length}
       <!-- Swiped on the frame; a mouse wheel (testing on a computer) scrolls it sideways too. -->
       <section class="lists" onwheel={sideways}>
-        <div class="order" role="tablist" aria-label="Playlist order">
-          <button role="tab" aria-selected={order === 'recent'} class:on={order === 'recent'} onclick={() => setOrder('recent')}>Recent</button>
-          <button role="tab" aria-selected={order === 'az'} class:on={order === 'az'} onclick={() => setOrder('az')}>A–Z</button>
-        </div>
+        <div class="order"><SortButton az={order === 'az'} timeLabel="By last played" onchange={(az) => setOrder(az ? 'az' : 'recent')} size={22} /></div>
         {#each sorted as pl, i (pl.media_content_id)}
           {@const on = !!fromList && (nowList.uri ? pl.media_content_id === nowList.uri : pl.title === fromList)}
           <button class="pl sheet" class:on onclick={() => playList(pl)} use:reveal={on}>
@@ -363,10 +361,8 @@
   .lists { flex: none; display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; }
   .lists::-webkit-scrollbar { display: none; }
   /* Order switch: a tile the same height and shape as the playlist cards, two equal halves. */
-  .order { flex: none; align-self: stretch; width: 96px; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 16px; background: var(--sheet); }
-  .order button { flex: 1; display: grid; place-items: center; text-align: center; border-radius: 10px; font-size: 16px; font-weight: 600; color: var(--secondary); background: var(--track); }
-  .order button.on { background: var(--label); color: var(--sheet); }
-  .order button:not(.on):active { opacity: .6; }
+  .order { flex: none; align-self: stretch; width: 64px; display: grid; place-items: center; border-radius: 16px; background: var(--sheet); }
+  .order :global(.sort) { width: 46px; height: 46px; }
   .pl { flex: none; width: 128px; padding: 0 0 8px; border-radius: 16px; overflow: hidden; text-align: left; }
   .pl img, .pl .noart { display: grid; place-items: center; width: 128px; height: 96px; object-fit: cover; background: var(--track); }
   .pl span { display: block; padding: 6px 10px 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

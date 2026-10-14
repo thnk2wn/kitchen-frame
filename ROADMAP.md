@@ -29,6 +29,13 @@ The dashboard was built and tested in a browser at the frame's size. On a real f
 - **Countdowns:** "12 days to the beach" for chosen events, on Home or the clock screen.
 - **Two columns per day** in Upcoming when a day is busy.
 
+## Lists
+
+- **Aisles for Groceries, by AI:** group the grocery list into sections (Produce, Dairy, Spices…)
+  like Reminders does on the iPhone, which Apple doesn't share with other apps. Ask a small model
+  through Cloudflare Workers AI, which has a free daily allowance far beyond a household's list,
+  once per new item, and remember the answer. No keyword lists.
+
 ## Home Assistant
 
 - **More notice blueprints:** garage door left open, a bedtime check (doors unlocked, lights on).

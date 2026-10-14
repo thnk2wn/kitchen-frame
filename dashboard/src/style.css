@@ -6,6 +6,7 @@
   --sheet: #ffffff;
   --press: #e9e9ee;
   --track: #e3e3e8;
+  --fill: #e3e3e8;    /* controls on a sheet: fields, buttons, segmented pickers */
   --thumb: #ffffff;
   --label: #000000;
   --secondary: #6e6e73;
@@ -38,6 +39,7 @@
   --sheet: #1c1c1e;
   --press: #2c2c2e;
   --track: #1c1c1e;
+  --fill: #2c2c2e;
   --thumb: #636366;
   --label: #ffffff;
   --secondary: #98989f;

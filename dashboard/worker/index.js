@@ -3,6 +3,7 @@
 //   GET  /api/weather                Open-Meteo current + 5-day (see weather.js)
 //   GET  /api/lists/:list            Todoist project tasks, list = groceries | todo (see todoist.js)
 //   POST /api/lists/:list            { content, description? } adds an item, or { items: [...] } several
+//   POST /api/lists/:list/:id        { content?, priority? } edits an item
 //   POST /api/lists/:list/:id/done   completes an item
 //   GET  /api/photos                 idle-screen photo list from the iCloud shared album (see photos.js)
 //   GET  /api/photos/:id             one photo, passed through from iCloud
@@ -39,7 +40,7 @@
 // Optional: DISPLAY_TZ  IANA zone for times with no TZID and no X-WR-TIMEZONE (default UTC).
 import { expand, merge, splitNotes } from './calendar.js';
 import { getWeather } from './weather.js';
-import { LISTS, getList, addItem, completeItem } from './todoist.js';
+import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js';
 import { listPhotos, photoResponse } from './photos.js';
 import { room } from './messages.js';
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
@@ -47,7 +48,13 @@ export { ListBridge } from './bridge.js';      // Durable Object class: Apple Re
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage } from './recipes.js';
 import { geocode, tile } from './maps.js';
 import { spotifyConfigured, getPlaylists, getNow } from './spotify.js';
-import { BRIDGE_LISTS, fromReminders, remindersName, bridge } from './bridge.js';
+import { level, BRIDGE_LISTS, fromReminders, remindersName, bridge } from './bridge.js';
+
+// An edit from the frame's item sheet: a new title and/or priority (0 clears it).
+const editOf = (b) => ({
+  ...(String((b && b.content) || '').trim() ? { content: String(b.content).trim().slice(0, 500) } : {}),
+  ...(b && b.priority !== undefined ? { priority: level(b.priority) } : {}),
+});
 import { syncPaprika, listPaprika, getPaprika, paprikaImage, listMeals } from './paprika.js';
 
 const KEY = 'calendar';
@@ -81,7 +88,9 @@ export default {
       if (!env.BRIDGE_TOKEN || req.headers.get('Authorization') !== 'Bearer ' + env.BRIDGE_TOKEN) return json({ error: 'unauthorized' }, 401);
       const what = url.pathname.slice('/api/bridge/'.length);
       if (what === 'config') {
-        return json({ lists: Object.fromEntries(Object.keys(BRIDGE_LISTS).filter((l) => fromReminders(env, l)).map((l) => [l, remindersName(env, l)])) });
+        // extras: also read sections, flags and assignees from the Reminders database (docs/lists.md).
+        const extras = /^(on|yes|true|1)$/i.test(String(env.REMINDERS_EXTRAS || '').trim());
+        return json({ lists: Object.fromEntries(Object.keys(BRIDGE_LISTS).filter((l) => fromReminders(env, l)).map((l) => [l, remindersName(env, l)])), ...(extras ? { extras: true } : {}) });
       }
       if (what === 'snapshot' && req.method === 'POST') return bridge(env).fetch('https://bridge/snapshot', { method: 'POST', body: await req.text() });
       if (what === 'live') return bridge(env).fetch(new Request('https://bridge/live', req));
@@ -166,24 +175,26 @@ export default {
           return b.fetch('https://bridge/add/' + list, { method: 'POST', body: JSON.stringify({ items }) });
         }
         if (req.method === 'POST' && id && action === 'done') return b.fetch('https://bridge/done/' + list + '/' + encodeURIComponent(id), { method: 'POST' });
+        if (req.method === 'POST' && id && !action) return b.fetch('https://bridge/update/' + list + '/' + encodeURIComponent(id), { method: 'POST', body: JSON.stringify(editOf(await req.json())) });
       }
       if (section === 'lists' && list in LISTS) {
         if (!env.TODOIST_TOKEN) return json({ error: 'Add TODOIST_TOKEN to connect Todoist' }, 503);
         if (req.method === 'GET' && !id) return json(await getList(env, list));
         if (req.method === 'POST' && !id) {
           const body = await req.json();
-          const clean = (x) => ({ content: String((x && x.content) || '').trim().slice(0, 500), description: String((x && x.description) || '').trim().slice(0, 500) });
+          const clean = (x) => ({ content: String((x && x.content) || '').trim().slice(0, 500), description: String((x && x.description) || '').trim().slice(0, 500), priority: level(x && x.priority) });
           if (Array.isArray(body.items)) {
             // Several at once (recipe ingredients): added in parallel, up to 40.
             const items = body.items.map(clean).filter((x) => x.content).slice(0, 40);
             if (!items.length) return json({ error: 'items required' }, 400);
-            return json({ items: await Promise.all(items.map((x) => addItem(env, list, x.content, x.description))) });
+            return json({ items: await Promise.all(items.map((x) => addItem(env, list, x.content, x.description, x.priority))) });
           }
           const one = clean(body);
           if (!one.content) return json({ error: 'content required' }, 400);
-          return json(await addItem(env, list, one.content, one.description));
+          return json(await addItem(env, list, one.content, one.description, one.priority));
         }
         if (req.method === 'POST' && id && action === 'done') return json(await completeItem(env, id));
+        if (req.method === 'POST' && id && !action) return json(await updateItem(env, id, editOf(await req.json())));
       }
       return json({ error: 'not found' }, 404);
     } catch (err) {

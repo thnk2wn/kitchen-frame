@@ -7,8 +7,9 @@
   import TaskRow from '../components/TaskRow.svelte';
   import CalendarPicker from '../components/CalendarPicker.svelte';
   import NowPlaying from '../components/NowPlaying.svelte';
+  import SortButton from '../components/SortButton.svelte';
   import NoticeBanners from '../components/NoticeBanners.svelte';
-  import { clock, calendar, weather, lists, mealItems, ui, completeItem, loadCalendar, loadList } from '../lib/state.svelte.js';
+  import { clock, calendar, weather, lists, mealItems, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
 
   let events = $derived(calendar.data ? calendar.data.events : []);
@@ -143,16 +144,17 @@
 
 {#snippet listCard(name, title, color, doneText)}
   {@const list = lists[name]}
-  {@const items = list.items || []}
+  {@const items = sortList(name, list.items || [])}
   {@const note = list.error && /TODOIST_TOKEN/.test(list.error) ? 'Todoist isn’t connected yet.' : list.error}
   <section class="sheet list {name}" style="--accent-text:{color}">
     <header>
       <h2><button class="jump" onclick={() => (ui.tab = name)}>{title}</button></h2>
+      <SortButton az={listSort[name] === 'az'} onchange={(az) => setListSort(name, az ? 'az' : 'added')} size={18} />
       {#if list.items}<span class="count num">{items.length}</span>{/if}
     </header>
-    <div class="scroll" class:cols={name === 'groceries'}>
+    <div class="scroll" style="--min:{name === 'todo' ? 300 : 230}px">
       {#each items as item (item.id)}
-        <TaskRow {item} now={clock.now} ondone={(i) => completeItem(name, i)} brief={name === 'groceries'}
+        <TaskRow {item} now={clock.now} ondone={(i) => completeItem(name, i)} onopen={(i) => (ui.task = { list: name, id: i.id })} brief={name === 'groceries'}
           person={item.assignee ? list.people?.[item.assignee] : null}
           section={item.section ? (list.sections || []).find((x) => x.id === item.section)?.name : null} />
       {:else}
@@ -208,10 +210,10 @@
   .lists { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 20px; }
   .list.groceries { flex: 1 1 0; }
   .list.todo { flex: 0 1 auto; max-height: 47%; } /* room for two tasks with their due line */
-  /* Groceries on Home: short one-line items, two columns when the card is wide enough. */
-  .scroll.cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); column-gap: 16px; align-content: start; overflow-x: hidden; }
-  .scroll.cols .empty { grid-column: 1 / -1; }
-  .scroll { flex: 1; min-height: 0; overflow-y: auto; }
+  /* Both lists: as many columns as fit (the same rule as the Lists tab), at most two; one on the
+     frame's narrow card. */
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, max(var(--min), calc(50% - 8px))), 1fr)); column-gap: 16px; align-content: start; }
+  .scroll .empty { grid-column: 1 / -1; }
   footer { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--sep); }
   h2 { margin: 0 0 4px; font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
   h2.later { margin-top: 20px; color: var(--secondary); }
@@ -225,6 +227,9 @@
   .mtype { color: var(--orange-text); }
   .list header { display: flex; align-items: baseline; justify-content: space-between; }
   .list h2 { color: var(--accent-text); }
+  .list h2 { flex: 1; }
+  .list header { gap: 12px; }
+  .list header :global(.sort) { align-self: center; width: 34px; height: 34px; }
   .jump { font: inherit; color: inherit; padding: 0; }
   .jump:active { opacity: .5; }
   .count { font-size: 30px; font-weight: 700; }

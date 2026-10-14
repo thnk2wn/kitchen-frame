@@ -13,6 +13,8 @@
   import TimerAlert from './components/TimerAlert.svelte';
   import WeatherSheet from './components/WeatherSheet.svelte';
   import EventSheet from './components/EventSheet.svelte';
+  import TaskSheet from './components/TaskSheet.svelte';
+  import UndoToast from './components/UndoToast.svelte';
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
   import NowPlaying from './components/NowPlaying.svelte';
@@ -110,6 +112,8 @@
   <!-- Timer alerts cover everything, messages and the slideshow included. -->
   <WeatherSheet />
   <EventSheet />
+  <TaskSheet />
+  <UndoToast />
   <NoticeSheet />
   <TimerAlert />
   <DoorbellAlert />

@@ -49,32 +49,31 @@ export function demoCalendar(now) {
 export function demoList(name, now) {
   const due = (days) => dayKey(addDays(now, days));
   if (name === 'todo') {
+    // Shaped like a shared Apple Reminders list through the Mac: priorities and due times, no
+    // sections or assignees (EventKit doesn't share them). Dated first, as the bridge sends them.
     return [
-      { id: 'd1', content: 'Replace HVAC filters', due: due(-2), section: 'ds2', assignee: 'p1' },
-      { id: 'd3', content: 'Sign field trip form', due: due(1), section: 'ds1', assignee: 'p2' },
-      { id: 'd4', content: 'Clean gutters', due: due(5), section: 'ds2', assignee: 'p1' },
-      { id: 'd5', content: 'Order birthday present', section: 'ds3', assignee: 'p2' },
-      { id: 'd6', content: 'Renew car registration', section: 'ds3', assignee: 'p1' },
+      { id: 'd1', content: 'Replace HVAC filters', due: due(-2), priority: 2 },
+      { id: 'd3', content: 'Sign field trip form', due: due(1), time: '08:00', priority: 3 },
+      { id: 'd4', content: 'Clean gutters', due: due(5) },
+      { id: 'd5', content: 'Order birthday present', priority: 1 },
+      { id: 'd6', content: 'Renew car registration' },
       { id: 'd7', content: 'Book fall photos' },
     ];
   }
-  // Shaped by the demo meal plan below, as a real list fills from the week's recipes.
-  const aisle = { Bananas: 'gs1', Limes: 'gs1', Avocados: 'gs1', Lemons: 'gs1', Milk: 'gs2', Eggs: 'gs2', Parmesan: 'gs2', Shrimp: 'gs4', Flounder: 'gs4', 'Coffee beans': 'gs3', Tortellini: 'gs3', 'Taco shells': 'gs3', Rice: 'gs3' };
+  // Shaped by the demo meal plan below, as a real list fills from the week's recipes. Aisles as the
+  // Reminders grocery template sorts them (with REMINDERS_EXTRAS); a couple left in "Others".
+  const aisle = { Bananas: 'Produce', Limes: 'Produce', Avocados: 'Produce', Lemons: 'Produce', Milk: 'Dairy, Eggs & Cheese', Eggs: 'Dairy, Eggs & Cheese', Parmesan: 'Dairy, Eggs & Cheese', Shrimp: 'Meat & Seafood', Flounder: 'Meat & Seafood', Rice: 'Pasta, Rice & Beans', Tortellini: 'Pasta, Rice & Beans', 'Coffee beans': 'Coffee & Tea' };
   const forRecipe = { Shrimp: 'For: Blackened shrimp bowls', Avocados: 'For: Blackened shrimp bowls', Flounder: 'For: Garlic parmesan baked flounder', Parmesan: 'For: Garlic parmesan baked flounder', Tortellini: 'For: One-pot taco tortellini' };
   return ['Milk', 'Eggs', 'Bananas', 'Coffee beans', 'Shrimp', 'Avocados', 'Limes', 'Rice', 'Flounder', 'Parmesan', 'Lemons', 'Tortellini', 'Taco shells']
     .map((content, i) => ({ id: 'g' + i, content, ...(aisle[content] ? { section: aisle[content] } : {}), ...(forRecipe[content] ? { note: forRecipe[content] } : {}) }));
 }
 
-// Sections and people for the demo Tasks board.
+// Demo lists come from Apple Reminders: aisles for Groceries, in the template's order; no sections
+// or people for Tasks.
 export function demoMeta(name) {
-  if (name !== 'todo') {
-    return { project: 'Groceries', sections: [{ id: 'gs1', name: 'Produce' }, { id: 'gs4', name: 'Seafood' }, { id: 'gs2', name: 'Dairy & eggs' }, { id: 'gs3', name: 'Pantry' }], people: {} };
-  }
-  return {
-    project: 'Household',
-    sections: [{ id: 'ds1', name: 'This week' }, { id: 'ds2', name: 'Around the house' }, { id: 'ds3', name: 'Errands' }],
-    people: { p1: 'Dad', p2: 'Mom' },
-  };
+  if (name === 'todo') return { project: 'Household', sections: [], people: {} };
+  const aisles = ['Produce', 'Dairy, Eggs & Cheese', 'Meat & Seafood', 'Pasta, Rice & Beans', 'Coffee & Tea'];
+  return { project: 'Groceries', sections: aisles.map((a) => ({ id: a, name: a })), people: {} };
 }
 
 // Demo House tab: an invented home, shaped like a mirrored HA dashboard. Taps change it locally.

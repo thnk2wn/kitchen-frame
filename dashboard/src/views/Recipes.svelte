@@ -66,13 +66,14 @@
     openOurs({ id: want.id, title: want.title, hasImage: true });
   });
 
-  // Paprika: filter chips are All, Favorites (if any), then the most-used Paprika categories.
+  // Paprika: filter chips are All, Favorites (if any), every Paprika category A–Z, then Uncategorized
+  // (if any recipe has none). The row scrolls sideways when they don't fit.
+  const NONE = 'Uncategorized';
   let ourCat = $state('All');
   let ourCats = $derived.by(() => {
-    const counts = new Map();
-    for (const r of paprika.recipes || []) for (const c of r.categories) counts.set(c, (counts.get(c) || 0) + 1);
-    const top = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 12).map(([c]) => c);
-    return ['All', ...((paprika.recipes || []).some((r) => r.favorite) ? ['Favorites'] : []), ...top];
+    const rs = paprika.recipes || [];
+    const names = [...new Set(rs.flatMap((r) => r.categories))].sort((a, b) => a.localeCompare(b));
+    return ['All', ...(rs.some((r) => r.favorite) ? ['Favorites'] : []), ...names, ...(rs.some((r) => !r.categories.length) ? [NONE] : [])];
   });
   // Search (by name) and an A–Z index strip to jump through a long library without typing.
   let searching = $state(false);
@@ -81,7 +82,7 @@
   const fold = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const letterOf = (t) => { const c = fold(t).replace(/^[^a-z0-9]+/, '').charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : '#'; };
   let ours = $derived((paprika.recipes || []).filter((r) =>
-    (ourCat === 'All' || (ourCat === 'Favorites' ? r.favorite : r.categories.includes(ourCat)))
+    (ourCat === 'All' || (ourCat === 'Favorites' ? r.favorite : ourCat === NONE ? !r.categories.length : r.categories.includes(ourCat)))
     && (!query.trim() || fold(r.title).includes(fold(query.trim())))));
   let letters = $derived([...new Set(ours.map((r) => letterOf(r.title)))]);
   function jump(letter) {
@@ -100,7 +101,8 @@
     settle();
   }
   function toggleSearch() { searching = !searching; if (!searching) query = ''; }
-  const ourThumb = (r) => (r.hasImage ? withKey('/api/recipes/paprika/' + r.id.slice(4) + '/image') : null);
+  // v: the photo's version, so a photo replaced in Paprika isn't shown from the browser's cache.
+  const ourThumb = (r) => (r.hasImage ? withKey('/api/recipes/paprika/' + r.id.slice(4) + '/image' + (r.img ? '?v=' + r.img : '')) : null);
   async function openOurs(card) {
     open = { id: card.id, title: card.title, image: ourThumb(card), ingredients: [], steps: [], loading: true };
     const want = open;

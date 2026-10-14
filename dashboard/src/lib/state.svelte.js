@@ -36,6 +36,8 @@ export const ui = $state({
   noticesOpen: false,                        // the Home Assistant notices sheet (lib/notices.svelte.js)
   // The event whose details are showing ({ uid, start }); ?event=<uid> opens one, for screenshots.
   event: q.get('event') ? { uid: q.get('event'), start: null } : null,
+  // { list, id }: the list item whose sheet is open; ?task=<id> opens a task, for screenshots.
+  task: q.get('task') ? { list: 'todo', id: q.get('task') } : null,
   weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,
   themePref: pref('theme', 'auto'),          // auto | light | dark
   // Minutes untouched (and the room empty, with a presence area) before the clock screen; 0 = never.
@@ -290,8 +292,10 @@ export function loadList(name) {
   }
   return single('list:' + name, async () => {
     try {
-      const { items, sections = [], people = {}, project = '', waiting, stale } = await api('/api/lists/' + name);
-      if (changed(name, items)) lists[name].items = items;
+      const { items, sections = [], people = {}, project = '', source = 'todoist', waiting, stale } = await api('/api/lists/' + name);
+      // Items ticked here but still in their undo window stay hidden.
+      if (changed(name, items)) lists[name].items = items.filter((i) => !undos.some((u) => u.name === name && u.item.id === i.id));
+      lists[name].source = source;
       if (changed(name + '-meta', { sections, people, project })) Object.assign(lists[name], { sections, people, project });
       lists[name].error = null;
       // A list from Apple Reminders comes through a Mac at home (docs/lists.md); say so when it's quiet.
@@ -303,29 +307,102 @@ export function loadList(name) {
   });
 }
 
-// Optimistic: the row disappears on tap and comes back if Todoist refuses.
-export async function completeItem(name, item) {
+// Each list's order on Home and the Lists tab: as its source keeps it ("added": Reminders in the
+// order items were added, tasks with dates first; Todoist's own order), or A–Z. Remembered per list.
+const sortPref = (name) => { try { return localStorage.getItem('frame-sort-' + name) === 'az' ? 'az' : 'added'; } catch { return 'added'; } };
+export const listSort = $state({ groceries: sortPref('groceries'), todo: sortPref('todo') });
+export function setListSort(name, order) {
+  listSort[name] = order;
+  try { localStorage.setItem('frame-sort-' + name, order); } catch {}
+}
+export function sortList(name, items) {
+  if (listSort[name] !== 'az') return items;
+  return [...items].sort((a, b) => a.content.localeCompare(b.content, undefined, { sensitivity: 'base', numeric: true }));
+}
+
+// Optimistic: the row disappears on tap and comes back if Todoist refuses. The completion is only
+// sent after UNDO_MS, while "Completed … · Undo" shows, so an accidental tap never reaches the list.
+const UNDO_MS = 8000;
+export const undos = $state([]); // { key, name, item, index }, newest last; the toast shows the newest
+
+export function completeItem(name, item) {
   const list = lists[name];
+  const index = list.items.findIndex((i) => i.id === item.id);
   list.items = list.items.filter((i) => i.id !== item.id);
+  if (ui.task && ui.task.id === item.id) ui.task = null;
+  const key = name + ':' + item.id + ':' + Date.now();
+  undos.push({ key, name, item, index });
+  setTimeout(() => commitDone(key), UNDO_MS);
+}
+
+export function undoComplete() {
+  const u = undos.pop();
+  if (!u) return;
+  const items = [...(lists[u.name].items || [])];
+  items.splice(Math.min(Math.max(u.index, 0), items.length), 0, u.item);
+  lists[u.name].items = items;
+}
+
+async function commitDone(key) {
+  const at = undos.findIndex((u) => u.key === key);
+  if (at < 0) return; // undone
+  const { name, item, index } = undos.splice(at, 1)[0];
   if (ui.demo) return; // demo: never touches Todoist
+  const list = lists[name];
   try {
     await api('/api/lists/' + name + '/' + item.id + '/done', { method: 'POST' });
     remember(name, list.items);
   } catch (err) {
-    list.items = [item, ...list.items];
+    const items = [...list.items];
+    items.splice(Math.min(index, items.length), 0, item);
+    list.items = items;
     list.error = 'Couldn’t complete “' + item.content + '”: ' + err.message;
   }
 }
 
-export async function addItem(name, content) {
+// An item's sheet saves a new title and/or priority (0 clears it). Shown at once, dimmed until the
+// list's source confirms (the Reminders bridge applies it within seconds).
+export async function editItem(name, item, changes) {
   const list = lists[name];
-  if (ui.demo) { list.items = [...(list.items || []), { id: 'demo-' + Date.now(), content }]; return true; }
+  const before = list.items.find((i) => i.id === item.id);
+  if (!before) return false;
+  const after = { ...before, ...changes };
+  if (!after.priority) delete after.priority;
+  const swap = (to) => { list.items = list.items.map((i) => (i.id === item.id ? to : i)); };
+  if (ui.demo) { swap(after); return true; }
+  swap({ ...after, pending: true });
   try {
-    const item = await api('/api/lists/' + name, { method: 'POST', body: JSON.stringify({ content }) });
-    list.items = [...(list.items || []), item];
+    await api('/api/lists/' + name + '/' + encodeURIComponent(item.id), { method: 'POST', body: JSON.stringify(changes) });
+    if (list.source === 'reminders') setTimeout(() => loadList(name), 6000);
+    else swap(after);
     remember(name, list.items);
     return true;
   } catch (err) {
+    swap(before);
+    list.error = 'Couldn’t change “' + before.content + '”: ' + err.message;
+    return false;
+  }
+}
+
+// priority: 3 high, 2 medium, 1 low, 0 none.
+export async function addItem(name, content, priority = 0) {
+  const list = lists[name];
+  const extra = priority ? { priority } : {};
+  if (ui.demo) { list.items = [...(list.items || []), { id: 'demo-' + Date.now(), content, ...extra }]; return true; }
+  // Shown at once, dimmed, until the list's source has it. Todoist answers with the new item; the
+  // Reminders bridge with a queued one (still pending until the Mac creates it, a few seconds later).
+  const temp = { id: 'local-' + Date.now(), content, ...extra, pending: true };
+  list.items = [...(list.items || []), temp];
+  try {
+    const r = await api('/api/lists/' + name, { method: 'POST', body: JSON.stringify({ content, ...extra }) });
+    const item = r.items ? r.items[0] : r;
+    const added = { ...item, ...(String(item.id).startsWith('pending-') ? { pending: true } : {}) };
+    list.items = list.items.map((i) => (i.id === temp.id ? added : i));
+    remember(name, list.items);
+    if (added.pending) setTimeout(() => loadList(name), 6000); // pick up the Mac's real item soon
+    return true;
+  } catch (err) {
+    list.items = list.items.filter((i) => i.id !== temp.id);
     list.error = 'Couldn’t add “' + content + '”: ' + err.message;
     return false;
   }

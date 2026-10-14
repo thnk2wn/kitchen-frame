@@ -9,7 +9,9 @@ while Tasks stays in Todoist, say.
 | Where you keep the list | The Todoist app | The Reminders app, as you do now |
 | Adding by voice | "Hey Siri" can't add straight to a Todoist project in one sentence (see [Voice](#adding-by-voice-with-todoist)) | "Hey Siri, add milk to my Groceries list", from a phone, watch, CarPlay or HomePod |
 | On the frame | Two-way, live | Two-way, within seconds |
-| Sections and assignees on the board | Yes | No (EventKit, Apple's Reminders API, doesn't expose them) |
+| Sections and assignees on the board | Yes | Only with [extras](#extras-sections-flags-and-assignees) (EventKit, Apple's Reminders API, doesn't expose them) |
+| Priority and due time | Yes | Yes |
+| Flags | No (Todoist has none) | Only with [extras](#extras-sections-flags-and-assignees), shown but not set from the frame |
 | Needs | A Todoist account and API token | A Mac at home that stays on, signed in to iCloud |
 | If the thing in the middle is off | Nothing in the middle | The frame shows the last copy and says so; changes made on the frame wait and are applied when the Mac is back |
 | Setup | One token | A Mac app, a token, a few Mac settings |
@@ -60,7 +62,8 @@ frame: tick, add ──▶ Worker queue ──WebSocket──▶ bridge app ─�
   `worker/bridge.js`). The frame never talks to the Mac.
 - **Only the lists you name** are read or changed. Timed and location reminders in other lists are
   never touched.
-- **What travels**: each item's title, due date and the first line of its notes, and an ID. The
+- **What travels**: each item's title, due date and time, priority and the first line of its notes,
+  and an ID. The
   Mac's Apple ID and password never leave the Mac; the bridge uses the Mac's existing iCloud
   sign-in, with your permission.
 
@@ -69,17 +72,22 @@ frame: tick, add ──▶ Worker queue ──WebSocket──▶ bridge app ─�
 | You do this | Result |
 | --- | --- |
 | Add, edit or delete in Reminders (Siri, phone, watch, anyone on a shared list) | On the frame within seconds (iCloud reaches the Mac, the Mac sends the list) |
-| Tick an item on the frame | Gone from the frame at once; ticked in Reminders within seconds |
+| Tick an item's circle on the frame | Gone from the frame at once, with **Undo** for 8 seconds; ticked in Reminders a few seconds after that |
+| Tap an item's text on the frame | Its sheet: change the title or priority (in Reminders within seconds), or Complete |
 | Add on the frame (+ Add, or a recipe's "Add to Groceries") | On the frame at once; created in Reminders within seconds, with "For: …" in its notes for recipe items |
 | Tick on the frame something that hasn't reached Reminders yet | The add is cancelled; it never reaches Reminders |
 | The same item changed on the frame and in Reminders at once | Reminders wins; the frame catches up on the Mac's next send |
 | Two items with the same name | Fine: items are matched by ID, not by name |
 | Mac asleep, off, or iCloud stalled | The frame keeps the last copy and, after 30 minutes without the Mac checking in, says when it last did. Frame changes wait (up to a week) and are applied when it's back |
-| Subtasks, sections, flags, images | Not shown (EventKit doesn't expose them); subtasks show as ordinary items |
+| Priority, due time | Shown: `!!!`, `!!` or `!` before the title, and "Today 4 PM" (red once past) |
+| Add a task on the frame with a priority | Tap `!` beside the field to cycle none → ! → !! → !!!; set in Reminders as Low, Medium or High |
+| Sections, flags, assignees | Not shown, unless [extras](#extras-sections-flags-and-assignees) are on |
+| Subtasks, tags, images | Not shown (EventKit doesn't expose them); subtasks show as ordinary items |
 
 Order on the frame: Groceries in the order items were added; Tasks with dated items first (soonest
-at the top), then the rest in the order added. Reminders' own manual order isn't available to
-EventKit.
+at the top; within a day, untimed then by time), then the rest in the order added. Reminders' own manual order and its automatic
+grocery sections aren't available to EventKit. Each list can also be shown A–Z: the **Added**
+chip on Home, or **Added | A–Z** on the Lists tab (remembered per list, on that frame).
 
 ### Settings
 
@@ -136,6 +144,24 @@ macOS asks for Reminders access again, because a rebuilt app is a new app to it.
 **Remove**: `~/kitchen-frame/bridge/mac/uninstall.sh` (add `--all` to delete its settings too),
 and set the list's source back to `todoist`.
 
+### Extras: sections, flags and assignees
+
+EventKit leaves out sections (such as the aisles of the Reminders grocery template), flags and who a
+shared reminder is assigned to. The Reminders app keeps them in its own database on the Mac, and the
+bridge can read them from there. It only reads: every change still goes through EventKit.
+
+1. On the Mac: System Settings → Privacy & Security → **Full Disk Access** → **+** → choose
+   `~/Applications/KitchenFrameBridge.app` and turn it on. Do this again after each `install.sh`,
+   since a rebuilt app counts as a new one.
+2. Set `REMINDERS_EXTRAS=on` in `.dev.vars` and run `scripts/push-secrets.sh`. The Mac picks it up
+   within 5 minutes; its log says "Extras on".
+
+On the frame: Groceries on the Lists tab is grouped by aisle, flagged items get an orange flag, and
+assigned tasks show the person's initials. Flags and assignees can't be changed from the frame.
+
+This database isn't an Apple API. If a macOS update changes it, the log says so once and the frame
+goes back to plain lists until the bridge is fixed; nothing else stops working.
+
 ### Troubleshooting
 
 | Symptom | Fix |
@@ -144,6 +170,7 @@ and set the list's source back to `todoist`.
 | `HTTP 401` in the log | The token doesn't match the Worker's `BRIDGE_TOKEN`: run `install.sh --reconfigure` and paste it again (without the quotes) |
 | `--check` lists only "Reminders" | The Mac isn't showing your iCloud lists: turn on iCloud → Reminders, open the Reminders app until your lists appear, then run `install.sh` again |
 | `No Reminders list named "…"` in the log | The name in `REMINDERS_…_LIST` must match the list in Reminders (case doesn't matter) |
+| `Extras: can't read the Reminders database` | Full Disk Access for Kitchen Frame Bridge is off (it resets after each install.sh); see [extras](#extras-sections-flags-and-assignees) |
 | `No access to Reminders` | System Settings → Privacy & Security → Reminders → Kitchen Frame Bridge on (Full Access), then run install.sh again |
 | Changes from the phone are slow to reach the frame | That's iCloud reaching the Mac; the bridge also checks every 5 minutes. Opening Reminders on the Mac nudges a stuck iCloud sync |
 | "The Mac last checked in …" on the frame | The Mac is asleep, off or logged out; see step 5 |
