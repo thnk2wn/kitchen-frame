@@ -108,6 +108,9 @@
   .ev { display: block; width: 100%; padding: 7px 9px 7px 10px; margin-bottom: 6px; border-radius: 10px; background: var(--c-tint); border-left: 4px solid var(--c); }
   .ev:active { opacity: .7; }
   /* Past: drop the colour fill and soften the title, but keep it readable. */
+  /* At night a dim tint turns orange brown and yellow olive, so (as iOS Calendar does) the title takes
+     the calendar's bright colour instead; by day the tint carries it and titles stay black. */
+  :global([data-theme="dark"]) .ev:not(.past) .title { color: var(--c); }
   .ev.past { background: transparent; border-left-color: transparent; padding-left: 0; padding-right: 0; }
   .ev.past .title { color: var(--secondary); }
   .title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 17px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
