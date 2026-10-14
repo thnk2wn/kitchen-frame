@@ -13,6 +13,8 @@
   import TimerAlert from './components/TimerAlert.svelte';
   import WeatherSheet from './components/WeatherSheet.svelte';
   import DoorbellAlert from './components/DoorbellAlert.svelte';
+  import NoticeSheet from './components/NoticeSheet.svelte';
+  import { notices } from './lib/notices.svelte.js';
   import { timers } from './lib/timers.svelte.js';
   import { connectHA, haConfigured, haDashboard } from './lib/ha.svelte.js';
   import House from './views/House.svelte';
@@ -62,6 +64,11 @@
     </nav>
     <div class="edge right">
       <Timers />
+      <!-- Home shows notices as banners; other tabs get this chip. -->
+      {#if ui.tab !== 'home' && notices().length}
+        {@const n = notices()[0]}
+        <button class="notice-chip {n.tone}" onclick={() => (ui.noticesOpen = true)}><Icon name="alert" size={20} />{notices().length > 1 ? notices().length : ''}</button>
+      {/if}
       {#if ui.tab !== 'home'}<span class="num now">{time(clock.now)}</span>{/if}
       <!-- While a timer runs its chip takes this space; Home still shows the weather. -->
       {#if wx && !timers.list.some((t) => !t.done)}<button class="wxbtn" onclick={() => (ui.weatherDay = 0)} aria-label="Weather details"><span class="wx {info.tint}"><Icon name={info.icon} size={26} /></span><span class="num">{wx.temp}°</span></button>{/if}
@@ -90,6 +97,7 @@
   {#if messages.items.length && !ui.demo}<Message />{/if}
   <!-- Timer alerts cover everything, messages and the slideshow included. -->
   <WeatherSheet />
+  <NoticeSheet />
   <TimerAlert />
   <DoorbellAlert />
 </div>
@@ -103,6 +111,9 @@
   .right { justify-content: flex-end; }
   .now { margin-right: 14px; white-space: nowrap; }
   .wx { color: var(--secondary); }
+  .notice-chip { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 14px; border-radius: 22px; background: var(--orange); color: #fff; font-size: 18px; font-weight: 700; }
+  .notice-chip.alert { background: var(--red); }
+  .notice-chip.info { background: var(--blue); }
   .wxbtn { display: flex; align-items: center; gap: inherit; font: inherit; color: inherit; }
   .wxbtn:active { opacity: .6; }
   .wx.sun { color: var(--yellow); }

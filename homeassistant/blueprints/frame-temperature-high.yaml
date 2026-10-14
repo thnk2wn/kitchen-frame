@@ -1,0 +1,121 @@
+blueprint:
+  name: "Frame notice: temperature too high"
+  description: >-
+    Shows a notice on the kitchen frame when a temperature sensor stays above a limit (a freezer,
+    fridge or crawlspace, say), and removes it once the temperature has recovered. The notice is a
+    Home Assistant persistent notification whose id starts with "frame_", which the frame shows as a
+    banner. Short spikes such as a freezer's defrost cycle are ignored by the time window.
+  domain: automation
+  author: kitchen-frame
+  source_url: https://github.com/thnk2wn/kitchen-frame/blob/main/homeassistant/blueprints/frame-temperature-high.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    sensor:
+      name: Temperature sensor
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+    label:
+      name: Name on the frame
+      description: For example "Garage freezer". Leave empty to use the sensor's name.
+      default: ""
+      selector:
+        text:
+    above:
+      name: Too warm above
+      description: In the sensor's unit.
+      selector:
+        number:
+          min: -40
+          max: 150
+          step: 0.5
+          mode: box
+    duration:
+      name: For at least
+      description: How long it must stay above the limit, so short spikes don't count.
+      default: 45
+      selector:
+        number:
+          min: 1
+          max: 720
+          unit_of_measurement: minutes
+          mode: box
+    clear_below:
+      name: Clear when below
+      description: The notice is removed once the temperature is back below this.
+      selector:
+        number:
+          min: -40
+          max: 150
+          step: 0.5
+          mode: box
+    clear_after:
+      name: Clear after
+      description: How long it must stay below the clear level.
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: minutes
+          mode: box
+    tone:
+      name: Banner colour
+      default: alert
+      selector:
+        select:
+          options:
+            - label: Red (alert)
+              value: alert
+            - label: Orange (warning)
+              value: warn
+            - label: Blue (info)
+              value: info
+
+mode: single
+max_exceeded: silent
+
+variables:
+  sensor: !input sensor
+  label: !input label
+  limit: !input above
+  minutes: !input duration
+  tone: !input tone
+  name: "{{ label if label else state_attr(sensor, 'friendly_name') }}"
+  unit: "{{ state_attr(sensor, 'unit_of_measurement') or '' }}"
+  notice_id: "frame_{{ tone }}_{{ sensor.split('.')[1] }}"
+
+triggers:
+  - trigger: numeric_state
+    entity_id: !input sensor
+    above: !input above
+    for:
+      minutes: !input duration
+    id: too_warm
+  - trigger: numeric_state
+    entity_id: !input sensor
+    below: !input clear_below
+    for:
+      minutes: !input clear_after
+    id: recovered
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: too_warm
+        sequence:
+          - action: persistent_notification.create
+            data:
+              notification_id: "{{ notice_id }}"
+              title: "{{ name }} is {{ states(sensor) | float(0) | round(0) | int }}{{ unit }}"
+              message: "Above {{ limit }}{{ unit }} for {{ minutes | int }} minutes."
+      - conditions:
+          - condition: trigger
+            id: recovered
+        sequence:
+          - action: persistent_notification.dismiss
+            data:
+              notification_id: "{{ notice_id }}"

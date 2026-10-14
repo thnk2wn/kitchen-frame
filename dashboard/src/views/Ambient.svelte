@@ -4,6 +4,7 @@
   import { clockTime, longDate, weatherInfo, time, eventsOn } from '../lib/format.js';
   import { src, takeSlide } from '../lib/slides.js';
   import { nowPlaying } from '../lib/ha.svelte.js';
+  import { notices } from '../lib/notices.svelte.js';
 
   // StandBy-style idle screen: the iCloud album as a slideshow behind the clock, in the text colour
   // chosen in Settings. At night photos and text are dimmed (or photos are off, per Settings).
@@ -64,6 +65,10 @@
       {#if playing}
         <div class="music"><Icon name="music" size={24} /><span>{playing.media_title}{playing.media_artist ? ' · ' + playing.media_artist : ''}</span></div>
       {/if}
+      {#if notices().length}
+        {@const n = notices()[0]}
+        <div class="notice {n.tone}"><Icon name="alert" size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span></div>
+      {/if}
       {#if next}
         <div class="next"><span>{next.title}</span><span class="num">{time(new Date(next.start))}</span></div>
       {/if}
@@ -84,6 +89,11 @@
   .music { display: flex; align-items: center; gap: 10px; max-width: 560px; font-size: 24px; font-weight: 600; }
   .music span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .photos .music { font-size: 20px; max-width: 520px; }
+  /* A Home Assistant notice keeps its own colour over the clock colour, so it stands out. */
+  .notice { align-self: flex-start; display: flex; align-items: center; gap: 10px; max-width: 560px; padding: 8px 16px; border-radius: 16px; background: #ff9500; color: #fff; font-size: 22px; font-weight: 700; }
+  .notice.alert { background: #ff3b30; }
+  .notice.info { background: #007aff; }
+  .notice span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* After sunset: same colour, dimmer, and photos dimmed, so the kitchen isn't lit up. */
   .night .info { opacity: .7; }
   .night .slides { opacity: .45; }

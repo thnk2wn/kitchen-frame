@@ -31,6 +31,7 @@ export const ui = $state({
   // { id, title } for Recipes to open on arrival (a meal tapped on Home, or ?open=<recipe id>).
   openRecipe: q.get('open') ? { id: q.get('open'), title: '' } : null, theme: 'light', settingsOpen: false,
   // Index into weather.data.days while its detail sheet is open (?weather=<n> opens it, for screenshots).
+  noticesOpen: false,                        // the Home Assistant notices sheet (lib/notices.svelte.js)
   weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,
   themePref: pref('theme', 'auto'),          // auto | light | dark
   idleMinutes: Number(pref('idle', '5')),    // 0 = never

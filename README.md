@@ -54,6 +54,9 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
   ahead, rain, wind, UV and sun times. An active alert also shows as a badge on Home's weather card.
 - **Doorbell pop-up:** when a doorbell rings, its camera fills the screen (live video, or the latest
   snapshot) for 90 seconds. Found automatically in Home Assistant. See [Doorbell](#doorbell).
+- **Notices from Home Assistant:** an automation posts a notification with an id starting
+  `frame_` and it shows as a banner (garage freezer too warm, say), clearing itself when the
+  automation dismisses it. Blueprints included. See [Notices](#notices-from-home-assistant).
 - **Lists tab:** Groceries and Tasks share one tab with a switch, and Home stacks both lists
   beside the calendar; tap a heading to jump to that list.
 - **Kitchen timers:** a timer button in the top bar (tap a time, then optionally a name like
@@ -291,6 +294,30 @@ Reolink, UniFi Protect, Nest and others provide one) is watched, and the camera 
 same device. To override, set `DOORBELL` (entity ids, comma-separated, or `off`) and
 `DOORBELL_CAMERA` in `dashboard/.frame.vars` (or `?doorbell=` / `?doorbell_camera=` in a setup link).
 Settings → Doorbell → Test shows the pop-up without anyone at the door.
+
+## Notices from Home Assistant
+
+Short, glanceable notices that clear themselves: a banner in Home's left column (red, orange or
+blue), a line on the clock screen and a chip in the top bar on other tabs. Tap one for its message
+and a Dismiss button, which removes it in Home Assistant for every screen.
+
+The frame shows any HA persistent notification whose `notification_id` starts with `frame_`, so
+everything device-specific stays in your Home Assistant automations, not in this repo:
+
+- `persistent_notification.create` with `notification_id: frame_alert_freezer` (and a title and
+  message) shows it; `persistent_notification.dismiss` with the same id removes it.
+- `frame_alert_…` is red, `frame_info_…` blue, any other `frame_…` orange. Alerts sort first.
+- HA's own notifications (repairs, new devices) don't start with `frame_` and stay off the frame.
+
+Blueprints in [`homeassistant/blueprints/`](homeassistant/blueprints/) make common ones a form to
+fill in (Settings → Automations & Scenes → Blueprints → Import Blueprint, paste the file's GitHub URL):
+
+- **Temperature too high** (`frame-temperature-high.yaml`): a temperature sensor above a limit for a
+  while (a freezer, fridge or crawlspace), cleared once it's back below a second level. The time
+  window keeps short spikes such as a freezer's defrost cycle from raising it.
+
+For messages that should take over the screen (and be read aloud), use
+[Messages from agents](#messages-from-agents) instead.
 
 ## Messages from agents
 

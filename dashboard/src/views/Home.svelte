@@ -4,6 +4,7 @@
   import TaskRow from '../components/TaskRow.svelte';
   import NowPlaying from '../components/NowPlaying.svelte';
   import CalendarPicker from '../components/CalendarPicker.svelte';
+  import NoticeBanners from '../components/NoticeBanners.svelte';
   import { nowPlaying } from '../lib/ha.svelte.js';
   import { clock, calendar, weather, lists, mealItems, ui, completeItem, loadCalendar, loadList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey } from '../lib/format.js';
@@ -38,6 +39,8 @@
     <div class="date">{longDate(clock.now)}</div>
     <div class="clock num">{clockTime(clock.now)}</div>
     {#if playing}<div class="np-slot"><NowPlaying player={playing} /></div>{/if}
+    <!-- Home Assistant notices (lib/notices.svelte.js); one fits beside Now Playing, two without it. -->
+    <NoticeBanners max={playing ? 1 : 2} />
 
     {#if wx}
       <div class="sheet weather">
