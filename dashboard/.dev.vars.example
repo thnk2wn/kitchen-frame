@@ -7,6 +7,9 @@ CALENDAR_URLS="https://calendar.google.com/calendar/ical/.../basic.ics webcal://
 # Optional colours, same order: red, orange, yellow, green, teal, blue, indigo, purple, pink, brown,
 # gray, or #rrggbb. Unset calendars rotate through red, blue, green, purple, orange, teal.
 # CALENDAR_COLORS="blue, yellow, green"
+# Optional, same order: yes for calendars whose events open with their details and notes when
+# tapped. Notes are only kept for these; leave work calendars out.
+# CALENDAR_DETAILS="yes, yes, no"
 # Any long random string. The frame opens the dashboard once with ?key=<this>.
 DASHBOARD_KEY=""
 # Optional: IANA zone for event times that carry no zone at all (rare). Defaults to the feed's own.

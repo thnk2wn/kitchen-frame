@@ -33,7 +33,17 @@ export function demoCalendar(now) {
   ];
   events.sort((a, b) => (a.allDay ? Date.parse(a.start + 'T00:00') : Date.parse(a.start)) - (b.allDay ? Date.parse(b.start + 'T00:00') : Date.parse(b.start)));
   return { updated: now.toISOString(), calendars: 4, names: ['Dad', 'Family', 'Work', 'Tennessee Football'],
-    colors: ['brown', 'yellow', 'blue', 'orange'], errors: [], events, demo: true };
+    colors: ['brown', 'yellow', 'blue', 'orange'], details: [true, true, false, true], errors: [], events, demo: true,
+    // Notes for the calendars that open (not Work's), as the Worker sends them: by event uid.
+    notes: {
+      'demo-swim': 'Level 3, lesson 5 of 8.\nBring goggles, a towel and a snack for after.',
+      'demo-dentist': 'Cleanings for both kids.\nArrive 10 minutes early to update insurance.',
+      'demo-grandparents': 'Flight lands at 6:10 PM.\nGuest room: fresh sheets, clear the desk.',
+      'demo-fair': 'Tickets are on the fridge. Parking at the east gate.\nRides close at 10.',
+      'demo-game1': 'TV: CBS\nRadio: Vol Network',
+      'demo-game2': 'TV: ESPN\nRadio: Vol Network',
+      'demo-allergy': 'Wait 30 minutes after the shot.',
+    } };
 }
 
 export function demoList(name, now) {

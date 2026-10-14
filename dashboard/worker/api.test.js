@@ -370,3 +370,22 @@ test('classic shared album links and the size picked for each photo', () => {
   const video = { mediaAssetType: 'video', derivatives: { PosterFrame: { checksum: 'p', width: '1280', height: '720' }, '720p': { checksum: 'v', width: '1280', height: '720' } } };
   assert.equal(pickDerivative(video).checksum, 'p');
 });
+
+test('calendar details: notes stored only for calendars allowed to open them', async () => {
+  const at = (h) => new Date(Date.now() + h * 36e5).toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const feed = (uid) => ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:' + uid, 'SUMMARY:' + uid, 'DTSTART:' + at(24), 'DTEND:' + at(25), 'DESCRIPTION:Notes for ' + uid, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  globalThis.fetch = async (url) => new Response(feed(String(url).includes('work') ? 'meeting' : 'game'));
+  const run = async (extra) => {
+    const puts = [];
+    const kv = { get: async () => null, put: async (k, v) => puts.push(JSON.parse(v)) };
+    await worker.scheduled({ cron: '*/10 * * * *' }, { ...env, CALENDAR: kv, CALENDAR_URLS: 'https://feed.test/work.ics https://feed.test/games.ics', ...extra });
+    return puts[0];
+  };
+  const on = await run({ CALENDAR_DETAILS: 'no, yes' });
+  assert.deepEqual(on.details, [false, true]);
+  assert.deepEqual(on.notes, { game: 'Notes for game' }); // the work meeting's notes were never kept
+  assert.ok(on.events.every((e) => !('notes' in e)));
+  const off = await run({});
+  assert.equal(off.details, undefined);
+  assert.equal(off.notes, undefined);
+});

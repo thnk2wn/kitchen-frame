@@ -74,7 +74,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | Feature | | What it does |
 | --- | --- | --- |
 | **Weather** | Updated | Today's UV on Home and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, sun times. |
-| **[Calendar](#calendar)** | Updated | Upcoming grouped by day, colours and names per calendar, hide any calendar per frame, and `#private` to keep an event off the frame. |
+| **[Calendar](#calendar)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details and notes on the calendars you choose, hide any calendar per frame, and `#private` to keep an event off the frame. |
 | **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours). Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
 
 ## How it fits together
@@ -188,7 +188,14 @@ The Worker merges any number of calendar feeds into one agenda: Google, iCloud, 
 Outlook/Exchange, or a subscribed .ics link like a sports team's schedule. Put the links in
 `CALENDAR_URLS`; optionally name and colour each one (`CALENDAR_NAMES`, `CALENDAR_COLORS`), and hide
 any of them per frame from **Calendars** on Home or the Calendar tab. The frame shows titles, times
-and locations only, and `#private` in an event keeps it off the frame.
+and locations, and `#private` in an event keeps it off the frame.
+
+Choose which calendars open when an event is tapped (`CALENDAR_DETAILS`): the family calendar or a
+team's schedule, say, but not work. Those events show a › and open a sheet with the calendar, the
+day and time, the location and the event's notes (TV channel and score, for a sports feed). Notes
+from other calendars are never stored, so the frame couldn't show them if it tried.
+
+<img src="docs/images/event-light.jpg" alt="An event's details: calendar, day and time, stadium, and TV and radio notes" width="640">
 
 [docs/calendar.md](docs/calendar.md) has how to get each kind of link, every setting, privacy
 details, and how refreshing and failed feeds work.

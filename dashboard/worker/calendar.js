@@ -41,7 +41,9 @@ export function prefilter(text, from, to) {
 }
 
 // Expand one feed into events overlapping [from, to). `fallbackTz` covers floating times.
-export function expand(text, cal, from, to, fallbackTz = 'UTC') {
+// `notes`: keep each event's description (cleaned up) for the frame's event details. Off unless
+// the calendar is allowed to show details (CALENDAR_DETAILS), so nothing else is ever kept.
+export function expand(text, cal, from, to, fallbackTz = 'UTC', { notes = false } = {}) {
   const root = new ICAL.Component(ICAL.parse(prefilter(text, from, to)));
   for (const tz of root.getAllSubcomponents('vtimezone')) ICAL.TimezoneService.register(tz);
   const calTz = root.getFirstPropertyValue('x-wr-timezone');
@@ -54,7 +56,7 @@ export function expand(text, cal, from, to, fallbackTz = 'UTC') {
   function emit(comp, uid, start, end, startTz) {
     if (String(comp.getFirstPropertyValue('status')).toUpperCase() === 'CANCELLED') return;
     if (isPrivate(comp)) return;
-    const ev = toEvent(comp, uid, cal, start, end, startTz);
+    const ev = toEvent(comp, uid, cal, start, end, startTz, notes);
     if (ev.endMs > from && ev.startMs < to) events.push(ev);
   }
 
@@ -136,18 +138,56 @@ function fastForward(event, from) {
   return start;
 }
 
-function toEvent(comp, uid, cal, start, end, tz) {
+function toEvent(comp, uid, cal, start, end, tz, withNotes) {
   const allDay = start.isDate;
   const startMs = utcMs(start, tz), endMs = Math.max(utcMs(end, tz), startMs);
   const location = comp.getFirstPropertyValue('location');
+  const title = String(comp.getFirstPropertyValue('summary') || '(No title)');
+  const notes = withNotes ? cleanNotes(comp.getFirstPropertyValue('description'), title) : '';
   return {
-    uid, cal, startMs, endMs, allDay,
-    title: String(comp.getFirstPropertyValue('summary') || '(No title)'),
+    uid, cal, startMs, endMs, allDay, title,
     // All-day events stay as plain dates (end exclusive) so the frame shows them on its own day.
     start: allDay ? dateStr(start) : new Date(startMs).toISOString(),
     end: allDay ? dateStr(end) : new Date(endMs).toISOString(),
     ...(location ? { location: String(location) } : {}),
+    ...(notes ? { notes } : {}),
   };
+}
+
+// Event notes as plain text for the frame: HTML (Google, Outlook) turned into lines, links dropped
+// (nothing on the frame can open them) along with lines left as a bare label ("Tickets:"), a first
+// line that just repeats the title, and separator rules. Kept short.
+export const NOTES_MAX = 1000;
+export function cleanNotes(raw, title = '') {
+  let t = String(raw || '');
+  if (!t.trim()) return '';
+  if (/<[a-z][^>]*>/i.test(t)) {
+    t = t.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h\d|tr)>/gi, '\n').replace(/<li[^>]*>/gi, '• ').replace(/<[^>]+>/g, '')
+      .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
+  }
+  const lines = t.replace(/\r/g, '').replace(/<?(https?:\/\/|mailto:|tel:)[^\s>]+>?/gi, '').split('\n').map((l) => l.replace(/[ \t]+/g, ' ').trim());
+  const out = [];
+  for (const l of lines) {
+    if (/^[-_=~:*.•\s]{3,}$/.test(l) || /^[^:]{1,40}:$/.test(l)) continue;
+    if (!out.length && !l) continue;
+    if (!out.length && l.toLowerCase() === title.trim().toLowerCase()) continue;
+    if (!l && !out[out.length - 1]) continue;
+    out.push(l);
+  }
+  const text = out.join('\n').trim();
+  return text.length > NOTES_MAX ? text.slice(0, NOTES_MAX - 1).trimEnd() + '…' : text;
+}
+
+// Notes move out of the events into one map by uid, so a weekly event's notes are stored once.
+export function splitNotes(events) {
+  const notes = {};
+  for (const e of events) {
+    if (!e.notes) continue;
+    if (!(e.uid in notes)) notes[e.uid] = e.notes;
+    delete e.notes;
+  }
+  return notes;
 }
 
 function instanceKey(t, tz) {

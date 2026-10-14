@@ -12,6 +12,7 @@
   import Timers from './components/Timers.svelte';
   import TimerAlert from './components/TimerAlert.svelte';
   import WeatherSheet from './components/WeatherSheet.svelte';
+  import EventSheet from './components/EventSheet.svelte';
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
   import { notices, iconOf } from './lib/notices.svelte.js';
@@ -98,6 +99,7 @@
   {#if messages.items.length && !ui.demo}<Message />{/if}
   <!-- Timer alerts cover everything, messages and the slideshow included. -->
   <WeatherSheet />
+  <EventSheet />
   <NoticeSheet />
   <TimerAlert />
   <DoorbellAlert />

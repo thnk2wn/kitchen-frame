@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { expand, merge, prefilter } from './calendar.js';
+import { expand, merge, prefilter, cleanNotes, splitNotes } from './calendar.js';
 
 const DAY = 864e5;
 const now = Date.parse('2026-10-12T12:00:00Z');
@@ -96,4 +96,25 @@ test('events tagged #private or marked private never reach the frame', () => {
     ev('e', 'SUMMARY:Lunch #privateish') +
     'END:VCALENDAR\r\n';
   assert.deepEqual(expand(feed, 0, from, to).map((e) => e.title).sort(), ['Dentist', 'Lunch #privateish']);
+});
+
+const withNotes = ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:swim', 'SUMMARY:Swim lesson', 'DTSTART:20261012T210000Z', 'DTEND:20261012T214500Z',
+  'RRULE:FREQ=WEEKLY;COUNT=3', 'DESCRIPTION:Swim lesson\\nBring goggles\\nSign up: https://pool.example.com/x', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+
+test('event notes are kept only when asked for, once per event', () => {
+  assert.ok(expand(withNotes, 0, from, to).every((e) => !('notes' in e))); // off by default
+  const evs = merge([expand(withNotes, 1, from, to, 'UTC', { notes: true })]);
+  assert.equal(evs.length, 2); // Oct 12 and 19 (Oct 26 is after the window)
+  assert.ok(evs.every((e) => e.notes === 'Bring goggles'));
+  assert.deepEqual(splitNotes(evs), { swim: 'Bring goggles' });
+  assert.ok(evs.every((e) => !('notes' in e)));
+});
+
+test('notes: links, bare labels, a repeated title and HTML are cleaned up', () => {
+  const sports = '[W] Football vs Furman\nW 56-9\nTV: SEC Network+\nStreaming Video: https://www.espn.com/watch/x\nTickets: https://tickets.example.com/y';
+  assert.equal(cleanNotes(sports, '[W] Football vs Furman'), 'W 56-9\nTV: SEC Network+');
+  assert.equal(cleanNotes('<p>Bring <b>snacks</b> &amp; water<br>Gate 3</p><p>Join: <a href="https://zoom.us/j/1">https://zoom.us/j/1</a></p>'), 'Bring snacks & water\nGate 3');
+  assert.equal(cleanNotes('Agenda\n________________\n\n\n\nItem one'), 'Agenda\n\nItem one');
+  assert.equal(cleanNotes('x'.repeat(1500)).length, 1000);
+  assert.equal(cleanNotes('  '), '');
 });

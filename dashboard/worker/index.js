@@ -18,6 +18,8 @@
 //   CALENDAR_NAMES optional names for the frame's Calendars list, comma-separated, in link order.
 //   CALENDAR_COLORS optional colours, comma-separated, in link order: palette names (red, orange,
 //                  yellow, green, teal, blue, indigo, purple, pink, brown, gray) or #rrggbb.
+//   CALENDAR_DETAILS optional yes/no per calendar, comma-separated, in link order: whether tapping
+//                  an event opens its details (with its notes). Notes are only kept for "yes" ones.
 //   CALENDAR_URLS  iCal links separated by spaces, commas or newlines. Google "Secret address in
 //                  iCal format" and iCloud public calendar links (webcal://) both work.
 //   DASHBOARD_KEY  shared key the frame sends with every API call. Unset = no check (dev only).
@@ -26,7 +28,7 @@
 //   AGENT_TOKEN    lets AI agents post messages and save recipes; it can't read anything.
 //   PAPRIKA_EMAIL, PAPRIKA_PASSWORD  optional: a Paprika Cloud Sync account to show our recipes.
 // Optional: DISPLAY_TZ  IANA zone for times with no TZID and no X-WR-TIMEZONE (default UTC).
-import { expand, merge } from './calendar.js';
+import { expand, merge, splitNotes } from './calendar.js';
 import { getWeather } from './weather.js';
 import { LISTS, getList, addItem, completeItem } from './todoist.js';
 import { listPhotos, photoResponse } from './photos.js';
@@ -154,7 +156,8 @@ export default {
 // Fetches the feeds and stores the result when the events or errors changed, or hourly.
 async function updateCalendar(env, previous) {
   const data = await refresh(env, previous);
-  const same = previous && JSON.stringify([previous.events, previous.errors, previous.names, previous.colors]) === JSON.stringify([data.events, data.errors, data.names, data.colors]);
+  const pick = (d) => JSON.stringify([d.events, d.errors, d.names, d.colors, d.details, d.notes]);
+  const same = previous && pick(previous) === pick(data);
   if (!same || Date.now() - Date.parse(previous.updated) > HEARTBEAT_MS) await env.CALENDAR.put(KEY, JSON.stringify(data));
   return data;
 }
@@ -165,6 +168,8 @@ async function refresh(env, previous) {
   const tz = env.DISPLAY_TZ || 'UTC';
   const errors = [];
   const names = [];
+  // CALENDAR_DETAILS (optional, same order): which calendars' events open with their notes.
+  const details = env.CALENDAR_DETAILS ? urls.map((_, i) => /^(yes|y|true|on)$/i.test((String(env.CALENDAR_DETAILS).split(',')[i] || '').trim())) : null;
 
   const lists = await Promise.all(urls.map(async (link, cal) => {
     try {
@@ -176,7 +181,7 @@ async function refresh(env, previous) {
       // The feed's own name (X-WR-CALNAME), for the frame's show/hide list.
       const named = /\nX-WR-CALNAME:([^\r\n]+)/.exec(text);
       names[cal] = named ? named[1].trim() : null;
-      const events = expand(text, cal, from, to, tz);
+      const events = expand(text, cal, from, to, tz, { notes: !!details?.[cal] });
       // Holiday feeds (Google's or Apple's) are marked, so the frame can leave them out of counts.
       if (/holiday/i.test(link)) for (const e of events) e.holiday = true;
       return events;
@@ -185,7 +190,8 @@ async function refresh(env, previous) {
       errors.push({ cal, error: String(err.message || err) });
       names[cal] = previous?.names?.[cal] ?? null;
       console.error('calendar ' + cal + ' failed:', err);
-      return (previous?.events || []).filter((e) => e.cal === cal).map((e) => ({ ...e, startMs: Date.parse(e.start) }));
+      return (previous?.events || []).filter((e) => e.cal === cal)
+        .map((e) => ({ ...e, startMs: Date.parse(e.start), ...(details?.[cal] && previous.notes?.[e.uid] ? { notes: previous.notes[e.uid] } : {}) }));
     }
   }));
 
@@ -193,8 +199,11 @@ async function refresh(env, previous) {
   const custom = String(env.CALENDAR_NAMES || '').split(',').map((x) => x.trim());
   // CALENDAR_COLORS (optional, same order): the frame's colour per calendar; unset ones rotate.
   const colors = env.CALENDAR_COLORS ? String(env.CALENDAR_COLORS).split(',').map((x) => x.trim()) : null;
+  const events = merge(lists);
+  const notes = splitNotes(events);
   return { updated: new Date(now).toISOString(), calendars: urls.length, names: urls.map((_, i) => custom[i] || names[i] || null),
-    colors: colors ? urls.map((_, i) => colors[i] || null) : undefined, errors, events: merge(lists) };
+    colors: colors ? urls.map((_, i) => colors[i] || null) : undefined, details: details || undefined,
+    notes: Object.keys(notes).length ? notes : undefined, errors, events };
 }
 
 function authorized(req, env) {

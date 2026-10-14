@@ -34,6 +34,8 @@ export const ui = $state({
   openRecipe: q.get('open') ? { id: q.get('open'), title: '' } : null, theme: 'light', settingsOpen: false,
   // Index into weather.data.days while its detail sheet is open (?weather=<n> opens it, for screenshots).
   noticesOpen: false,                        // the Home Assistant notices sheet (lib/notices.svelte.js)
+  // The event whose details are showing ({ uid, start }); ?event=<uid> opens one, for screenshots.
+  event: q.get('event') ? { uid: q.get('event'), start: null } : null,
   weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,
   themePref: pref('theme', 'auto'),          // auto | light | dark
   // Minutes untouched (and the room empty, with a presence area) before the clock screen; 0 = never.
@@ -147,6 +149,11 @@ export function toggleCalendar(cal) {
   showCalendar(calendar.raw);
 }
 showCalendar(ui.demo ? demoCalendar(new Date()) : cached('calendar')); // last copy, at boot
+
+// Events on calendars set to open (CALENDAR_DETAILS) can be tapped for their details and notes.
+export const canOpen = (e) => !!(calendar.raw && calendar.raw.details && calendar.raw.details[e.cal]);
+export const eventNotes = (e) => (calendar.raw && calendar.raw.notes && calendar.raw.notes[e.uid]) || '';
+export function openEvent(e) { if (canOpen(e)) ui.event = { uid: e.uid, start: e.start }; }
 
 // Display names for the show/hide list: the feed's own name, numbered when names repeat.
 export function calendarNames() {
