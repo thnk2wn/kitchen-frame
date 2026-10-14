@@ -20,10 +20,18 @@
   --blue-text: #0060df;
   --orange-text: #c93400;
   --ring: #8e8e93;
-  --cal0: #ff3b30; --cal0-tint: rgba(255, 59, 48, .12);
-  --cal1: #007aff; --cal1-tint: rgba(0, 122, 255, .12);
-  --cal2: #34c759; --cal2-tint: rgba(52, 199, 89, .14);
-  --cal3: #af52de; --cal3-tint: rgba(175, 82, 222, .12);
+  /* Named colours for calendars (CALENDAR_COLORS) and anything else that needs a fixed hue. */
+  --pal-red: #ff3b30; --pal-red-tint: rgba(255, 59, 48, .12);
+  --pal-orange: #ff9500; --pal-orange-tint: rgba(255, 149, 0, .14);
+  --pal-yellow: #ffcc00; --pal-yellow-tint: rgba(255, 204, 0, .18);
+  --pal-green: #34c759; --pal-green-tint: rgba(52, 199, 89, .14);
+  --pal-teal: #30b0c7; --pal-teal-tint: rgba(48, 176, 199, .14);
+  --pal-blue: #007aff; --pal-blue-tint: rgba(0, 122, 255, .12);
+  --pal-indigo: #5856d6; --pal-indigo-tint: rgba(88, 86, 214, .12);
+  --pal-purple: #af52de; --pal-purple-tint: rgba(175, 82, 222, .12);
+  --pal-pink: #ff2d55; --pal-pink-tint: rgba(255, 45, 85, .12);
+  --pal-brown: #a2845e; --pal-brown-tint: rgba(162, 132, 94, .16);
+  --pal-gray: #8e8e93; --pal-gray-tint: rgba(142, 142, 147, .16);
 }
 [data-theme="dark"] {
   --ground: #000000;
@@ -43,10 +51,17 @@
   --blue-text: #409cff;
   --orange-text: #ffb340;
   --ring: #7c7c80;
-  --cal0: #ff453a; --cal0-tint: rgba(255, 69, 58, .22);
-  --cal1: #0a84ff; --cal1-tint: rgba(10, 132, 255, .24);
-  --cal2: #30d158; --cal2-tint: rgba(48, 209, 88, .2);
-  --cal3: #bf5af2; --cal3-tint: rgba(191, 90, 242, .22);
+  --pal-red: #ff453a; --pal-red-tint: rgba(255, 69, 58, .22);
+  --pal-orange: #ff9f0a; --pal-orange-tint: rgba(255, 159, 10, .22);
+  --pal-yellow: #ffd60a; --pal-yellow-tint: rgba(255, 214, 10, .2);
+  --pal-green: #30d158; --pal-green-tint: rgba(48, 209, 88, .2);
+  --pal-teal: #40c8e0; --pal-teal-tint: rgba(64, 200, 224, .2);
+  --pal-blue: #0a84ff; --pal-blue-tint: rgba(10, 132, 255, .24);
+  --pal-indigo: #5e5ce6; --pal-indigo-tint: rgba(94, 92, 230, .24);
+  --pal-purple: #bf5af2; --pal-purple-tint: rgba(191, 90, 242, .22);
+  --pal-pink: #ff375f; --pal-pink-tint: rgba(255, 55, 95, .22);
+  --pal-brown: #ac8e68; --pal-brown-tint: rgba(172, 142, 104, .24);
+  --pal-gray: #98989d; --pal-gray-tint: rgba(152, 152, 157, .22);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -58,7 +73,7 @@ body {
 }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; touch-action: manipulation; text-align: inherit; }
 input { -webkit-user-select: text; user-select: text; caret-color: var(--blue); }
-::selection { background: var(--cal1-tint); }
+::selection { background: var(--pal-blue-tint); }
 :focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 .i { flex: none; display: block; }
 .num { font-variant-numeric: tabular-nums; }

@@ -16,6 +16,8 @@
 //
 // Secrets (`wrangler secret put`, or .dev.vars locally):
 //   CALENDAR_NAMES optional names for the frame's Calendars list, comma-separated, in link order.
+//   CALENDAR_COLORS optional colours, comma-separated, in link order: palette names (red, orange,
+//                  yellow, green, teal, blue, indigo, purple, pink, brown, gray) or #rrggbb.
 //   CALENDAR_URLS  iCal links separated by spaces, commas or newlines. Google "Secret address in
 //                  iCal format" and iCloud public calendar links (webcal://) both work.
 //   DASHBOARD_KEY  shared key the frame sends with every API call. Unset = no check (dev only).
@@ -152,7 +154,7 @@ export default {
 // Fetches the feeds and stores the result when the events or errors changed, or hourly.
 async function updateCalendar(env, previous) {
   const data = await refresh(env, previous);
-  const same = previous && JSON.stringify([previous.events, previous.errors, previous.names]) === JSON.stringify([data.events, data.errors, data.names]);
+  const same = previous && JSON.stringify([previous.events, previous.errors, previous.names, previous.colors]) === JSON.stringify([data.events, data.errors, data.names, data.colors]);
   if (!same || Date.now() - Date.parse(previous.updated) > HEARTBEAT_MS) await env.CALENDAR.put(KEY, JSON.stringify(data));
   return data;
 }
@@ -166,7 +168,8 @@ async function refresh(env, previous) {
 
   const lists = await Promise.all(urls.map(async (link, cal) => {
     try {
-      const res = await fetch(link.replace(/^webcal:/i, 'https:'), { headers: { Accept: 'text/calendar' } });
+      // Some feeds (Sidearm sports sites, say) refuse anything that doesn't look like a browser.
+      const res = await fetch(link.replace(/^webcal:/i, 'https:'), { headers: { Accept: 'text/calendar', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
       if (!text.includes('BEGIN:VCALENDAR')) throw new Error('not an iCal feed');
@@ -188,7 +191,10 @@ async function refresh(env, previous) {
 
   // CALENDAR_NAMES (optional, comma-separated, same order as the links) overrides the feeds' names.
   const custom = String(env.CALENDAR_NAMES || '').split(',').map((x) => x.trim());
-  return { updated: new Date(now).toISOString(), calendars: urls.length, names: urls.map((_, i) => custom[i] || names[i] || null), errors, events: merge(lists) };
+  // CALENDAR_COLORS (optional, same order): the frame's colour per calendar; unset ones rotate.
+  const colors = env.CALENDAR_COLORS ? String(env.CALENDAR_COLORS).split(',').map((x) => x.trim()) : null;
+  return { updated: new Date(now).toISOString(), calendars: urls.length, names: urls.map((_, i) => custom[i] || names[i] || null),
+    colors: colors ? urls.map((_, i) => colors[i] || null) : undefined, errors, events: merge(lists) };
 }
 
 function authorized(req, env) {

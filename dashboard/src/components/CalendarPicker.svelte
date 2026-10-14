@@ -3,6 +3,7 @@
   // is kept in localStorage, so it survives reloads and restarts. up: open the menu upwards.
   import Icon from './Icon.svelte';
   import { hiddenCals, toggleCalendar, calendarNames } from '../lib/state.svelte.js';
+  import { calColorVars } from '../lib/format.js';
   let { up = false, plain = false } = $props();
   let picking = $state(false);
   let names = $derived(calendarNames());
@@ -16,7 +17,7 @@
     {#if picking}
       <div class="cal-menu sheet" role="menu">
         {#each names as name, i (i)}
-          <button role="menuitemcheckbox" aria-checked={!hiddenCals.set.has(i)} class:hidden={hiddenCals.set.has(i)} onclick={() => toggleCalendar(i)} style="--c:var(--cal{i % 4})">
+          <button role="menuitemcheckbox" aria-checked={!hiddenCals.set.has(i)} class:hidden={hiddenCals.set.has(i)} onclick={() => toggleCalendar(i)} style={calColorVars(i)}>
             <span class="box">{#if !hiddenCals.set.has(i)}<Icon name="check" size={16} />{/if}</span>{name}
           </button>
         {/each}

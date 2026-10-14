@@ -16,8 +16,22 @@ export function addDays(d, n) {
 }
 // Calendar colour as CSS variables (the palette changes with the theme).
 export function calVars(e) {
-  const n = e.cal % 4;
-  return '--c:var(--cal' + n + ');--c-tint:var(--cal' + n + '-tint)';
+  return calColorVars(e.cal);
+}
+// A calendar's colour as --c / --c-tint, from CALENDAR_COLORS (a palette name such as "orange", or a
+// hex colour), else the default rotation of red, blue, green, purple, orange, teal.
+const DEFAULT_CALS = ['red', 'blue', 'green', 'purple', 'orange', 'teal'];
+let calColors = [];
+export function setCalendarColors(colors) { calColors = Array.isArray(colors) ? colors : []; }
+export function calColorVars(i) {
+  const c = String(calColors[i] || DEFAULT_CALS[i % DEFAULT_CALS.length]).trim().toLowerCase();
+  const hex = /^#([0-9a-f]{6})$/.exec(c);
+  if (hex) {
+    const n = parseInt(hex[1], 16);
+    return '--c:' + c + ';--c-tint:rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',.16)';
+  }
+  const name = /^[a-z]+$/.test(c) ? c : 'gray';
+  return '--c:var(--pal-' + name + ', var(--pal-gray));--c-tint:var(--pal-' + name + '-tint, var(--pal-gray-tint))';
 }
 // Events touching a local calendar day. All-day events are plain dates with an exclusive end.
 // Looks up a per-feed index (built once per calendar copy) instead of scanning every event for

@@ -1,7 +1,7 @@
 // Shared app state and the pollers that fill it. Each feed polls only while something on screen
 // needs it (see start()), one request at a time, and unchanged results don't touch the screen.
 import { api, cached, remember, changed, forget, withKey } from './api.js';
-import { dayKey, recipeTitle } from './format.js';
+import { dayKey, recipeTitle, setCalendarColors } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
 import { ha, announce } from './ha.svelte.js';
 
@@ -130,6 +130,7 @@ export const lists = $state({
 // calendar.raw is the whole feed; calendar.data is what the screens show, without hidden ones.
 export const hiddenCals = $state({ set: new Set(JSON.parse(pref('hidden-cals', '[]'))) });
 function showCalendar(raw) {
+  setCalendarColors(raw && raw.colors); // before the data, so views re-render with the colours
   calendar.raw = raw;
   calendar.data = raw && hiddenCals.set.size ? { ...raw, events: raw.events.filter((e) => !hiddenCals.set.has(e.cal)) } : raw;
 }

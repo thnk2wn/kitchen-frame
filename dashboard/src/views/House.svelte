@@ -217,8 +217,8 @@
   .climate { grid-column: span 2; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
   .climate.off { opacity: .6; }
   /* Running: the card takes the colour of what it's doing (tint layered over the sheet colour). */
-  .climate.cooling { background-image: linear-gradient(var(--cal1-tint), var(--cal1-tint)); }
-  .climate.heating { background-image: linear-gradient(var(--cal0-tint), var(--cal0-tint)); }
+  .climate.cooling { background-image: linear-gradient(var(--pal-blue-tint), var(--pal-blue-tint)); }
+  .climate.heating { background-image: linear-gradient(var(--pal-red-tint), var(--pal-red-tint)); }
   .cooling .action, .cooling .big { color: var(--blue-text); }
   .heating .action, .heating .big { color: var(--red-text); }
   .cooling .action, .heating .action { font-weight: 700; }

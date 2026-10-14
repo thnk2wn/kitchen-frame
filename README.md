@@ -188,6 +188,8 @@ The frame shows each event's title, time and location only, never descriptions o
 Calendars are colour-coded by their order in `CALENDAR_URLS`, and each device can hide any of them
 (**Calendars** on Home or the Calendar tab). `CALENDAR_NAMES` (optional, comma-separated, same order)
 names them in that list when a feed's own name isn't useful (Exchange calls everything "Calendar").
+`CALENDAR_COLORS` (optional, same order) picks their colours, to match your phone say: palette names
+(red, orange, yellow, green, teal, blue, indigo, purple, pink, brown, gray) or `#rrggbb`.
 
 To keep an event off the frame (a surprise, say), put `#private` in its title or notes, or mark it
 Private in your calendar app. The Worker drops it before the frame ever sees it. It's still in the
