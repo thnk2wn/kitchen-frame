@@ -26,7 +26,10 @@ lists other frames that work.
 | --- |
 | ![Weather details](docs/images/weather-light.jpg) |
 
-Screenshots use the built-in demo mode, so all data shown is invented, apart from the weather.
+Screenshots use the built-in demo mode (Settings → Demo mode, or `?demo=on`), so all data shown is
+invented, apart from the weather. It's also handy for showing the frame to people without your own
+calendar and lists on it. `?tab=`, `?open=<recipe id>`, `?timer=Pasta:7` and `?weather=<day>` set up
+a particular screen.
 
 ## Thanks
 
@@ -70,13 +73,6 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | **Weather** | A three-day forecast on Home. Tap the weather for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, UV, sun times. |
 | **Calendar** | A roomier Home calendar, named calendars you can hide per frame, and `#private` to keep an event off the frame. |
 | **Photos** | Classic iCloud shared album links work, and videos show as their cover frame. Idle times up to two hours before the slideshow. |
-
-### Setup and demo
-
-| Feature | What it does |
-| --- | --- |
-| **Setup links** | The dashboard key and HA settings handed over once in a URL, then removed from it (`dashboard/scripts/frame-url.sh`). |
-| **Demo mode** | Invented calendar, lists, meals, music, house and notices, for showing people and screenshots. `?tab=`, `?open=`, `?timer=` and `?weather=` set up a shot. |
 
 ## How it fits together
 
