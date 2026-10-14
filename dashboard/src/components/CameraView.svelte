@@ -6,9 +6,12 @@
   import { startLive } from '../lib/doorbell.svelte.js';
   import { ha, haUrl } from '../lib/ha.svelte.js';
 
-  let { entity, name, picture = '', onclose } = $props();
+  // onsnap: asks the camera for a new picture (a Ring camera's "Take Snapshot" through ring-mqtt), for
+  // when there's no live video; age: how old the picture shown is, as text.
+  let { entity, name, picture = '', onclose, onsnap = null, age = '' } = $props();
   const OPEN_MS = 2 * 60 * 1000;
   const STILL_MS = 5000;
+  const SNAP_MS = 15000;
   let video = $state();
   let live = $state(false);
   let noLive = $state(false);
@@ -40,11 +43,14 @@
     const close = setTimeout(onclose, OPEN_MS);
     return () => { gone = true; clearTimeout(close); clearTimeout(retry); if (stop) stop(); };
   });
-  // No live video: refresh the picture instead.
+  // No live video: a new snapshot now and every SNAP_MS (a Ring camera keeps returning its last one
+  // until asked for another), and the picture reloaded meanwhile to pick it up.
   $effect(() => {
     if (!noLive) return;
+    if (onsnap) onsnap();
+    const s = onsnap ? setInterval(onsnap, SNAP_MS) : null;
     const t = setInterval(() => (tick = Date.now()), STILL_MS);
-    return () => clearInterval(t);
+    return () => { clearInterval(t); if (s) clearInterval(s); };
   });
 </script>
 
@@ -59,7 +65,7 @@
     <div class="txt">
       <div class="title">{name}</div>
       <div class="sub">
-        {#if live}Live{:else if noLive}Live video isn’t available right now · picture refreshed every few seconds
+        {#if live}Live{:else if noLive}No live video from this camera right now · picture{age ? ' ' + age : ''}, a new one every 15 s
         {:else if ha.status === 'connected'}<span class="spin"></span>Starting live video…{:else}Not connected to Home Assistant{/if}
       </div>
     </div>

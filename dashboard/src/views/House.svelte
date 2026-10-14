@@ -192,7 +192,8 @@
 </div>
 
 {#if viewing}
-  <CameraView entity={viewing.entity} name={viewing.name} picture={attr(snapOf(viewing.entity) ? snapOf(viewing.entity).cam : viewing.entity).entity_picture || ''} onclose={() => (viewing = null)} />
+  <CameraView entity={viewing.entity} name={viewing.name} picture={attr(snapOf(viewing.entity) ? snapOf(viewing.entity).cam : viewing.entity).entity_picture || ''}
+    age={camAge(viewing.entity)} onsnap={() => tapCamera(viewing.entity)} onclose={() => (viewing = null)} />
 {/if}
 
 <style>
