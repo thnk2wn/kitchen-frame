@@ -45,39 +45,38 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 
 ## What this fork adds
 
-- **House tab:** mirrors one Home Assistant dashboard, so editing it in HA changes the frame (live).
-  Tap devices to toggle (unlocking takes two taps), thermostats get setpoint buttons and are tinted
-  by what they're doing, markdown cards and the view header are rendered by HA, and camera
-  snapshots refresh only when tapped. See [House tab](#house-tab-home-assistant-devices).
-- **Weather details:** tap the weather on Home (or in the header) for a day's detail sheet: the
-  National Weather Service's written day and night forecast (US only), active alerts, the hours
-  ahead, rain, wind, UV and sun times. An active alert also shows as a badge on Home's weather card.
-- **Doorbell pop-up:** when a doorbell rings, its camera fills the screen (live video, or the latest
-  snapshot) for 90 seconds. Found automatically in Home Assistant. See [Doorbell](#doorbell).
-- **Notices from Home Assistant:** an automation posts a notification with an id starting
-  `frame_` and it shows as a banner (garage freezer too warm, say), clearing itself when the
-  automation dismisses it. Blueprints included. See [Notices](#notices-from-home-assistant).
-- **Lists tab:** Groceries and Tasks share one tab with a switch, and Home stacks both lists
-  beside the calendar; tap a heading to jump to that list.
-- **Kitchen timers:** a timer button in the top bar (tap a time, then optionally a name like
-  Pasta or Oven), times in recipe steps you can tap ("bake ⏱ 25 minutes"), a countdown chip on
-  every screen, and when one ends a chime on the frame, a full-screen alert, and an announcement on
-  a Home Assistant speaker ("Your 5 minute bread timer is done"). See [Timers](#timers).
-- **Meal plan:** Paprika's planned meals show on Home ("Dinner" at the top of Today, tap to open
-  the recipe) and in a Meals view in Recipes for the coming week.
-- **Our own recipes:** a read-only Paprika sync adds a Paprika view to Recipes. See
-  [Our recipes from Paprika](#our-recipes-from-paprika).
-- **Spotify:** the Music tab works with Home Assistant's Spotify integration: Spotify Connect
-  speakers, playlists, and starting from silence on an Echo (through HA's Alexa Devices).
-- **Calendar privacy:** `#private` in an event's title or notes keeps it off the frame.
-- **Photos:** classic iCloud shared album links (`icloud.com/sharedalbum/#…`) work, and videos in
-  the album show as their cover frame.
-- **Setup links:** the dashboard key and Home Assistant settings can be handed over in the URL
-  once, and are then removed from it (`dashboard/scripts/frame-url.sh` builds the link).
-  `?demo=on`, `?tab=`, `?open=<recipe id>` and `?timer=Pasta:7` help with screenshots.
-- **Demo mode** also covers the Music tab (an invented player and speakers) and the House tab (an
-  invented house), and has a made-up meal plan.
-- Smaller: a roomier calendar on Home, a three-day forecast, and idle times up to two hours.
+### Home Assistant
+
+| Feature | What it does |
+| --- | --- |
+| **[House tab](#house-tab-home-assistant-devices)** | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling, HA-rendered markdown, camera snapshots on tap. |
+| **[Doorbell pop-up](#doorbell)** | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
+| **[Notices](#notices-from-home-assistant)** | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
+| **Music** | Spotify through HA: Spotify Connect speakers, playlists (recent or A–Z), and starting from silence on an Echo. |
+
+### In the kitchen
+
+| Feature | What it does |
+| --- | --- |
+| **[Paprika recipes](#our-recipes-from-paprika)** | A read-only sync of your library: categories, search, an A–Z index, your notes and nutrition. |
+| **Meal plan** | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
+| **[Timers](#timers)** | Tap a time, then a name (Pasta, Oven). Recipe steps' times are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
+| **Lists** | Groceries and Tasks in one tab, and side by side on Home. |
+
+### At a glance
+
+| Feature | What it does |
+| --- | --- |
+| **Weather** | A three-day forecast on Home. Tap the weather for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, UV, sun times. |
+| **Calendar** | A roomier Home calendar, named calendars you can hide per frame, and `#private` to keep an event off the frame. |
+| **Photos** | Classic iCloud shared album links work, and videos show as their cover frame. Idle times up to two hours before the slideshow. |
+
+### Setup and demo
+
+| Feature | What it does |
+| --- | --- |
+| **Setup links** | The dashboard key and HA settings handed over once in a URL, then removed from it (`dashboard/scripts/frame-url.sh`). |
+| **Demo mode** | Invented calendar, lists, meals, music, house and notices, for showing people and screenshots. `?tab=`, `?open=`, `?timer=` and `?weather=` set up a shot. |
 
 ## How it fits together
 
