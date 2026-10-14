@@ -264,11 +264,23 @@ commands.
 With a Home Assistant URL, token and dashboard set on the frame, a **House** tab mirrors that HA
 dashboard: its headings become groups, tiles become devices you can tap (lights, fans, switches,
 locks, covers, scenes), thermostats get setpoint buttons, sensors show their values, markdown cards
-(including the view header) are rendered live by HA, and cameras show a snapshot that refreshes only
-when tapped. Edit the dashboard in HA and the frame follows. Unlocking takes two taps. Use a
-non-admin HA user's token.
+(including the view header) are rendered live by HA, and cameras show a snapshot (refreshed with
+the **Refresh** button by their heading, not on a timer, since asking a battery camera wakes it).
+Tap a camera for it full screen: live video over WebRTC, one retry, then a fresh snapshot every 15 s
+if it won't stream; it closes itself after two minutes. Edit the dashboard in HA and the frame follows.
+Unlocking takes two taps. Thermostats in heat/cool keep their two setpoints apart by `THERMOSTAT_GAP`
+(°F, default 5, the ecobee's own minimum unless changed; set it in `.frame.vars`), moving the other one
+as the thermostat's app does. Use a non-admin HA user's token.
 
-Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` in the gitignored `dashboard/.frame.vars`,
+**Sharper Ring live video.** Through Home Assistant's Ring integration, Ring gives some browsers (this
+frame among them) a 480×272 picture. With [ring-mqtt](https://github.com/tsightler/ring-mqtt), add a
+**Generic Camera** in Home Assistant for each camera (Settings → Devices & Services → Add → Generic
+Camera) with its **Stream source** set to the `stream_Source` address shown on that camera's ring-mqtt
+**Info** sensor (`rtsp://…-ring-mqtt:8554/<id>_live`), and name its entity `camera.<name>_stream`, where
+`<name>` matches the camera's `camera.<name>_live_view` or `_snapshot`. The House tab and the doorbell
+pop-up then play the stream (720p on this frame) and fall back to Ring's live view without one.
+
+Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `THERMOSTAT_GAP`, `PRESENCE_AREA`, …) in the gitignored `dashboard/.frame.vars`,
 then `open "$(dashboard/scripts/frame-url.sh)"` (a browser) or pass the same URL to the kiosk with
 `adb shell am start … -d`. The page saves the settings and removes them from the address bar.
 

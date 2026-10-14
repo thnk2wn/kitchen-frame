@@ -193,8 +193,11 @@ function settle() {
 
 export function houseReady() { return ha.status === 'connected' && house.status === 'ready'; }
 
-// A camera's snapshot companions: { camera, button } entity ids (whether or not they exist).
+// A camera's companions, by name (whether or not they exist): [snapshot camera, take-snapshot button,
+// stream camera]. The first two are ring-mqtt's; the stream is a camera you add in Home Assistant for
+// a better live view, named <name>_stream (docs: README, House tab). Ring's own live view gives some
+// browsers a small 480x272 picture; ring-mqtt's stream through HA gives them 720p.
 export function companionsOf(entity) {
-  const base = String(entity || '').replace(/^camera\./, '').replace(/_(live_view|snapshot)$/, '');
-  return ['camera.' + base + '_snapshot', 'button.' + base + '_take_snapshot'];
+  const base = String(entity || '').replace(/^camera\./, '').replace(/_(live_view|snapshot|stream)$/, '');
+  return ['camera.' + base + '_snapshot', 'button.' + base + '_take_snapshot', 'camera.' + base + '_stream'];
 }

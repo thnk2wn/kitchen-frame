@@ -24,7 +24,7 @@
     if (!d || !d.live || !video) return;
     let stop = null, gone = false;
     live = false;
-    startLive(d.live, video, () => (live = true))
+    startLive(d.video || d.live, video, () => (live = true))
       .then((s) => { if (gone) s && s(); else stop = s; })
       .catch((e) => console.error('doorbell live view', e));
     return () => { gone = true; live = false; muted = true; if (stop) stop(); };

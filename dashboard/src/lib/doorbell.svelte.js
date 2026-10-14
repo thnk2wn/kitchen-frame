@@ -56,11 +56,12 @@ async function find(states) {
     const cams = states.map((s) => s.entity_id).filter((e) => e.startsWith('camera.'));
     const live = (prefCam && byId.has(prefCam) && prefCam)
       || cams.find((c) => dev && deviceOf.get(c) === dev)
-      || cams.find((c) => c.startsWith('camera.' + base) && !/_snapshot$/.test(c)) || null;
-    const [snap, button] = live ? companionsOf(live) : [];
+      || cams.find((c) => c.startsWith('camera.' + base) && !/_(snapshot|stream)$/.test(c)) || null;
+    const [snap, button, stream] = live ? companionsOf(live) : [];
     const name = String((byId.get(entity).attributes || {}).friendly_name || base)
       .replace(/\s+(ding|doorbell|ring|press(ed)?|button|visitor)$/i, '');
-    return { entity, name, live, still: snap && byId.has(snap) ? snap : live, button: button && byId.has(button) ? button : null };
+    // video: the camera to stream, its <name>_stream companion when there is one (see companionsOf).
+    return { entity, name, live, video: stream && byId.has(stream) ? stream : live, still: snap && byId.has(snap) ? snap : live, button: button && byId.has(button) ? button : null };
   });
 
   // Watch the doorbells, plus their cameras so the still follows each new snapshot.
