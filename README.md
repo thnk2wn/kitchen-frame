@@ -48,7 +48,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 
 ## What this fork adds
 
-**New** marks something the original didn't have; **Better** marks an improvement to something it did.
+**New** marks something the original didn't have; **Updated** marks a change to something it did.
 
 ### Home Assistant
 
@@ -57,8 +57,8 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | **[House tab](#house-tab-home-assistant-devices)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling, HA-rendered markdown, camera snapshots on tap. |
 | **[Doorbell pop-up](#doorbell)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
 | **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
-| **[Presence](#clock-screen-and-presence)** | Better | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
-| **Music** | Better | Spotify through HA: Spotify Connect speakers, playlists (recent or A–Z), and starting from silence on an Echo. |
+| **[Presence](#clock-screen-and-presence)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
+| **Music** | Updated | Spotify through HA: Spotify Connect speakers, playlists (recent or A–Z), and starting from silence on an Echo. |
 
 ### In the kitchen
 
@@ -67,15 +67,15 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | **[Paprika recipes](#our-recipes-from-paprika)** | New | A read-only sync of your library: categories, search, an A–Z index, your notes and nutrition. Tap a direction to mark your place; earlier ones are checked off. |
 | **Meal plan** | New | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
 | **[Timers](#timers)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
-| **Lists** | Better | Groceries and Tasks in one tab, and side by side on Home. |
+| **Lists** | Updated | Groceries and Tasks in one tab, and side by side on Home. |
 
 ### At a glance
 
 | Feature | | What it does |
 | --- | --- | --- |
-| **Weather** | Better | Today's UV on Home and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, sun times. |
-| **Calendar** | Better | Upcoming grouped by day, colours and names per calendar, hide any calendar per frame, and `#private` to keep an event off the frame. |
-| **Clock screen** | Better | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours). Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
+| **Weather** | Updated | Today's UV on Home and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, sun times. |
+| **[Calendar](#calendar)** | Updated | Upcoming grouped by day, colours and names per calendar, hide any calendar per frame, and `#private` to keep an event off the frame. |
+| **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours). Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
 
 ## How it fits together
 
@@ -156,52 +156,10 @@ npm run dev          # http://localhost:5173, also on the LAN for the frame
 open "http://localhost:5173/?diag"   # perf overlay (fps, jank, DOM, image megapixels, heap)
 ```
 
-## Calendar
-
-The Worker merges any number of iCal links into one agenda. A cron job refreshes them into KV
-every 10 minutes, writing KV only when something changed (or hourly), and the page polls every 5.
-If a feed fails, its last good events stay up.
-
-How often the frame polls each feed (`start()` in `src/lib/state.svelte.js`): calendar every 5
-minutes, weather every 15, the meal plan every 30, Tasks every minute while the dashboard is up,
-Groceries every minute while Home or its list is showing, photos every 5 minutes only while the
-slideshow is showing photos, and nothing for messages, which are pushed over a WebSocket the moment
-they're sent ([docs/messages.md](docs/messages.md)). A poll waits for the previous one to finish,
-and unchanged results don't redraw the screen. That's roughly 1,500–2,000 Worker requests a day per
-frame.
-
-**Cost:** it runs on Cloudflare's **free** Workers plan. Free allows 100,000 requests and 1,000 KV
-writes a day; the calendar is only rewritten when it changes (or hourly), and Paprika recipes and
-photos are written once each. The Images binding (resizing photos once) is free up to 5,000
-transformations a month. Workers Paid ($5/month) is only worth it if a very large calendar outgrows
-the free plan's CPU limit for the cron (see below).
-
-Calendar links (each is effectively a password: anyone with one can read that calendar):
-
-- **Google:** Settings → your calendar → *Integrate calendar* → **Secret address in iCal format**.
-- **Apple (iCloud):** Calendar app → right-click the calendar → *Share Calendar* → **Public
-  Calendar** → copy the `webcal://` link (used as-is).
-- **Fastmail:** Settings → Calendars → the calendar's sharing settings → **Publish**, full details →
-  copy the .ics link.
-- **Outlook / Microsoft 365 (Exchange):** Outlook on the web → Settings → Calendar → Shared calendars
-  → **Publish a calendar** ("Can view titles and locations") → copy the **ICS** link. Some
-  organisations turn publishing off.
-
-The frame shows each event's title, time and location only, never descriptions or attendees.
-Calendars are colour-coded by their order in `CALENDAR_URLS`, and each device can hide any of them
-(**Calendars** on Home or the Calendar tab). `CALENDAR_NAMES` (optional, comma-separated, same order)
-names them in that list when a feed's own name isn't useful (Exchange calls everything "Calendar").
-`CALENDAR_COLORS` (optional, same order) picks their colours, to match your phone say: palette names
-(red, orange, yellow, green, teal, blue, indigo, purple, pink, brown, gray) or `#rrggbb`.
-
-To keep an event off the frame (a surprise, say), put `#private` in its title or notes, or mark it
-Private in your calendar app. The Worker drops it before the frame ever sees it. It's still in the
-published feed, so this hides it from the kitchen, not from anyone who has the link.
-
-Local dev: `cp dashboard/.dev.vars.example dashboard/.dev.vars`, fill it in, `npm run dev`, then
-open `http://localhost:5173/?key=<DASHBOARD_KEY>` once (the page remembers the key).
-`npm test` runs the Worker and parser tests (calendar fixtures in `worker/fixtures/`, Paprika,
-photos, messages and the House dashboard parser).
+Local settings: `cp dashboard/.dev.vars.example dashboard/.dev.vars` and fill it in, then open
+`http://localhost:5173/?key=<DASHBOARD_KEY>` once (the page remembers the key). `npm test` runs the
+Worker and parser tests (calendar, Paprika, photos, messages, weather and the House dashboard
+parser).
 
 Deploy from `dashboard/` (after `npx wrangler login`):
 
@@ -214,10 +172,26 @@ curl -H "Authorization: Bearer <key>" "https://kitchen-frame.<your-subdomain>.wo
 
 Point the kiosk at `https://kitchen-frame.<your-subdomain>.workers.dev/?key=<key>`, or build the
 full setup link with `scripts/frame-url.sh` (see [House tab](#house-tab-home-assistant-devices)).
+After a deploy the frame picks up the new version by itself within about 10–20 minutes, at a quiet
+moment (Settings shows the running version).
 
-The free plan allows 10 ms of CPU per cron run (Workers Paid allows 30 s). Old one-off events are
-skipped before parsing and long-running repeats are fast-forwarded, so a typical family calendar
-fits; a very large one may need Paid.
+**Cost:** it runs on Cloudflare's **free** Workers plan. The frame makes roughly 1,500–2,000 Worker
+requests a day (calendar every 5 minutes, weather every 15, the meal plan every 30, lists every
+minute while they're showing, photos only during the slideshow; messages are pushed, not polled).
+Free allows 100,000 requests and 1,000 KV writes a day; the calendar is only rewritten when it
+changes (or hourly), and Paprika recipes and photos are written once each. The Images binding
+(resizing photos once) is free up to 5,000 transformations a month.
+
+## Calendar
+
+The Worker merges any number of calendar feeds into one agenda: Google, iCloud, Fastmail,
+Outlook/Exchange, or a subscribed .ics link like a sports team's schedule. Put the links in
+`CALENDAR_URLS`; optionally name and colour each one (`CALENDAR_NAMES`, `CALENDAR_COLORS`), and hide
+any of them per frame from **Calendars** on Home or the Calendar tab. The frame shows titles, times
+and locations only, and `#private` in an event keeps it off the frame.
+
+[docs/calendar.md](docs/calendar.md) has how to get each kind of link, every setting, privacy
+details, and how refreshing and failed feeds work.
 
 ## Light and dark
 
