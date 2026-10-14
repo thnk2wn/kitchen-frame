@@ -11,7 +11,8 @@ export const nowList = $state({ entity: null, uri: null, title: null, from: null
 $effect.root(() => {
   $effect(() => {
     const sp = ha.players.find((p) => p.entity_id.startsWith('media_player.spotify_'));
-    const key = sp && sp.state === 'playing' ? sp.media_title + '|' + sp.media_artist : '';
+    // Paused counts too: Spotify still says what the song is from, its cover and what's next.
+    const key = sp && sp.media_title && sp.state !== 'off' ? sp.media_title + '|' + sp.media_artist : '';
     if (!key) return;
     let live = true;
     api('/api/spotify/now').then((r) => {
