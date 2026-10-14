@@ -14,7 +14,7 @@
   import WeatherSheet from './components/WeatherSheet.svelte';
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
-  import { notices } from './lib/notices.svelte.js';
+  import { notices, iconOf } from './lib/notices.svelte.js';
   import { timers } from './lib/timers.svelte.js';
   import { connectHA, haConfigured, haDashboard } from './lib/ha.svelte.js';
   import House from './views/House.svelte';
@@ -67,7 +67,7 @@
       <!-- Home shows notices as banners; other tabs get this chip. -->
       {#if ui.tab !== 'home' && notices().length}
         {@const n = notices()[0]}
-        <button class="notice-chip {n.tone}" onclick={() => (ui.noticesOpen = true)}><Icon name="alert" size={20} />{notices().length > 1 ? notices().length : ''}</button>
+        <button class="notice-chip {n.tone}" onclick={() => (ui.noticesOpen = true)}><Icon name={iconOf(n.tone)} size={20} />{notices().length > 1 ? notices().length : ''}</button>
       {/if}
       {#if ui.tab !== 'home'}<span class="num now">{time(clock.now)}</span>{/if}
       <!-- While a timer runs its chip takes this space; Home still shows the weather. -->

@@ -2,7 +2,7 @@
   // Every notice with its message and when it started; Dismiss removes it in Home Assistant.
   import Icon from './Icon.svelte';
   import { ui, clock } from '../lib/state.svelte.js';
-  import { notices, dismissNotice } from '../lib/notices.svelte.js';
+  import { notices, dismissNotice, iconOf } from '../lib/notices.svelte.js';
   import { time, dayKey, dow } from '../lib/format.js';
   let list = $derived(notices());
   const close = () => (ui.noticesOpen = false);
@@ -25,7 +25,7 @@
       <div class="list">
         {#each list as n (n.id)}
           <div class="item">
-            <span class="ic {n.tone}"><Icon name={n.tone === 'info' ? 'bell' : 'alert'} size={22} /></span>
+            <span class="ic {n.tone}"><Icon name={iconOf(n.tone)} size={22} /></span>
             <div class="txt">
               <div class="title">{n.title || 'Notice'}</div>
               {#if n.message && n.message !== n.title}<div class="msg">{n.message}</div>{/if}

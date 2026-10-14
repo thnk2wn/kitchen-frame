@@ -1,0 +1,137 @@
+blueprint:
+  name: "Frame notice: thermostat changed"
+  description: >-
+    Shows a short notice on the kitchen frame when someone changes a thermostat's mode or setpoint
+    outside Home Assistant: at the wall, in the maker's app, or by voice. Changes made in Home
+    Assistant (the frame, the HA app, automations) are skipped, and so are changes on the hour or
+    half hour, when thermostat schedules switch; either one clears an earlier notice, since it's
+    then out of date. The notice describes where the thermostat ended up and clears itself after a
+    while. Create one automation per thermostat.
+  domain: automation
+  author: kitchen-frame
+  source_url: https://github.com/thnk2wn/kitchen-frame/blob/main/homeassistant/blueprints/frame-thermostat-changed.yaml
+  homeassistant:
+    min_version: "2024.10.0"
+  input:
+    thermostat:
+      name: Thermostat
+      selector:
+        entity:
+          domain: climate
+    label:
+      name: Name on the frame
+      description: For example "Downstairs". Leave empty to use the thermostat's name.
+      default: ""
+      selector:
+        text:
+    skip_schedule:
+      name: Skip schedule changes
+      description: >-
+        Ignore changes in the first minutes after the hour and half hour, when thermostat schedules
+        (Ecobee comfort settings, say) switch. A person changing it at exactly that time is missed.
+      default: true
+      selector:
+        boolean:
+    schedule_minutes:
+      name: Schedule window
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 10
+          unit_of_measurement: minutes
+          mode: box
+    show_minutes:
+      name: Show for
+      default: 15
+      selector:
+        number:
+          min: 1
+          max: 240
+          unit_of_measurement: minutes
+          mode: box
+    tone:
+      name: Banner colour
+      default: info
+      selector:
+        select:
+          options:
+            - label: Blue (info)
+              value: info
+            - label: Orange (warning)
+              value: warn
+            - label: Red (alert)
+              value: alert
+
+# One change often arrives as several updates (mode, then setpoints a second later), so each new
+# update restarts the run and the notice is written once things have settled.
+mode: restart
+max_exceeded: silent
+
+variables:
+  thermostat: !input thermostat
+  label: !input label
+  skip_schedule: !input skip_schedule
+  schedule_minutes: !input schedule_minutes
+  show_minutes: !input show_minutes
+  tone: !input tone
+  name: "{{ label if label else state_attr(thermostat, 'friendly_name') }}"
+  notice_id: "frame_{{ tone }}_{{ thermostat.split('.')[1] }}_changed"
+
+triggers:
+  - trigger: state
+    entity_id: !input thermostat
+    to: null
+  - trigger: state
+    entity_id: !input thermostat
+    attribute: temperature
+  - trigger: state
+    entity_id: !input thermostat
+    attribute: target_temp_low
+  - trigger: state
+    entity_id: !input thermostat
+    attribute: target_temp_high
+
+conditions:
+  - condition: template
+    value_template: >
+      {{ trigger.platform == 'state'
+         and trigger.from_state is not none and trigger.to_state is not none
+         and trigger.from_state.state not in ['unavailable', 'unknown']
+         and trigger.to_state.state not in ['unavailable', 'unknown'] }}
+
+actions:
+  # Made outside Home Assistant (no user, not an automation) and not at a schedule switch: say so.
+  # Anything else (the frame, the HA app, an automation, the schedule) makes an earlier notice out
+  # of date, so it clears it.
+  - if:
+      - condition: template
+        value_template: >
+          {{ trigger.to_state.context.user_id is none and trigger.to_state.context.parent_id is none
+             and (not skip_schedule or now().minute % 30 >= schedule_minutes | int) }}
+    then:
+      - delay:
+          seconds: 5
+      - variables:
+          setting: >
+            {%- set mode = states(thermostat) -%}
+            {%- set mode_name = {'heat_cool': 'Auto', 'auto': 'Auto', 'cool': 'Cool', 'heat': 'Heat', 'off': 'Off',
+               'dry': 'Dry', 'fan_only': 'Fan'}.get(mode, mode | replace('_', ' ') | title) -%}
+            {%- set low = state_attr(thermostat, 'target_temp_low') -%}
+            {%- set high = state_attr(thermostat, 'target_temp_high') -%}
+            {%- set single = state_attr(thermostat, 'temperature') -%}
+            {% if mode == 'off' %}Off{% elif low is not none and high is not none %}{{ mode_name }}, {{ low | int }}–{{ high | int }}°{% elif single is not none %}{{ mode_name }}, {{ single | int }}°{% else %}{{ mode_name }}{% endif %}
+      - action: persistent_notification.create
+        data:
+          notification_id: "{{ notice_id }}"
+          title: "{{ name }} set to {{ setting }}"
+          message: "Changed at {{ now().strftime('%-I:%M %p') }}, outside Home Assistant (the thermostat, its app or voice)."
+      - delay:
+          minutes: "{{ show_minutes | int }}"
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: "{{ notice_id }}"
+    else:
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: "{{ notice_id }}"

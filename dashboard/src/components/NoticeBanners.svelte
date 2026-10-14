@@ -3,7 +3,7 @@
   // Tap one for its message and Dismiss (components/NoticeSheet.svelte).
   import Icon from './Icon.svelte';
   import { ui } from '../lib/state.svelte.js';
-  import { notices } from '../lib/notices.svelte.js';
+  import { notices, iconOf } from '../lib/notices.svelte.js';
   let { max = 2 } = $props();
   let list = $derived(notices());
   let shown = $derived(list.length > max ? list.slice(0, max - 1) : list);
@@ -13,7 +13,7 @@
   <div class="notices">
     {#each shown as n (n.id)}
       <button class="notice {n.tone}" onclick={() => (ui.noticesOpen = true)}>
-        <Icon name={n.tone === 'info' ? 'bell' : 'alert'} size={20} /><span>{n.title || n.message}</span>
+        <Icon name={iconOf(n.tone)} size={20} /><span>{n.title || n.message}</span>
       </button>
     {/each}
     {#if list.length > shown.length}

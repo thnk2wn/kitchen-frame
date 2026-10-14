@@ -30,17 +30,23 @@ onHAConnect(() => {
   }).catch((e) => console.error('notices', e));
 });
 
+// The icon for a tone: a bell for info, a warning triangle for warnings and alerts.
+export const iconOf = (tone) => (tone === 'info' ? 'bell' : 'alert');
+
 function toneOf(id) {
   return id.startsWith(PREFIX + 'alert') ? 'alert' : id.startsWith(PREFIX + 'info') ? 'info' : 'warn';
 }
 
 // What the screen shows: the real notices, or invented ones in demo mode.
-const DEMO = [{ id: 'frame_alert_demo_freezer', title: 'Garage freezer is 18°F', message: 'Above 15°F for 30 minutes. Check the door is closed.', created: '', tone: 'alert' }];
-let demoDismissed = $state(false);
-export const notices = () => (ui.demo ? (demoDismissed ? [] : DEMO) : real.list);
+const DEMO = [
+  { id: 'frame_alert_demo_freezer', title: 'Garage freezer is 18°F', message: 'Above 15°F for 45 minutes.', created: '', tone: 'alert' },
+  { id: 'frame_info_demo_thermostat', title: 'Upstairs set to Auto, 70–75°', message: 'Changed outside Home Assistant (the thermostat, its app or voice).', created: '', tone: 'info' },
+];
+let demoDismissed = $state([]);
+export const notices = () => (ui.demo ? DEMO.filter((n) => !demoDismissed.includes(n.id)) : real.list);
 
 export function dismissNotice(id) {
-  if (ui.demo) { demoDismissed = true; return Promise.resolve(); }
+  if (ui.demo) { demoDismissed = [...demoDismissed, id]; return Promise.resolve(); }
   real.list = real.list.filter((n) => n.id !== id); // at once; HA confirms with a "removed" event
   return callService('persistent_notification', 'dismiss', { notification_id: id }).catch(() => {});
 }

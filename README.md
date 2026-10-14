@@ -297,6 +297,8 @@ Settings → Doorbell → Test shows the pop-up without anyone at the door.
 
 ## Notices from Home Assistant
 
+<img src="docs/images/notices-light.jpg" alt="Two notices under the clock on Home: a red garage freezer alert and a blue thermostat change" width="404" align="right">
+
 Short, glanceable notices that clear themselves: a banner in Home's left column (red, orange or
 blue), a line on the clock screen and a chip in the top bar on other tabs. Tap one for its message
 and a Dismiss button, which removes it in Home Assistant for every screen.
@@ -315,9 +317,15 @@ fill in (Settings → Automations & Scenes → Blueprints → Import Blueprint, 
 - **Temperature too high** (`frame-temperature-high.yaml`): a temperature sensor above a limit for a
   while (a freezer, fridge or crawlspace), cleared once it's back below a second level. The time
   window keeps short spikes such as a freezer's defrost cycle from raising it.
+- **Thermostat changed** (`frame-thermostat-changed.yaml`): someone changed a thermostat's mode or
+  setpoint outside Home Assistant (at the wall, in its app, by voice), shown for a while as
+  "Upstairs set to Auto, 70–75°". Changes made in HA (the frame, the HA app, automations) and
+  schedule switches on the hour or half hour don't count, and clear an earlier notice.
 
 For messages that should take over the screen (and be read aloud), use
 [Messages from agents](#messages-from-agents) instead.
+
+<br clear="right">
 
 ## Messages from agents
 
