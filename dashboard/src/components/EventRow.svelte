@@ -1,6 +1,7 @@
 <script>
-  import { calVars, timeRange, isPast, isNow, dayName } from '../lib/format.js';
-  let { event, now, showDay = false } = $props();
+  import { calVars, timeRange, isPast, isNow } from '../lib/format.js';
+  // place: show the location after the time (Today does; Upcoming keeps rows short).
+  let { event, now, place = true } = $props();
   let live = $derived(isNow(event, now));
 </script>
 
@@ -9,7 +10,7 @@
   <div class="body">
     <div class="title">{event.title}</div>
     <div class="meta">
-      {#if showDay}{dayName(event, now) + ' · '}{/if}{#if event.allDay}All day{:else if live}<b>Now</b> · until {timeRange(event).split(' – ')[1]}{:else}{timeRange(event)}{/if}{event.location && !showDay ? ' · ' + event.location : ''}
+      {#if event.allDay}All day{:else if live}<b>Now</b> · until {timeRange(event).split(' – ')[1]}{:else}{timeRange(event)}{/if}{event.location && place ? ' · ' + event.location : ''}
     </div>
   </div>
 </div>

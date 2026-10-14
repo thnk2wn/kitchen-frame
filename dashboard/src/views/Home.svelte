@@ -7,7 +7,7 @@
   import NoticeBanners from '../components/NoticeBanners.svelte';
   import { nowPlaying } from '../lib/ha.svelte.js';
   import { clock, calendar, weather, lists, mealItems, ui, completeItem, loadCalendar, loadList } from '../lib/state.svelte.js';
-  import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey } from '../lib/format.js';
+  import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName } from '../lib/format.js';
 
   let events = $derived(calendar.data ? calendar.data.events : []);
   // Finished events drop off Home; the Calendar tab still shows them.
@@ -20,6 +20,16 @@
       const start = e.allDay ? new Date(e.start + 'T00:00').getTime() : Date.parse(e.start);
       return start >= tomorrow && start < nextMonday;
     });
+  });
+  // Upcoming, grouped by day ("Tomorrow", "Thu, Oct 15") so days don't run together.
+  let upcomingDays = $derived.by(() => {
+    const days = [];
+    for (const e of upcoming) {
+      const name = dayName(e, clock.now);
+      if (!days.length || days[days.length - 1].name !== name) days.push({ name, events: [] });
+      days[days.length - 1].events.push(e);
+    }
+    return days;
   });
   // Tonight's dinner (and any other meal planned today) from Paprika, above today's events.
   let todaysMeals = $derived(mealItems().filter((m) => m.date === dayKey(clock.now)));
@@ -96,8 +106,11 @@
         {/each}
       {/if}
       <h2 class="later">Upcoming</h2>
-      {#each upcoming as e (e.uid + e.start)}
-        <EventRow event={e} now={clock.now} showDay />
+      {#each upcomingDays as d (d.name)}
+        <div class="day-head">{d.name}</div>
+        {#each d.events as e (e.uid + e.start)}
+          <EventRow event={e} now={clock.now} place={false} />
+        {/each}
       {:else}
         <p class="empty">{calendar.data ? 'Nothing else this week' : ''}</p>
       {/each}
@@ -186,6 +199,9 @@
   footer { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--sep); }
   h2 { margin: 0 0 4px; font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
   h2.later { margin-top: 20px; color: var(--secondary); }
+  /* One heading per upcoming day, with a thin line above it so days don't run together. */
+  .day-head { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--sep); font-size: 15px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--secondary); }
+  h2.later + .day-head { margin-top: 2px; border-top: 0; padding-top: 4px; }
   .meal { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0 6px; text-align: left; font-size: 19px; font-weight: 600; }
   .meal.link:active { opacity: .6; }
   .mic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--orange); color: #fff; }
