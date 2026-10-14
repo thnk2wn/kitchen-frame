@@ -52,15 +52,15 @@
   --orange-text: #ffb340;
   --ring: #7c7c80;
   --pal-red: #ff453a; --pal-red-tint: rgba(255, 69, 58, .22);
-  --pal-orange: #ff9f0a; --pal-orange-tint: rgba(255, 159, 10, .22);
-  --pal-yellow: #ffd60a; --pal-yellow-tint: rgba(255, 214, 10, .2);
+  --pal-orange: #ff9f0a; --pal-orange-tint: rgba(255, 159, 10, .3);
+  --pal-yellow: #ffd60a; --pal-yellow-tint: rgba(255, 214, 10, .26);
   --pal-green: #30d158; --pal-green-tint: rgba(48, 209, 88, .2);
   --pal-teal: #40c8e0; --pal-teal-tint: rgba(64, 200, 224, .2);
   --pal-blue: #0a84ff; --pal-blue-tint: rgba(10, 132, 255, .24);
   --pal-indigo: #5e5ce6; --pal-indigo-tint: rgba(94, 92, 230, .24);
   --pal-purple: #bf5af2; --pal-purple-tint: rgba(191, 90, 242, .22);
   --pal-pink: #ff375f; --pal-pink-tint: rgba(255, 55, 95, .22);
-  --pal-brown: #ac8e68; --pal-brown-tint: rgba(172, 142, 104, .24);
+  --pal-brown: #ac8e68; --pal-brown-tint: rgba(172, 142, 104, .3);
   --pal-gray: #98989d; --pal-gray-tint: rgba(152, 152, 157, .22);
 }
 

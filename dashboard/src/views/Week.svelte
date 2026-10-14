@@ -104,10 +104,11 @@
   .date { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; font-weight: 500; }
   .date.today { background: var(--red); color: #fff; font-weight: 600; }
   .events { flex: 1; min-height: 0; overflow-y: auto; }
-  .ev { display: block; width: 100%; padding: 7px 9px; margin-bottom: 6px; border-radius: 10px; background: var(--c-tint); }
+  /* Tinted block plus a solid bar in the calendar's colour: a tint alone muddies on dark (orange reads brown). */
+  .ev { display: block; width: 100%; padding: 7px 9px 7px 10px; margin-bottom: 6px; border-radius: 10px; background: var(--c-tint); border-left: 4px solid var(--c); }
   .ev:active { opacity: .7; }
   /* Past: drop the colour fill and soften the title, but keep it readable. */
-  .ev.past { background: transparent; padding-left: 0; padding-right: 0; }
+  .ev.past { background: transparent; border-left-color: transparent; padding-left: 0; padding-right: 0; }
   .ev.past .title { color: var(--secondary); }
   .title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 17px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
   .open .title { display: block; }
