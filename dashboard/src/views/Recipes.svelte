@@ -120,6 +120,8 @@
   let cards = $state(lists.get(first) || last?.cards || null);
   let error = $state(null);
   let open = $state(null);
+  // While a recipe is up, the frame stays off the clock screen (state.svelte.js idleCheck).
+  $effect(() => { ui.recipeOpen = !!open; return () => { ui.recipeOpen = false; }; });
   let grid = $state();
 
   async function loadCat(c) {

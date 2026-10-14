@@ -55,6 +55,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | **[House tab](#house-tab-home-assistant-devices)** | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling, HA-rendered markdown, camera snapshots on tap. |
 | **[Doorbell pop-up](#doorbell)** | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
 | **[Notices](#notices-from-home-assistant)** | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
+| **[Presence](#clock-screen-and-presence)** | The clock screen comes on once the kitchen's motion sensors have seen nobody for a while, and goes away when someone walks in. Never with a recipe open or a timer running. |
 | **Music** | Spotify through HA: Spotify Connect speakers, playlists (recent or A–Z), and starting from silence on an Echo. |
 
 ### In the kitchen
@@ -278,6 +279,18 @@ or Dismiss, and, with Home Assistant, a speaker announces it through a `notify` 
 Echo's "Announce" from the Alexa Devices integration (Settings → Timer alerts; by default the one
 with "kitchen" in its name). The frame has no microphone, so voice timers stay with your smart
 speakers. The kiosk app (1.4+) lets the page play sound without a tap first.
+
+## Clock screen and presence
+
+After a while untouched (Settings → Clock screen after: 30 minutes by default) the frame shows a
+clock over the photo slideshow, and any tap brings the dashboard back. It never switches while a
+recipe is open or a timer is running.
+
+With Home Assistant, set `PRESENCE_AREA` in `dashboard/.frame.vars` (or `?presence_area=` in a setup
+link) to an HA area such as `kitchen`. The frame then watches every motion, occupancy and presence
+sensor HA has in that area: the clock screen waits until none has seen anyone for the chosen time,
+and the dashboard comes back by itself when one does. Sensors added to or moved out of the area in
+HA are picked up without touching the frame.
 
 ## Doorbell
 

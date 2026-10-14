@@ -8,7 +8,7 @@
   import { time } from '../lib/format.js';
 
   const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
-  const IDLE = [[5, '5 min'], [15, '15 min'], [60, '1 hr'], [120, '2 hr'], [0, 'Never']];
+  const IDLE = [[15, '15 min'], [30, '30 min'], [60, '1 hr'], [120, '2 hr'], [0, 'Never']];
   // Slideshow clock colours: white plus the iOS system colours that read well over photos.
   const CLOCK = [['#ffffff', 'White'], ['#ffd60a', 'Yellow'], ['#ff9f0a', 'Orange'], ['#ff375f', 'Pink'], ['#bf5af2', 'Purple'], ['#64d2ff', 'Blue'], ['#30d158', 'Green']];
   const close = () => (ui.settingsOpen = false);
@@ -30,6 +30,7 @@
   // Timer alerts: "Announce" notify entities (Echos through Alexa Devices), kitchen ones first, up to 3.
   import { timerSpeakerId, setTimerSpeaker } from '../lib/timers.svelte.js';
   import { bell, ring } from '../lib/doorbell.svelte.js';
+  import { presence, presenceArea } from '../lib/presence.svelte.js';
   let announcers = $derived(ha.notify.filter((n) => /_announce$/.test(n.entity_id))
     .sort((a, b) => (/kitchen/i.test(b.entity_id) - /kitchen/i.test(a.entity_id)) || a.name.localeCompare(b.name)).slice(0, 3));
 </script>
@@ -62,7 +63,9 @@
     </div>
 
     <div class="row">
-      <span>Clock screen after</span>
+      <span>Clock screen after<small>{presenceArea() && presence.sensors.length
+        ? 'Once nobody has been seen in the ' + presenceArea() + ' (' + presence.sensors.length + ' sensors) this long'
+        : 'Without a touch'}; never with a recipe open or a timer running</small></span>
       <div class="seg">
         {#each IDLE as [v, label] (v)}
           <button class:on={ui.idleMinutes === v} onclick={() => setSetting('idleMinutes', v)}>{label}</button>

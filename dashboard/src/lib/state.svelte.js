@@ -4,6 +4,8 @@ import { api, cached, remember, changed, forget, withKey } from './api.js';
 import { dayKey, recipeTitle, setCalendarColors } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
 import { ha, announce } from './ha.svelte.js';
+import { timers } from './timers.svelte.js';
+import { presence, presenceArea, onArrive } from './presence.svelte.js';
 
 const MIN = 60 * 1000;
 const QUIET_FROM = 22, QUIET_TO = 7; // quiet hours: messages are shown but not read aloud
@@ -34,7 +36,10 @@ export const ui = $state({
   noticesOpen: false,                        // the Home Assistant notices sheet (lib/notices.svelte.js)
   weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,
   themePref: pref('theme', 'auto'),          // auto | light | dark
-  idleMinutes: Number(pref('idle', '5')),    // 0 = never
+  // Minutes untouched (and the room empty, with a presence area) before the clock screen; 0 = never.
+  // 5 was the old default and is no longer offered, so it becomes 30.
+  idleMinutes: Number(pref('idle', '30')) === 5 ? 30 : Number(pref('idle', '30')),
+  recipeOpen: false,                         // a recipe page is showing (Recipes sets it); holds off the clock screen
   nightPhotos: pref('night-photos', 'on') === 'on', // slideshow after sunset (dimmed)
   demo: pref('demo', 'off') === 'on',          // sample data instead of real calendars, lists, photos
   clockColor: pref('clock-color', '#ffffff'),  // clock-screen text colour (dimmed at night)
@@ -368,8 +373,10 @@ export function start() {
   every(MIN, loadMessages, () => !socketUp);
 
   // Idle: no touch for the chosen time -> ambient screen. Any touch wakes it back to Home.
-  addEventListener('pointerdown', () => { lastTouch = Date.now(); rearmIdle(); }, { passive: true });
-  rearmIdle();
+  addEventListener('pointerdown', () => { lastTouch = Date.now(); }, { passive: true });
+  every(30 * 1000, idleCheck);
+  // With a presence area, someone walking in brings the dashboard back without a tap.
+  onArrive(() => { if (ui.idle) exitIdle(); });
   // Back on the clock screen if a new version reloaded the page from there.
   try { if (sessionStorage.getItem('frame-resume-idle')) { sessionStorage.removeItem('frame-resume-idle'); startSlideshow(); } } catch {}
   every(10 * MIN, checkForUpdate);
@@ -397,12 +404,18 @@ function reloadIfUpdated() {
   location.reload();
 }
 
-let idleTimer;
-function rearmIdle() {
-  clearTimeout(idleTimer);
-  if (!ui.idleMinutes) return;
-  idleTimer = setTimeout(() => { ui.idle = true; ui.tab = 'home'; ui.settingsOpen = false; loadPhotos(); }, ui.idleMinutes * MIN);
+// The clock screen comes on after idleMinutes without a touch, and, with a presence area (see
+// presence.svelte.js), without anyone seen in the room either. Never while a recipe is open or a
+// timer is running: hands are busy then and the screen is in use.
+function idleCheck() {
+  if (ui.idle || !ui.idleMinutes) return;
+  if (ui.recipeOpen || timers.list.some((t) => !t.done)) return;
+  if (presenceArea() && presence.occupied) return;
+  const quietSince = Math.max(lastTouch, presenceArea() ? presence.lastSeen : 0);
+  if (Date.now() - quietSince < ui.idleMinutes * MIN) return;
+  ui.idle = true; ui.tab = 'home'; ui.settingsOpen = false; loadPhotos();
 }
+function rearmIdle() { lastTouch = Date.now(); } // a settings change counts as a touch
 
 // Play button: show the clock screen / slideshow now.
 export function startSlideshow() {
