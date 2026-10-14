@@ -12,6 +12,7 @@
   import Timers from './components/Timers.svelte';
   import TimerAlert from './components/TimerAlert.svelte';
   import WeatherSheet from './components/WeatherSheet.svelte';
+  import DoorbellAlert from './components/DoorbellAlert.svelte';
   import { timers } from './lib/timers.svelte.js';
   import { connectHA, haConfigured, haDashboard } from './lib/ha.svelte.js';
   import House from './views/House.svelte';
@@ -90,6 +91,7 @@
   <!-- Timer alerts cover everything, messages and the slideshow included. -->
   <WeatherSheet />
   <TimerAlert />
+  <DoorbellAlert />
 </div>
 
 <style>

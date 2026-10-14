@@ -28,6 +28,7 @@ let nextId = 0;
 let pending = new Map();
 let listeners = new Map(); // subscription id -> handler for its events
 const connectHooks = new Set(); // run after every (re)connection, to (re)subscribe
+const stateHooks = new Set();   // get the full state list read after every (re)connection
 let retryMs = 1000;
 
 const base = () => (localStorage.getItem('frame-ha-url') || '').replace(/\/$/, '');
@@ -40,6 +41,13 @@ export function onHAConnect(fn) {
   connectHooks.add(fn);
   if (ha.status === 'connected') fn();
   return () => connectHooks.delete(fn);
+}
+
+// fn(states) gets the full state list read after every (re)connection, so features can find their
+// entities without another get_states. Returns an unsubscribe function.
+export function onHAStates(fn) {
+  stateHooks.add(fn);
+  return () => stateHooks.delete(fn);
 }
 
 // Absolute URL for an entity picture (HA returns a path with its own short-lived token).
@@ -98,6 +106,7 @@ async function subscribe() {
   ha.tts = states.filter((s) => s.entity_id.startsWith('tts.')).map((s) => s.entity_id);
   ha.notify = states.filter((s) => s.entity_id.startsWith('notify.') && s.state !== 'unavailable')
     .map((s) => ({ entity_id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id }));
+  for (const fn of stateHooks) { try { fn(states); } catch (e) { console.error(e); } }
   const ids = states.filter((s) => s.entity_id.startsWith('media_player.')).map((s) => s.entity_id);
   entities.clear();
   if (!ids.length) { ha.players = []; return; }

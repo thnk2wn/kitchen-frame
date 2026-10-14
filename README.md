@@ -52,6 +52,8 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 - **Weather details:** tap the weather on Home (or in the header) for a day's detail sheet: the
   National Weather Service's written day and night forecast (US only), active alerts, the hours
   ahead, rain, wind, UV and sun times. An active alert also shows as a badge on Home's weather card.
+- **Doorbell pop-up:** when a doorbell rings, its camera fills the screen (live video, or the latest
+  snapshot) for 90 seconds. Found automatically in Home Assistant. See [Doorbell](#doorbell).
 - **Lists tab:** Groceries and Tasks share one tab with a switch, and Home stacks both lists
   beside the calendar; tap a heading to jump to that list.
 - **Kitchen timers:** a timer button in the top bar (tap a time, then optionally a name like
@@ -274,6 +276,19 @@ or Dismiss, and, with Home Assistant, a speaker announces it through a `notify` 
 Echo's "Announce" from the Alexa Devices integration (Settings → Timer alerts; by default the one
 with "kitchen" in its name). The frame has no microphone, so voice timers stay with your smart
 speakers. The kiosk app (1.4+) lets the page play sound without a tap first.
+
+## Doorbell
+
+With Home Assistant connected, a doorbell ring covers the screen (the clock screen too) with that
+doorbell's camera for 90 seconds, or until Dismiss. It shows the camera's latest snapshot at once and
+switches to live video when the camera streams over WebRTC (Ring does; Sound turns the audio on).
+With ring-mqtt's snapshot camera beside it, the frame also asks for a fresh snapshot on each ring.
+
+Nothing to configure in the usual case: every event entity with device class `doorbell` (Ring,
+Reolink, UniFi Protect, Nest and others provide one) is watched, and the camera is the one on the
+same device. To override, set `DOORBELL` (entity ids, comma-separated, or `off`) and
+`DOORBELL_CAMERA` in `dashboard/.frame.vars` (or `?doorbell=` / `?doorbell_camera=` in a setup link).
+Settings → Doorbell → Test shows the pop-up without anyone at the door.
 
 ## Messages from agents
 

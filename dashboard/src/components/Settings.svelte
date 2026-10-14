@@ -27,6 +27,7 @@
   }
   // Timer alerts: "Announce" notify entities (Echos through Alexa Devices), kitchen ones first, up to 3.
   import { timerSpeakerId, setTimerSpeaker } from '../lib/timers.svelte.js';
+  import { bell, ring } from '../lib/doorbell.svelte.js';
   let announcers = $derived(ha.notify.filter((n) => /_announce$/.test(n.entity_id))
     .sort((a, b) => (/kitchen/i.test(b.entity_id) - /kitchen/i.test(a.entity_id)) || a.name.localeCompare(b.name)).slice(0, 3));
 </script>
@@ -105,6 +106,13 @@
           {/each}
           <button class:on={!timerSpeakerId()} onclick={() => setTimerSpeaker('off')}>Off</button>
         </div>
+      </div>
+    {/if}
+
+    {#if bell.doorbells.length}
+      <div class="row">
+        <span>Doorbell<small>{bell.doorbells.map((d) => d.name).join(', ')} shows here when it rings</small></span>
+        <button class="reload" onclick={() => { close(); ring({ ...bell.doorbells[0], test: true }); }}><Icon name="bell" size={20} />Test</button>
       </div>
     {/if}
 
