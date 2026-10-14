@@ -1,13 +1,15 @@
 <script>
   import { onMount } from 'svelte';
   import Icon from '../components/Icon.svelte';
+  import CameraView from '../components/CameraView.svelte';
   import { ha, haUrl } from '../lib/ha.svelte.js';
   import { ui } from '../lib/state.svelte.js';
   import { house, houseDemo, setHouseDemo, startHouse, companionsOf, toggle, run, coverToggle, lock, unlock, nudge, setpoint, miniMarkdown } from '../lib/house.svelte.js';
 
-  // Camera snapshots load once when the tab opens and again only when tapped: asking Ring for a
-  // snapshot can wake the camera (battery), and each one is a JPEG decode on a slow CPU. Never a
-  // live stream. Snapshots are requested at 480 px wide.
+  // Camera snapshots load once when the tab opens and again with the refresh button by the cameras'
+  // heading: asking Ring for a snapshot can wake the camera (battery), and each one is a JPEG decode
+  // on a slow CPU, so they don't refresh on a timer. Snapshots are requested at 480 px wide. Tapping a
+  // camera opens it full screen (CameraView: live video, closed again after two minutes).
   let shots = $state({}); // entity_id -> time of the snapshot shown
   let now = $state(Date.now());
   // Demo mode (Settings) swaps in an invented house, for screenshots and videos.
@@ -81,6 +83,8 @@
     const bust = snap ? snap.ts : t;
     return pic && bust ? haUrl(pic) + (pic.includes('?') ? '&' : '?') + 'width=480&_=' + bust : null;
   };
+  let viewing = $state(null); // the camera open full screen
+  const refreshAll = (items) => { for (const i of items) if (i.kind === 'camera') tapCamera(i.entity); };
   function tapCamera(id) {
     const snap = snapOf(id);
     if (snap && st(snap.button)) { asked = { ...asked, [id]: Date.now() }; act(run(snap.button)); }
@@ -121,7 +125,14 @@
     <div class="groups" class:single={house.groups.length === 1}>
       {#each house.groups as g, gi (gi)}
         <section class="group" class:main={gi === 0}>
-          {#if g.title}<h2>{g.title}</h2>{/if}
+          {#if g.title || g.items.some((i) => i.kind === 'camera')}
+            <div class="ghead">
+              {#if g.title}<h2>{g.title}</h2>{/if}
+              {#if g.items.some((i) => i.kind === 'camera') && !houseDemo.on}
+                <button class="refresh" onclick={() => refreshAll(g.items)} aria-label="Refresh camera pictures"><Icon name="reload" size={18} />Refresh</button>
+              {/if}
+            </div>
+          {/if}
           <div class="tiles">
             {#each g.items as item, ii (ii)}
               {#if item.kind === 'climate'}
@@ -154,7 +165,7 @@
                 </div>
               {:else if item.kind === 'camera'}
                 {@const src = camSrc(item.entity, shots[item.entity])}
-                <button class="tile sheet camera" onclick={() => tapCamera(item.entity)} aria-label={'Refresh ' + label(item)}>
+                <button class="tile sheet camera" onclick={() => !houseDemo.on && (viewing = { entity: item.entity, name: label(item).replace(/\s*live view$/i, '') })} aria-label={'Open ' + label(item)}>
                   {#if src && !houseDemo.on}<img {src} alt="" decoding="async" />{:else}<span class="noimg" class:demo={houseDemo.on}><Icon name="camera" size={30} /></span>{/if}
                   <span class="cap"><span class="cname">{label(item).replace(/\s*live view$/i, '')}</span>{#if camAge(item.entity)}<span class="age"><Icon name="reload" size={13} /> {camAge(item.entity)}</span>{/if}</span>
                 </button>
@@ -180,6 +191,10 @@
   {/if}
 </div>
 
+{#if viewing}
+  <CameraView entity={viewing.entity} name={viewing.name} picture={attr(snapOf(viewing.entity) ? snapOf(viewing.entity).cam : viewing.entity).entity_picture || ''} onclose={() => (viewing = null)} />
+{/if}
+
 <style>
   .house { height: 100%; overflow-y: auto; padding: 0 28px 24px; }
   .note { margin: 40px 6px; font-size: 20px; color: var(--secondary); }
@@ -194,6 +209,10 @@
   .group { grid-column: 2; margin-bottom: 16px; }
   .group.main { grid-column: 1; grid-row: 1 / span 20; }
   h2 { margin: 0 4px 8px; font-size: 19px; font-weight: 700; color: var(--secondary); }
+  .ghead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .ghead h2 { flex: 1; }
+  .refresh { display: inline-flex; align-items: center; gap: 6px; height: 36px; margin: 0 4px 8px auto; padding: 0 14px; border-radius: 18px; background: var(--track); font-size: 16px; font-weight: 600; color: var(--blue-text); }
+  .refresh:active { opacity: .6; }
 
   .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   /* Six tracks: thermostats take half a row each, other devices a third. */

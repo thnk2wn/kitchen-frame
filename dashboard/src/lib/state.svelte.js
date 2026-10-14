@@ -463,7 +463,9 @@ export function start() {
   addEventListener('pointerdown', () => { lastTouch = Date.now(); }, { passive: true });
   every(30 * 1000, idleCheck);
   // With a presence area, someone walking in brings the dashboard back without a tap.
-  onArrive(() => { if (ui.idle) exitIdle(); });
+  // Someone arriving wakes the clock screen, except just after it was started with the play button:
+  // whoever pressed it is standing right there, and the motion sensor would end it at once.
+  onArrive(() => { if (ui.idle && Date.now() > manualUntil) exitIdle(); });
   // Back on the clock screen if a new version reloaded the page from there.
   try { if (sessionStorage.getItem('frame-resume-idle')) { sessionStorage.removeItem('frame-resume-idle'); startSlideshow(); } } catch {}
   every(10 * MIN, checkForUpdate);
@@ -503,8 +505,12 @@ function idleCheck() {
 }
 function rearmIdle() { lastTouch = Date.now(); } // a settings change counts as a touch
 
-// Play button: show the clock screen / slideshow now.
+// Play button: show the clock screen / slideshow now. For MANUAL_MS, motion in the room doesn't end
+// it (a tap still does).
+const MANUAL_MS = 15 * MIN;
+let manualUntil = 0;
 export function startSlideshow() {
+  manualUntil = Date.now() + MANUAL_MS;
   ui.settingsOpen = false;
   ui.tab = 'home';
   ui.idle = true;

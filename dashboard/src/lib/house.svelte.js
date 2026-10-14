@@ -121,9 +121,23 @@ export const lock = (entity) => houseDemo.on ? local(entity, 'locked') : callSer
 export const unlock = (entity) => houseDemo.on ? local(entity, 'unlocked') : callService('lock', 'unlock', {}, { entity_id: entity });
 
 // Thermostats: one setpoint (heat or cool) or a range (heat_cool / auto). which = 'low' | 'high' | null.
-// Taps build on the value on screen (pending or reported), so three taps make three steps. The
-// thermostat applies its own rules (an ecobee keeps a minimum heat/cool gap by moving the other
-// setpoint), so nothing is enforced here; a change it doesn't confirm shows as failed.
+// Taps build on the value on screen (pending or reported), so three taps make three steps. In a range,
+// the other setpoint moves along to keep a minimum gap between them, as a thermostat's own app does:
+// an ecobee over HomeKit silently ignores a pair closer than its minimum instead of moving the other
+// one itself. The gap is the thermostat's own setting (an ecobee's "heat/cool min delta", 5 °F unless
+// changed): THERMOSTAT_GAP in .frame.vars, passed once as ?thermostat_gap=. A change the thermostat
+// doesn't confirm shows as failed.
+const GAP_KEY = 'frame-thermostat-gap';
+{
+  const q = new URLSearchParams(location.search);
+  if (q.has('thermostat_gap')) {
+    const v = Number(q.get('thermostat_gap'));
+    try { v > 0 ? localStorage.setItem(GAP_KEY, String(v)) : localStorage.removeItem(GAP_KEY); } catch {}
+    q.delete('thermostat_gap');
+    history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  }
+}
+const minGapF = () => { try { return Number(localStorage.getItem(GAP_KEY)) || 5; } catch { return 5; } };
 const attrKey = (which) => (which === 'low' ? 'target_temp_low' : which === 'high' ? 'target_temp_high' : 'temperature');
 export function setpoint(entity, which) {
   const p = house.pending[entity + ':' + (which || 'set')];
@@ -134,17 +148,30 @@ export function nudge(entity, which, delta) {
   const a = (house.states[entity] || {}).attributes || {};
   const step = Number(a.target_temp_step) || 1;
   const clamp = (v) => Math.min(Number(a.max_temp) || 99, Math.max(Number(a.min_temp) || 40, v));
-  const key = entity + ':' + (which || 'set');
   const value = clamp(setpoint(entity, which).value + delta * step);
   if (!Number.isFinite(value)) return Promise.resolve();
-  if (houseDemo.on) return local(entity, house.states[entity].state, { [attrKey(which)]: value });
-  house.pending = { ...house.pending, [key]: { value } };
-  clearTimeout(timers.get(key));
-  timers.set(key, setTimeout(() => fail(key), PENDING_MS));
-  const data = which
-    ? { target_temp_low: which === 'low' ? value : setpoint(entity, 'low').value, target_temp_high: which === 'high' ? value : setpoint(entity, 'high').value }
-    : { temperature: value };
-  return callService('climate', 'set_temperature', data, { entity_id: entity }).catch((e) => { fail(key); throw e; });
+  // The new value, and for a range the other end moved if it would be closer than the minimum gap.
+  const set = {};
+  if (!which) set[''] = value;
+  else {
+    const gap = (Number(a.max_temp) || 99) > 50 ? minGapF() : Math.round(minGapF() / 1.8 * 2) / 2; // °F, or the same in °C
+    let low = which === 'low' ? value : setpoint(entity, 'low').value;
+    let high = which === 'high' ? value : setpoint(entity, 'high').value;
+    if (high - low < gap) { if (which === 'low') high = clamp(low + gap); else low = clamp(high - gap); }
+    if (high - low < gap) return Promise.resolve(); // at the limit of the thermostat's range
+    set.low = low; set.high = high;
+  }
+  if (houseDemo.on) return local(entity, house.states[entity].state, which ? { target_temp_low: set.low, target_temp_high: set.high } : { temperature: value });
+  const keys = which ? ['low', 'high'].filter((w) => w === which || set[w] !== setpoint(entity, w).value) : [''];
+  for (const w of keys) {
+    const key = entity + ':' + (w || 'set');
+    house.pending = { ...house.pending, [key]: { value: w ? set[w] : value } };
+    clearTimeout(timers.get(key));
+    timers.set(key, setTimeout(() => fail(key), PENDING_MS));
+  }
+  const data = which ? { target_temp_low: set.low, target_temp_high: set.high } : { temperature: value };
+  return callService('climate', 'set_temperature', data, { entity_id: entity })
+    .catch((e) => { for (const w of keys) fail(entity + ':' + (w || 'set')); throw e; });
 }
 function fail(key) {
   if (!house.pending[key]) return;
