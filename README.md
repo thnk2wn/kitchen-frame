@@ -3,7 +3,7 @@
 A calm family dashboard for a cheap Android photo frame on the kitchen wall: clock, weather, the
 family calendar, [Todoist](https://www.todoist.com) tasks and groceries,
 [Paprika](https://www.paprikaapp.com) recipes and meal plans, music,
-[Home Assistant](https://www.home-assistant.io) devices, messages from AI agents, and a photo
+[Home Assistant](https://www.home-assistant.io) devices, a doorbell camera pop-up, messages from AI agents, and a photo
 slideshow when nobody's looking. It runs on a $50–100-ish Android photo frame and a
 [Cloudflare Worker](https://workers.cloudflare.com) (free plan).
 
@@ -99,7 +99,7 @@ flowchart LR
   end
 
   app -- "HTTPS + dashboard key" --> worker
-  app -- "WebSocket + HA token<br/>(House, Music, read-aloud)" --> ha
+  app -- "WebSocket + HA token<br/>(House, Music, read-aloud,<br/>doorbell + live video)" --> ha
 
   worker -- iCal links --> cal["Calendars<br/>(iCloud, Fastmail, Exchange, Google)"]
   worker -- API token --> todoist["Todoist"]
@@ -115,7 +115,8 @@ flowchart LR
 - **The Worker** holds every other credential as Cloudflare secrets and caches what it fetches in
   KV, so the frame never talks to Todoist, Paprika, iCloud or calendar servers itself. A cron
   refreshes calendars every 10 minutes and syncs Paprika every 15.
-- **Home Assistant** is reached directly on the home network, never through Cloudflare.
+- **Home Assistant** is reached directly on the home network, never through Cloudflare. Doorbell
+  live video comes over WebRTC, set up through that same connection.
 - **Secrets** go from `dashboard/.dev.vars` (gitignored) to Cloudflare with
   `dashboard/scripts/push-secrets.sh`; frame settings go to the frame with
   `dashboard/scripts/frame-url.sh`.
@@ -131,7 +132,8 @@ The developer wiki is in [openwiki/](openwiki/quickstart.md).
 
 - `dashboard/src/`: the web app (Svelte 5, no SvelteKit). Tabs: Home (clock, weather, today's
   events, groceries, to-dos), Calendar (week and month), Lists (Groceries and Tasks, from Todoist),
-  Recipes (Paprika, TheMealDB and saved recipes), Music and House (both Home Assistant). After a
+  Recipes (Paprika, TheMealDB and saved recipes), Music and House (both Home Assistant). A doorbell
+  ring shows its camera over every screen. After a
   set time untouched (Settings) it switches to an idle clock and photo screen. The frame loads it full screen in a kiosk WebView.
 - `dashboard/worker/`: the Cloudflare Worker that serves the app and its API: merged calendar,
   weather (Open-Meteo), Todoist lists, the iCloud shared album (photos proxied and cached in KV),
