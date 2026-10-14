@@ -8,7 +8,7 @@
   let demoTrack = $state(0);
   const demo = $state({
     entity_id: 'media_player.spotify_demo', label: 'Spotify', state: 'playing', source: 'Kitchen',
-    source_list: ['Kitchen', 'Living Room', 'Office', 'Bedroom'], volume_level: 0.35, supported_features: 0xffff,
+    source_list: ['Kitchen', 'Living Room', 'Office', 'Kids’ room'], volume_level: 0.35, supported_features: 0xffff,
     media_position: 74, media_position_updated_at: new Date().toISOString(),
   });
   let demoPlayer = $derived({ ...demo, media_title: DEMO_TRACKS[demoTrack][0], media_artist: DEMO_TRACKS[demoTrack][1], media_album_name: DEMO_TRACKS[demoTrack][2], media_duration: DEMO_TRACKS[demoTrack][3] });
