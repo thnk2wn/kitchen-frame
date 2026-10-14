@@ -120,7 +120,8 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate {
   }
 
   func syncOnce() async throws {
-    if Date().timeIntervalSince(configAt) > 3600 { try await loadConfig() }
+    // Which lists to sync can change on the Worker; re-read it at most every 5 minutes.
+    if Date().timeIntervalSince(configAt) > 290 { try await loadConfig() }
     var payload: [String: Any] = [:]
     var cals: [String: EKCalendar] = [:]
     for (list, name) in lists {

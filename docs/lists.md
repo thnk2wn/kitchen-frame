@@ -91,7 +91,7 @@ In `dashboard/.dev.vars`, then `scripts/push-secrets.sh`:
 | `REMINDERS_GROCERIES_LIST`, `REMINDERS_TODO_LIST` | The Reminders list's name, as in the Reminders app (defaults "Groceries" and "To Do") |
 | `BRIDGE_TOKEN` | Any long random string; the Mac uses it, and it only opens the bridge's routes (`openssl rand -hex 24`) |
 
-The Mac asks the Worker which lists to sync, so changing these needs no change on the Mac. Set
+The Mac asks the Worker which lists to sync (every 5 minutes), so changing these needs no change on the Mac. Set
 `BRIDGE_TOKEN` and install the Mac app before switching a list's source to `reminders`; until the
 Mac has sent the list, the frame shows "Waiting for the Mac".
 
