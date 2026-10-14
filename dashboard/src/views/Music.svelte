@@ -114,7 +114,17 @@
     e.preventDefault();
   }
 
+  // The playlist just tapped, until the speaker reports it playing (a few seconds through Alexa
+  // and Spotify): its card shows a spinner so the tap is clearly taken. Gives up after 30 s.
+  let starting = $state(null);
+  let startTimer;
+  $effect(() => {
+    if (starting && fromList && (nowList.uri ? nowList.uri === starting.id : fromList === starting.title)) starting = null;
+  });
   async function playList(item) {
+    starting = { id: item.media_content_id, title: item.title };
+    clearTimeout(startTimer);
+    startTimer = setTimeout(() => (starting = null), 30000);
     markPlayed(item.title);
     if (!active()) return startOn(target, 'play ' + item.title + ' playlist on Spotify');
     if (spotify.source !== target) await run('media_player', 'select_source', { source: target });
@@ -272,7 +282,8 @@
           {#if rows > 0}
             <div class="next-h">Up next</div>
             <div class="next" style="--rows:{rows}">
-              {#each upNext as t, i (i)}
+              <!-- Only the rows that fit: songs in hidden rows would still draw over the visible ones. -->
+              {#each upNext.slice(0, rows * 2) as t, i (i)}
                 <div class="q">
                   {#if t.image}<img src={t.image} alt="" />{:else}<span class="qart" style="--h:{t.hue || 200}"><Icon name="music" size={20} /></span>{/if}
                   <div class="qt"><b>{t.title}</b><span>{t.artist}</span></div>
@@ -316,7 +327,8 @@
         <div class="order"><SortButton az={order === 'az'} timeLabel="By last played" onchange={(az) => setOrder(az ? 'az' : 'recent')} size={22} /></div>
         {#each sorted as pl, i (pl.media_content_id)}
           {@const on = !!fromList && (nowList.uri ? pl.media_content_id === nowList.uri : pl.title === fromList)}
-          <button class="pl sheet" class:on onclick={() => playList(pl)} use:reveal={on}>
+          <button class="pl sheet" class:on class:starting={starting && starting.id === pl.media_content_id} onclick={() => playList(pl)} use:reveal={on}>
+            {#if starting && starting.id === pl.media_content_id}<span class="spin" aria-label="Starting"></span>{/if}
             {#if pl.thumbnail}<img src={pl.thumbnail} alt="" loading="lazy" decoding="async" />{:else}<span class="noart" class:demo={ui.demo} style={ui.demo ? '--h:' + (i * 47 + 10) % 360 : ''}><Icon name="music" size={26} /></span>{/if}
             <span>{pl.title}</span>
           </button>
@@ -427,6 +439,11 @@
   .pl img, .pl .noart { display: grid; place-items: center; width: 128px; height: 96px; object-fit: cover; background: var(--track); }
   .pl span { display: block; padding: 6px 10px 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl:active { opacity: .7; }
+  /* Tapped, waiting for the speaker: a dimmed cover with a turning ring (transform only). */
+  .pl { position: relative; }
+  .pl.starting img, .pl.starting .noart { opacity: .45; }
+  .spin { position: absolute; left: 50%; top: 48px; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: spin .8s linear infinite; z-index: 1; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   /* The playlist playing now. */
   .pl.on { box-shadow: inset 0 0 0 3px var(--pal-green); }
   .pl.on span { color: var(--pal-green); }

@@ -17,6 +17,7 @@ const API = 'https://www.paprikaapp.com/api';
 const KEY = 'paprika';
 const TOKEN_KEY = 'paprika-token';
 const IMAGE_KEY = 'paprika-image:';
+const THUMB_KEY = 'paprika-thumb:'; // a 320 px copy for the grid's cards, made on first request
 const BATCH = 10;          // recipes fetched per run (each may also fetch its photo: up to 4 requests)
 const PHOTO_WIDTH = 640;   // same as saved recipes
 const MAX_IMAGE = 3 * 1024 * 1024;
@@ -156,6 +157,7 @@ export async function syncPaprika(env) {
     if (!live.has(uid)) {
       byUid.delete(uid);
       await env.CALENDAR.delete(IMAGE_KEY + uid);
+      await env.CALENDAR.delete(THUMB_KEY + uid);
       dirty = true;
     }
   }
@@ -210,6 +212,7 @@ async function storePhoto(env, uid, url) {
     if (bytes.byteLength > MAX_IMAGE) return false;
     const photo = await shrink(env, bytes, type, PHOTO_WIDTH);
     await env.CALENDAR.put(IMAGE_KEY + uid, photo.bytes, { metadata: { type: photo.type } });
+    await env.CALENDAR.delete(THUMB_KEY + uid); // made again from the new photo
     return true;
   } catch {
     return false;
@@ -243,10 +246,23 @@ export async function getPaprika(env, uid) {
   return { ...recipe, ...servingsOf(servings || y) }; // also tidies recipes stored before servingsOf
 }
 
-export async function paprikaImage(env, uid) {
+// w=320: the grid's smaller copy (a third of the bytes over the frame's slow Wi-Fi, and a quarter of
+// the pixels to decode), made from the stored photo the first time it's asked for and kept.
+export async function paprikaImage(env, uid, w) {
+  const headers = (type) => ({ 'Content-Type': type || 'image/jpeg', 'Cache-Control': 'private, max-age=604800, immutable' });
+  if (String(w) === '320') {
+    const thumb = await env.CALENDAR.getWithMetadata(THUMB_KEY + uid, 'arrayBuffer');
+    if (thumb.value) return new Response(thumb.value, { headers: headers(thumb.metadata && thumb.metadata.type) });
+  }
   const { value, metadata } = await env.CALENDAR.getWithMetadata(IMAGE_KEY + uid, 'arrayBuffer');
   if (!value) return new Response('not found', { status: 404 });
-  return new Response(value, { headers: { 'Content-Type': (metadata && metadata.type) || 'image/jpeg', 'Cache-Control': 'private, max-age=604800, immutable' } });
+  const type = (metadata && metadata.type) || 'image/jpeg';
+  if (String(w) === '320') {
+    const small = await shrink(env, value, type, 320, 0);
+    await env.CALENDAR.put(THUMB_KEY + uid, small.bytes, { metadata: { type: small.type } });
+    return new Response(small.bytes, { headers: headers(small.type) });
+  }
+  return new Response(value, { headers: headers(type) });
 }
 
 // The meal plan, each meal linked to its recipe in our synced library when there is one.

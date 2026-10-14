@@ -51,7 +51,10 @@ function cover(images) {
   const imgs = (images || []).filter((i) => i && i.url);
   if (!imgs.length) return null;
   const sized = imgs.filter((i) => i.width).sort((a, b) => a.width - b.width);
-  return (sized.find((i) => i.width >= 160) || sized[sized.length - 1] || imgs[0]).url;
+  const url = (sized.find((i) => i.width >= 160) || sized[sized.length - 1] || imgs[0]).url;
+  // Mosaics (the 2x2 covers of playlists without their own picture) come without sizes, so the
+  // first, 640 px, would be used: ask for the 300 px one instead, a fifth of the pixels to decode.
+  return url.replace(/^(https:\/\/mosaic\.scdn\.co\/)640\//, '$1300/');
 }
 
 // Every page of the library, or null when the pages don't add up to the total Spotify reports.

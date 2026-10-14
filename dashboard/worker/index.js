@@ -155,7 +155,7 @@ export default {
       }
       const pap = /^\/api\/recipes\/paprika\/([\w-]+)(\/image)?$/.exec(url.pathname);
       if (pap && req.method === 'GET') {
-        if (pap[2]) return paprikaImage(env, pap[1]);
+        if (pap[2]) return paprikaImage(env, pap[1], url.searchParams.get('w'));
         const recipe = await getPaprika(env, pap[1]);
         return recipe ? json({ recipe }) : json({ error: 'not found' }, 404);
       }

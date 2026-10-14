@@ -16,6 +16,7 @@
 </script>
 
 <script>
+  import { tick } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import RecipePage from './RecipePage.svelte';
   import { api, cached, remember, withKey } from '../lib/api.js';
@@ -85,8 +86,24 @@
     (ourCat === 'All' || (ourCat === 'Favorites' ? r.favorite : ourCat === NONE ? !r.categories.length : r.categories.includes(ourCat)))
     && (!query.trim() || fold(r.title).includes(fold(query.trim())))));
   let letters = $derived([...new Set(ours.map((r) => letterOf(r.title)))]);
-  function jump(letter) {
+  // Cards are built as you scroll to them: a screenful when the tab opens, then a batch whenever the
+  // end comes within a couple of rows. Building all 190 at once froze the frame for about 3 s.
+  const BATCH = 20;
+  let shownN = $state(BATCH);
+  let oursShown = $derived(ours.slice(0, shownN));
+  $effect(() => { ours; shownN = BATCH; }); // a new filter or search starts again from one screenful
+  // The marker after the last card: when it nears the visible area, build the next batch.
+  function more(marker) {
+    const io = new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting) && shownN < ours.length) shownN = Math.min(ours.length, shownN + BATCH);
+    }, { root: marker.parentElement, rootMargin: '0px 0px 500px 0px' });
+    io.observe(marker);
+    return { destroy: () => io.disconnect() };
+  }
+
+  async function jump(letter) {
     const i = ours.findIndex((r) => letterOf(r.title) === letter);
+    if (i >= shownN) { shownN = Math.min(ours.length, i + BATCH); await tick(); }
     const el = ourGrid && ourGrid.children[i];
     if (!el) return;
     // Cards not yet rendered (content-visibility) are laid out at a placeholder size, so the target
@@ -102,7 +119,8 @@
   }
   function toggleSearch() { searching = !searching; if (!searching) query = ''; }
   // v: the photo's version, so a photo replaced in Paprika isn't shown from the browser's cache.
-  const ourThumb = (r) => (r.hasImage ? withKey('/api/recipes/paprika/' + r.id.slice(4) + '/image' + (r.img ? '?v=' + r.img : '')) : null);
+  // w: 320 for the grid's cards (about 240 px wide), the full 640 for a recipe's page.
+  const ourThumb = (r, w = 0) => (r.hasImage ? withKey('/api/recipes/paprika/' + r.id.slice(4) + '/image?' + new URLSearchParams({ ...(r.img ? { v: r.img } : {}), ...(w ? { w } : {}) })) : null);
   async function openOurs(card) {
     open = { id: card.id, title: card.title, image: ourThumb(card), ingredients: [], steps: [], loading: true };
     const want = open;
@@ -226,10 +244,10 @@
               {#if !paprika.recipes}
                 {#each Array(10) as _, i (i)}<div class="card sheet ghost"></div>{/each}
               {/if}
-              {#each ours as r (r.id)}
+              {#each oursShown as r (r.id)}
                 <button class="card sheet" class:bare={!ourThumb(r)} onclick={() => openOurs(r)}>
                   <span class="ph">
-                    {#if ourThumb(r)}<img src={ourThumb(r)} alt="" loading="lazy" decoding="async" use:fade />{:else}<span class="noimg"><Icon name="utensils" size={36} /></span>{/if}
+                    {#if ourThumb(r)}<img src={ourThumb(r, 320)} alt="" loading="lazy" decoding="async" use:fade />{:else}<span class="noimg"><Icon name="utensils" size={36} /></span>{/if}
                   </span>
                   <span class="label">
                     <span class="title">{recipeTitle(r.title)}</span>
@@ -239,6 +257,7 @@
               {:else}
                 {#if paprika.recipes}<p class="note">No recipes match.</p>{/if}
               {/each}
+              {#if shownN < ours.length}<span class="more" use:more></span>{/if}
             </div>
             {#if letters.length > 6}
               <div class="index" aria-label="Jump to letter">
@@ -364,6 +383,7 @@
   /* Square cards: the photo fills the card and the title sits on a dark fade at the bottom. */
   .card { position: relative; display: block; aspect-ratio: 1; padding: 0; border-radius: 18px; overflow: hidden; text-align: left; background: var(--track); content-visibility: auto; contain-intrinsic-size: auto 234px; }
   .card:active { opacity: .8; }
+  .more { grid-column: 1 / -1; height: 1px; }
   .ph { position: absolute; inset: 0; }
   .ph img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .25s; }
   .ph :global(img.in) { opacity: 1; }
