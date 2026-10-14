@@ -7,7 +7,7 @@
   import NoticeBanners from '../components/NoticeBanners.svelte';
   import { nowPlaying } from '../lib/ha.svelte.js';
   import { clock, calendar, weather, lists, mealItems, ui, completeItem, loadCalendar, loadList } from '../lib/state.svelte.js';
-  import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName } from '../lib/format.js';
+  import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
 
   let events = $derived(calendar.data ? calendar.data.events : []);
   // Finished events drop off Home; the Calendar tab still shows them.
@@ -40,6 +40,13 @@
   }
   let wx = $derived(weather.data);
   let info = $derived(wx ? weatherInfo(wx.code, wx.day) : null);
+  // UV for sunscreen: today's peak until sunset, then tomorrow's (the current reading is 0 at dawn).
+  let uv = $derived.by(() => {
+    if (!wx || !wx.days || !wx.days[0]) return null;
+    const afterSunset = wx.days[0].sunset && clock.now.getTime() > new Date(wx.days[0].sunset).getTime();
+    const d = afterSunset ? wx.days[1] : wx.days[0];
+    return d && d.uv != null ? { value: d.uv, tomorrow: afterSunset, ...uvBand(d.uv) } : null;
+  });
   // clock.now re-checks the 30-minute hold every minute.
   let playing = $derived(nowPlaying({ hold: true, now: clock.now.getTime() }));
 </script>
@@ -54,6 +61,7 @@
 
     {#if wx}
       <div class="sheet weather">
+        {#if uv}<span class="uv {uv.cls}" title="UV index">UV {uv.value} · {uv.tomorrow ? 'tomorrow' : uv.label}</span>{/if}
         {#if wx.alerts && wx.alerts.length}
           {@const a = wx.alerts[0]}
           <button class="wx-alert" class:severe={a.severity === 'Severe' || a.severity === 'Extreme'} onclick={() => (ui.weatherDay = 0)}>
@@ -170,7 +178,14 @@
   .clock { font-size: 146px; font-weight: 600; line-height: 1; letter-spacing: -.04em; margin: 2px 0 0 -4px; }
 
   .np-slot { margin-top: 18px; }
-  .weather { margin-top: auto; padding: 22px 24px 18px; }
+  .weather { position: relative; margin-top: auto; padding: 22px 24px 18px; }
+  /* Today's peak UV (tomorrow's after sunset), in the WHO colours. */
+  .uv { position: absolute; top: 16px; right: 16px; padding: 4px 10px; border-radius: 10px; font-size: 15px; font-weight: 700; color: #fff; white-space: nowrap; }
+  .uv-low { background: #34c759; }
+  .uv-mod { background: #ffcc00; color: #1c1c1e; }
+  .uv-high { background: #ff9500; }
+  .uv-vhigh { background: #ff3b30; }
+  .uv-ext { background: #af52de; }
   .wx-now { display: flex; align-items: center; gap: 18px; width: 100%; text-align: left; color: inherit; }
   .wx-now:active, .day:active, .wx-alert:active { opacity: .6; }
   .wx-alert { display: flex; align-items: center; gap: 8px; width: 100%; margin: -6px 0 12px; padding: 7px 12px; border-radius: 12px; background: var(--orange); color: #fff; font-size: 17px; font-weight: 700; text-align: left; }

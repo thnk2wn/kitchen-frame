@@ -105,3 +105,12 @@ export function recipeTitle(t) {
   const short = String(t || '').replace(/\s*\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim();
   return short || String(t || '').trim();
 }
+
+// UV index -> WHO band: label and a CSS class for its colour (green, yellow, orange, red, purple).
+export function uvBand(uv) {
+  if (uv <= 2) return { label: 'Low', cls: 'uv-low' };
+  if (uv <= 5) return { label: 'Moderate', cls: 'uv-mod' };
+  if (uv <= 7) return { label: 'High', cls: 'uv-high' };
+  if (uv <= 10) return { label: 'Very high', cls: 'uv-vhigh' };
+  return { label: 'Extreme', cls: 'uv-ext' };
+}
