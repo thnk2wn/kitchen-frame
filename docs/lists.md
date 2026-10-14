@@ -141,6 +141,8 @@ and set the list's source back to `todoist`.
 | Symptom | Fix |
 | --- | --- |
 | "Waiting for the Mac to send this Reminders list" | The bridge isn't running or can't reach the Worker: check the log, and that `BRIDGE_TOKEN` matches on both sides |
+| `HTTP 401` in the log | The token doesn't match the Worker's `BRIDGE_TOKEN`: run `install.sh --reconfigure` and paste it again (without the quotes) |
+| `--check` lists only "Reminders" | The Mac isn't showing your iCloud lists: turn on iCloud → Reminders, open the Reminders app until your lists appear, then run `install.sh` again |
 | `No Reminders list named "…"` in the log | The name in `REMINDERS_…_LIST` must match the list in Reminders (case doesn't matter) |
 | `No access to Reminders` | System Settings → Privacy & Security → Reminders → Kitchen Frame Bridge on (Full Access), then run install.sh again |
 | Changes from the phone are slow to reach the frame | That's iCloud reaching the Mac; the bridge also checks every 5 minutes. Opening Reminders on the Mac nudges a stuck iCloud sync |

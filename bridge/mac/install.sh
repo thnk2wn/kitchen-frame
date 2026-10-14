@@ -19,9 +19,14 @@ launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
 mkdir -p "$HOME/Applications" "$support" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
 rm -rf "$app" && cp -R build/KitchenFrameBridge.app "$app"
 
+# --reconfigure asks for the address and token again (a wrong token shows as "HTTP 401" in the log).
+[ "${1:-}" = "--reconfigure" ] && rm -f "$support/config.json"
 if [ ! -f "$support/config.json" ]; then
   read -r -p "Worker address (e.g. https://kitchen-frame.example.workers.dev): " worker
-  read -r -s -p "BRIDGE_TOKEN (from dashboard/.dev.vars; not shown as you paste): " token; echo
+  read -r -s -p "BRIDGE_TOKEN (from dashboard/.dev.vars, without the quotes; not shown as you paste): " token; echo
+  # Forgive a pasted line's quotes, spaces or a leading BRIDGE_TOKEN=.
+  token=$(printf '%s' "$token" | sed -e 's/^[[:space:]]*//' -e 's/^BRIDGE_TOKEN=//' -e 's/^[[:space:]"'"'"']*//' -e 's/[[:space:]"'"'"']*$//')
+  worker=$(printf '%s' "$worker" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]/]*$//')
   umask 077
   python3 -c 'import json,sys; print(json.dumps({"worker": sys.argv[1], "token": sys.argv[2]}))' "$worker" "$token" > "$support/config.json"
 fi
@@ -31,6 +36,7 @@ echo "Opening the bridge once to ask for Reminders access. If macOS asks, click 
 open -W "$app" --args --check || true
 cat "$log"
 grep -q "Reminders access OK" "$log" || { echo "Reminders access wasn't granted: see System Settings > Privacy & Security > Reminders, then run this again." >&2; exit 1; }
+grep -q "Worker reachable" "$log" || { echo "Couldn't reach the Worker with that address and token (see above). Run: $0 --reconfigure" >&2; exit 1; }
 
 cat > "$agent" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
