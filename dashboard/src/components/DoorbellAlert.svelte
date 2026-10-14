@@ -19,15 +19,26 @@
     return pic ? haUrl(pic) + '&t=' + (s.attributes.timestamp || s.attributes.access_token || '') : null;
   });
 
-  // Start the live view when a ring opens the pop-up; stop it when it closes.
+  // d.video is the sharper <name>_stream camera when there is one, which has no sound; Sound switches
+  // to the doorbell's own live view (smaller picture, with sound), Sharper back. Each ring starts sharp.
+  let withSound = $state(false);
+  let sharpFailed = $state(false); // the sharp stream didn't play: stay on the doorbell's own view
+  let canSwitch = $derived(!!d && !!d.video && d.video !== d.live && !sharpFailed);
+  $effect(() => { if (d) { d.at; withSound = false; sharpFailed = false; muted = true; } });
+
+  // Start the live view when a ring opens the pop-up (or the source switches); stop it when it closes.
   $effect(() => {
     if (!d || !d.live || !video) return;
+    const cam = withSound || !d.video ? d.live : d.video;
     let stop = null, gone = false;
     live = false;
-    startLive(d.video || d.live, video, () => (live = true))
+    startLive(cam, video, () => (live = true))
       .then((s) => { if (gone) s && s(); else stop = s; })
       .catch((e) => console.error('doorbell live view', e));
-    return () => { gone = true; live = false; muted = true; if (stop) stop(); };
+    // The sharp stream not playing within 10 s (a doorbell's large picture can be too much for the
+    // frame's video decoder): fall back to the doorbell's own live view.
+    const fallback = cam !== d.live ? setTimeout(() => { if (!live && !gone) { sharpFailed = true; withSound = true; } }, 10000) : null;
+    return () => { gone = true; live = false; clearTimeout(fallback); if (stop) stop(); };
   });
 </script>
 
@@ -43,9 +54,13 @@
       <span class="ic"><Icon name="bell" size={28} /></span>
       <div class="txt">
         <div class="title">{d.name}</div>
-        <div class="sub">{d.test ? 'Test ring' : 'Someone’s at the door'} · {time(new Date(d.at))}{#if d.live && !live} · connecting…{/if}</div>
+        <div class="sub">{d.test ? 'Test ring' : 'Someone’s at the door'} · {time(new Date(d.at))}{#if d.live && !live} · connecting…{:else if withSound && !sharpFailed} · with sound, lower quality{/if}</div>
       </div>
-      {#if live}
+      {#if canSwitch && (live || withSound)}
+        <button class="snd" onclick={() => { withSound = !withSound; muted = !withSound; }} aria-label={withSound ? 'Sharper video, no sound' : 'Sound, lower quality video'}>
+          <Icon name={withSound ? 'camera' : 'volume'} size={24} />{withSound ? 'Sharper' : 'Sound'}
+        </button>
+      {:else if live}
         <button class="snd" onclick={() => (muted = !muted)} aria-label={muted ? 'Sound on' : 'Sound off'}>
           <Icon name={muted ? 'volumeOff' : 'volume'} size={24} />{muted ? 'Sound' : 'Mute'}
         </button>

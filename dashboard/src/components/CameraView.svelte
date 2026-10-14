@@ -2,13 +2,20 @@
   // A camera full screen, opened by tapping it on the House tab: live video when the camera offers
   // it through Home Assistant (WebRTC, as the doorbell pop-up uses), otherwise its picture refreshed
   // every few seconds. Closes itself after OPEN_MS, so a battery camera isn't left streaming.
+  import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import { startLive } from '../lib/doorbell.svelte.js';
   import { ha, haUrl } from '../lib/ha.svelte.js';
 
   // onsnap: asks the camera for a new picture (a Ring camera's "Take Snapshot" through ring-mqtt), for
   // when there's no live video; age: how old the picture shown is, as text.
-  let { entity, name, picture = '', onclose, onsnap = null, age = '' } = $props();
+  // soundEntity: the same camera with sound but a smaller picture (Ring's own live view, when entity is
+  // its sharper <name>_stream without audio): the Sound button switches to it, Sharper back.
+  let { entity, soundEntity = null, name, picture = '', onclose, onsnap = null, age = '' } = $props();
+  let withSound = $state(false);
+  let sharpFailed = $state(false); // the sharp stream didn't play here: stay on the camera's own view
+  let source = $derived(withSound && soundEntity ? soundEntity : entity);
+  let canSwitch = $derived(!!soundEntity && soundEntity !== entity && !sharpFailed);
   const OPEN_MS = 2 * 60 * 1000;
   const STILL_MS = 5000;
   const SNAP_MS = 15000;
@@ -26,29 +33,37 @@
   const RETRY_MS = 10000;
   $effect(() => {
     if (!video) return;
+    const cam = source; // switching between sharp and with-sound starts again
+    live = false; noLive = false;
     let stop = null, gone = false, tries = 0, retry;
     const attempt = () => {
       const n = ++tries;
-      startLive(entity, video, () => (live = true))
+      startLive(cam, video, () => (live = true))
         // A slow first try that finishes after the retry began is closed, not kept.
         .then((s) => { if (gone || n !== tries) s && s(); else if (s) stop = s; else noLive = true; })
         .catch((e) => { console.error('camera live view', e); });
       retry = setTimeout(() => {
         if (live || gone) return;
         if (stop) { stop(); stop = null; }
+        // A sharp stream that won't play (a doorbell's large picture can be too much for a frame's
+        // video decoder): fall back to the camera's own live view, smaller but playable.
+        if (!withSound && soundEntity && soundEntity !== entity && !sharpFailed) { sharpFailed = true; withSound = true; return; }
         if (tries < 2) attempt(); else noLive = true;
       }, RETRY_MS);
     };
     attempt();
-    const close = setTimeout(onclose, OPEN_MS);
+    // onclose and onsnap are read only when called: the House tab passes new functions whenever any
+    // state changes, and reading them here would restart the video every few seconds.
+    const close = setTimeout(() => onclose(), OPEN_MS);
     return () => { gone = true; clearTimeout(close); clearTimeout(retry); if (stop) stop(); };
   });
   // No live video: a new snapshot now and every SNAP_MS (a Ring camera keeps returning its last one
   // until asked for another), and the picture reloaded meanwhile to pick it up.
   $effect(() => {
     if (!noLive) return;
-    if (onsnap) onsnap();
-    const s = onsnap ? setInterval(onsnap, SNAP_MS) : null;
+    const snap = () => { const f = untrack(() => onsnap); if (f) f(); };
+    snap();
+    const s = setInterval(snap, SNAP_MS);
     const t = setInterval(() => (tick = Date.now()), STILL_MS);
     return () => { clearInterval(t); if (s) clearInterval(s); };
   });
@@ -65,11 +80,16 @@
     <div class="txt">
       <div class="title">{name}</div>
       <div class="sub">
-        {#if live}Live{:else if noLive}No live video from this camera right now · picture{age ? ' ' + age : ''}, a new one every 15 s
+        {#if live}Live{withSound && !sharpFailed ? ' · with sound, lower quality' : ''}{:else if noLive}No live video from this camera right now · picture{age ? ' ' + age : ''}, a new one every 15 s
         {:else if ha.status === 'connected'}<span class="spin"></span>Starting live video…{:else}Not connected to Home Assistant{/if}
       </div>
     </div>
-    {#if live}
+    {#if canSwitch && (live || withSound)}
+      <!-- The sharp stream has no sound: Sound switches to the camera's own live view, unmuted. -->
+      <button class="snd" onclick={() => { withSound = !withSound; muted = !withSound; }} aria-label={withSound ? 'Sharper video, no sound' : 'Sound, lower quality video'}>
+        <Icon name={withSound ? 'camera' : 'volume'} size={24} />{withSound ? 'Sharper' : 'Sound'}
+      </button>
+    {:else if live}
       <button class="snd" onclick={() => (muted = !muted)} aria-label={muted ? 'Sound on' : 'Sound off'}>
         <Icon name={muted ? 'volumeOff' : 'volume'} size={24} />{muted ? 'Sound' : 'Mute'}
       </button>

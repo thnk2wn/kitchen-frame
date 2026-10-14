@@ -278,7 +278,13 @@ frame among them) a 480×272 picture. With [ring-mqtt](https://github.com/tsight
 Camera) with its **Stream source** set to the `stream_Source` address shown on that camera's ring-mqtt
 **Info** sensor (`rtsp://…-ring-mqtt:8554/<id>_live`), and name its entity `camera.<name>_stream`, where
 `<name>` matches the camera's `camera.<name>_live_view` or `_snapshot`. The House tab and the doorbell
-pop-up then play the stream (720p on this frame) and fall back to Ring's live view without one.
+pop-up then play the stream (720p on this frame) and fall back to Ring's live view without one, or
+when the stream doesn't play within 10 s. **Try each one on the frame before keeping it**: a stream
+bigger than the frame's video decoder handles doesn't play, and a doorbell's large square picture
+froze this frame's browser until the kiosk restarted. Here only two of six played (backyard and
+upstairs, at 720p); the others are disabled (Settings → Devices & Services → Generic Camera) and
+use Ring's live view. The full-screen view's **Sound** button switches to Ring's live view (smaller
+picture, with sound) and **Sharper** back.
 
 Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `THERMOSTAT_GAP`, `PRESENCE_AREA`, …) in the gitignored `dashboard/.frame.vars`,
 then `open "$(dashboard/scripts/frame-url.sh)"` (a browser) or pass the same URL to the kiosk with

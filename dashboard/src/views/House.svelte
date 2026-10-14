@@ -192,7 +192,7 @@
 </div>
 
 {#if viewing}
-  <CameraView entity={st(companionsOf(viewing.entity)[2]) ? companionsOf(viewing.entity)[2] : viewing.entity} name={viewing.name} picture={attr(snapOf(viewing.entity) ? snapOf(viewing.entity).cam : viewing.entity).entity_picture || ''}
+  <CameraView entity={st(companionsOf(viewing.entity)[2]) && st(companionsOf(viewing.entity)[2]).state !== 'unavailable' ? companionsOf(viewing.entity)[2] : viewing.entity} soundEntity={viewing.entity} name={viewing.name} picture={attr(snapOf(viewing.entity) ? snapOf(viewing.entity).cam : viewing.entity).entity_picture || ''}
     age={camAge(viewing.entity)} onsnap={() => tapCamera(viewing.entity)} onclose={() => (viewing = null)} />
 {/if}
 

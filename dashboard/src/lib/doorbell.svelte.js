@@ -61,7 +61,7 @@ async function find(states) {
     const name = String((byId.get(entity).attributes || {}).friendly_name || base)
       .replace(/\s+(ding|doorbell|ring|press(ed)?|button|visitor)$/i, '');
     // video: the camera to stream, its <name>_stream companion when there is one (see companionsOf).
-    return { entity, name, live, video: stream && byId.has(stream) ? stream : live, still: snap && byId.has(snap) ? snap : live, button: button && byId.has(button) ? button : null };
+    return { entity, name, live, video: stream && byId.has(stream) && byId.get(stream).state !== 'unavailable' ? stream : live, still: snap && byId.has(snap) ? snap : live, button: button && byId.has(button) ? button : null };
   });
 
   // Watch the doorbells, plus their cameras so the still follows each new snapshot.
