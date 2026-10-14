@@ -50,11 +50,15 @@ Nothing under `/system` or any flash partition has been written. No backup taken
 - Demo mode (Settings): sample calendar and lists, no photos; ticks and additions stay on the frame and never reach Todoist.
 - After a deploy, Cloudflare can take ~30 s to serve the new version everywhere; a frame that reloads sooner gets the old one until its next reload.
 
-## Music (Home Assistant + Music Assistant)
+## Music (Home Assistant)
+
+How the Music tab works and how to set it up (Spotify, Home Assistant, Echos) is in
+[music.md](music.md). On this frame:
 
 - The Music tab talks to Home Assistant directly on the LAN (`http://<home-assistant-ip>`, HA 2026.9.4) over its
-  WebSocket API; HA's REST API rejects cross-origin calls, the WebSocket API doesn't. Music Assistant
-  2.10.5 runs as an HA add-on; only its speakers are shown (Echo Spot ×2, Kitchen Mini, VANKYO).
+  WebSocket API; HA's REST API rejects cross-origin calls, the WebSocket API doesn't. It uses HA's
+  Spotify integration; Music Assistant 2.10.5 also runs as an add-on, and is what the tab falls back to
+  without Spotify.
 - The HA URL and long-lived token are stored only in the frame's localStorage (`frame-ha-url`,
   `frame-ha-token`), pushed over ADB/DevTools from `dashboard/.frame.vars` (gitignored). They are not in
   the deployed site or Cloudflare.
@@ -63,4 +67,5 @@ Nothing under `/system` or any flash partition has been written. No backup taken
   Recommended: create a non-admin "Kitchen Frame" user, put its token in `.frame.vars`, push it to the
   frame the same way, then delete the admin token in HA (Profile → Security).
 - The Music tab only appears when a token is present. Removing `frame-ha-token` hides it again.
-
+- The Worker's Spotify connection (every playlist, what's playing) is set up: `SPOTIFY_*` secrets,
+  signed in 2026-10-14 with the playlists, recently played and currently playing permissions.

@@ -53,6 +53,12 @@ CALENDAR_DETAILS="yes, yes, no, yes"
   rules and HTML formatting. Notes are cut at 1,000 characters. A sports feed's "W 56-9 / TV: SEC
   Network" survives; its ticket and streaming links don't.
 - A weekly event's notes are stored once, not per week.
+- **A map** of the location shows beside the details when the place can be found: an address, or a
+  named place like a stadium. The Worker looks it up with OpenStreetMap's Nominatim the first time
+  that event is opened, searching near home first (`WEATHER_LAT`/`WEATHER_LON`) so "Aquatic center"
+  finds the local one, and caches the answer in KV. Map tiles come from OpenStreetMap through the
+  Worker's cache. Video calls and links are never looked up. This sends the location text (only) to
+  OpenStreetMap's servers, and only for calendars set to open.
 - Without `CALENDAR_DETAILS`, nothing opens and no notes are kept, as before.
 
 Calendars you'd want behind a PIN (a work calendar, say) are best left at `no` for now; a frame in

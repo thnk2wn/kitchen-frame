@@ -98,7 +98,7 @@ test('unknown list and missing token', async () => {
 
 test('weather is reduced to what the screen shows', () => {
   const w = shape({
-    current: { temperature_2m: 61.6, apparent_temperature: 59.2, weather_code: 3, is_day: 1 },
+    current: { temperature_2m: 61.6, apparent_temperature: 59.2, weather_code: 3, is_day: 1, uv_index: 2.6 },
     daily: { time: ['2026-10-12'], temperature_2m_max: [68.4], temperature_2m_min: [50.5], precipitation_probability_max: [20], weather_code: [61], sunrise: ['2026-10-12T07:03'], sunset: ['2026-10-12T18:21'],
       precipitation_sum: [0.12], wind_speed_10m_max: [9.6], wind_gusts_10m_max: [21.2], wind_direction_10m_dominant: [225], uv_index_max: [5.4] },
     hourly: { time: ['2026-10-12T23:00', '2026-10-13T00:00'], temperature_2m: [55.4, 54], precipitation_probability: [10, 0], weather_code: [2, 0], is_day: [0, 0] },
@@ -111,7 +111,7 @@ test('weather is reduced to what the screen shows', () => {
     alerts: [{ properties: { event: 'Heat Advisory', headline: 'Heat Advisory until 8 PM', severity: 'Moderate', ends: '2026-10-12T20:00:00-04:00', description: 'Hot.', instruction: 'Drink water.' } }],
   });
   assert.deepEqual({ ...w, updated: undefined }, {
-    unit: 'F', temp: 62, feels: 59, code: 3, day: true, updated: undefined,
+    unit: 'F', temp: 62, feels: 59, code: 3, day: true, uvNow: 3, updated: undefined,
     days: [{
       date: '2026-10-12', hi: 68, lo: 51, rain: 20, code: 61, sunrise: '2026-10-12T07:03', sunset: '2026-10-12T18:21',
       precip: 0.12, wind: 10, gusts: 21, windDir: 'SW', uv: 5, short: 'Cloudy', shortNight: false,

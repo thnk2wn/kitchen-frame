@@ -58,7 +58,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | **[Doorbell pop-up](#doorbell)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
 | **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
 | **[Presence](#clock-screen-and-presence)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
-| **Music** | Updated | Spotify through HA: Spotify Connect speakers, playlists (recent or A–Z), and starting from silence on an Echo. |
+| **[Music](#music)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist (last played on any device, or A–Z) and which one is playing, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. |
 
 ### In the kitchen
 
@@ -67,13 +67,13 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | **[Paprika recipes](#our-recipes-from-paprika)** | New | A read-only sync of your library: categories, search, an A–Z index, your notes and nutrition. Tap a direction to mark your place; earlier ones are checked off. |
 | **Meal plan** | New | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
 | **[Timers](#timers)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
-| **Lists** | Updated | Groceries and Tasks in one tab, and side by side on Home. |
+| **[Lists](#weather-and-lists)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds). |
 
 ### At a glance
 
 | Feature | | What it does |
 | --- | --- | --- |
-| **Weather** | Updated | Today's UV on Home and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, sun times. |
+| **Weather** | Updated | The UV right now on Home (for sunscreen) and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, the day's peak UV, sun times. |
 | **[Calendar](#calendar)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details and notes on the calendars you choose, hide any calendar per frame, and `#private` to keep an event off the frame. |
 | **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours). Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
 
@@ -97,7 +97,9 @@ flowchart LR
     ha["Home Assistant"]
     speakers["Speakers<br/>(Echo, Nest, Sonos…)"]
     ha --> speakers
+    mac["Mac (optional)<br/>Reminders bridge"]
   end
+  mac -- "bridge token<br/>(lists, live)" --> worker
 
   app -- "HTTPS + dashboard key" --> worker
   app -- "WebSocket + HA token<br/>(House, Music, read-aloud,<br/>doorbell + live video)" --> ha
@@ -108,6 +110,8 @@ flowchart LR
   worker --> mealdb["TheMealDB"]
   worker --> weather["Open-Meteo<br/>+ NWS (US)"]
   worker -- public album link --> icloud["iCloud shared album"]
+  worker -- "read-only (optional)" --> spotifyapi["Spotify<br/>playlists, what's playing"]
+  worker --> osm["OpenStreetMap<br/>event maps"]
   ha -- integrations --> spotify["Spotify, Alexa Devices,<br/>thermostats, locks, cameras…"]
   agents["AI agents, HA automations"] -- "agent token" --> worker
 ```
@@ -133,14 +137,17 @@ The developer wiki is in [openwiki/](openwiki/quickstart.md).
 
 - `dashboard/src/`: the web app (Svelte 5, no SvelteKit). Tabs: Home (clock, weather, today's
   events, groceries, to-dos), Calendar (week and month), Lists (Groceries and Tasks, from Todoist),
-  Recipes (Paprika, TheMealDB and saved recipes), Music and House (both Home Assistant). A doorbell
+  Recipes (Paprika, TheMealDB and saved recipes), Music (Spotify through Home Assistant) and House
+  (Home Assistant). A doorbell
   ring shows its camera over every screen. After a
   set time untouched (Settings) it switches to an idle clock and photo screen. The frame loads it full screen in a kiosk WebView.
 - `dashboard/worker/`: the Cloudflare Worker that serves the app and its API: merged calendar,
-  weather (Open-Meteo), Todoist lists, the iCloud shared album (photos proxied and cached in KV),
+  weather (Open-Meteo), lists (Todoist, or Apple Reminders through the Mac bridge), the iCloud shared album (photos proxied and cached in KV),
   recipes (Paprika's library and meal plan, TheMealDB, saved ones) and agent messages (a Durable
   Object that pushes them to the frame over a WebSocket). Tokens and links for those services stay
   on the server.
+- `bridge/mac/`: the optional Mac app that keeps Apple Reminders lists in step with the frame
+  (Swift, EventKit; `install.sh` builds it and starts it at login). See `docs/lists.md`.
 - `docs/research.md`: what we learned from the upstream repo and the video, plus performance constraints.
 - `kiosk/`: the Android app the frame boots into (one full-screen WebView). `kiosk/build.sh` builds it
   without Gradle; see `docs/frame.md` for the install and the changes made to our frame.
@@ -158,8 +165,8 @@ open "http://localhost:5173/?diag"   # perf overlay (fps, jank, DOM, image megap
 
 Local settings: `cp dashboard/.dev.vars.example dashboard/.dev.vars` and fill it in, then open
 `http://localhost:5173/?key=<DASHBOARD_KEY>` once (the page remembers the key). `npm test` runs the
-Worker and parser tests (calendar, Paprika, photos, messages, weather and the House dashboard
-parser).
+Worker and parser tests (calendar, Paprika, photos, messages, weather, maps, Spotify and the House
+dashboard parser).
 
 Deploy from `dashboard/` (after `npx wrangler login`):
 
@@ -177,7 +184,8 @@ moment (Settings shows the running version).
 
 **Cost:** it runs on Cloudflare's **free** Workers plan. The frame makes roughly 1,500–2,000 Worker
 requests a day (calendar every 5 minutes, weather every 15, the meal plan every 30, lists every
-minute while they're showing, photos only during the slideshow; messages are pushed, not polled).
+minute while they're showing, Spotify playlists every 5 minutes while Music is showing, photos only
+during the slideshow; messages are pushed, not polled).
 Free allows 100,000 requests and 1,000 KV writes a day; the calendar is only rewritten when it
 changes (or hourly), and Paprika recipes and photos are written once each. The Images binding
 (resizing photos once) is free up to 5,000 transformations a month.
@@ -192,10 +200,11 @@ and locations, and `#private` in an event keeps it off the frame.
 
 Choose which calendars open when an event is tapped (`CALENDAR_DETAILS`): the family calendar or a
 team's schedule, say, but not work. Those events show a › and open a sheet with the calendar, the
-day and time, the location and the event's notes (TV channel and score, for a sports feed). Notes
+day and time, the location with a small map, and the event's notes (TV channel and score, for a
+sports feed). Notes
 from other calendars are never stored, so the frame couldn't show them if it tried.
 
-<img src="docs/images/event-light.jpg" alt="An event's details: calendar, day and time, stadium, and TV and radio notes" width="640">
+<img src="docs/images/event-light.jpg" alt="An event's details: calendar, day and time, stadium, TV and radio notes, and a map of the stadium" width="640">
 
 [docs/calendar.md](docs/calendar.md) has how to get each kind of link, every setting, privacy
 details, and how refreshing and failed feeds work.
@@ -208,7 +217,7 @@ colour chosen in Settings and dims at night, as do the photos (or they're off at
 theme with `?theme=light` or `?theme=dark` (remembered on the frame); `?theme=auto` goes back to
 following the sun. Both themes are CSS variables, so switching costs one repaint and no memory.
 
-## Weather and Todoist
+## Weather and lists
 
 - **Weather:** set `WEATHER_LAT` and `WEATHER_LON` (plus `WEATHER_UNIT="celsius"` if you want it)
   as secrets (`npx wrangler secret put`, as this deployment does) or `vars` in
@@ -220,6 +229,12 @@ following the sun. Both themes are CSS variables, so switching costs one repaint
   **To-do**; `TODOIST_GROCERY_PROJECT` / `TODOIST_TODO_PROJECT` in `wrangler.jsonc` point them
   elsewhere (this deployment uses "Groceries" and "Family"). Tapping an item completes
   it in Todoist, and items can be added from the frame.
+- **Apple Reminders instead** (per list): Apple gives servers no way into Reminders, so a Mac at
+  home that stays on runs a small bridge app (`bridge/mac/`) that keeps chosen Reminders lists in
+  step with the frame within seconds, both ways. "Hey Siri, add milk to my Groceries list" from the
+  watch then shows on the frame, and ticking it on the frame ticks it on your phone.
+  [docs/lists.md](docs/lists.md) compares it with Todoist (including Siri with Todoist), walks
+  through setting up the Mac, and lists what happens when the Mac is off.
 
 ## Our recipes from Paprika
 
@@ -247,6 +262,21 @@ non-admin HA user's token.
 Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` in the gitignored `dashboard/.frame.vars`,
 then `open "$(dashboard/scripts/frame-url.sh)"` (a browser) or pass the same URL to the kiosk with
 `adb shell am start … -d`. The page saves the settings and removes them from the address bar.
+
+## Music
+
+Spotify on the house's speakers, through Home Assistant: the Music tab (song, controls, volume,
+playlists, speakers), a Now Playing card on Home and a small one in every other tab's top bar.
+Controls show the change at once instead of waiting seconds for Spotify to confirm.
+
+Setup, in [docs/music.md](docs/music.md):
+
+1. **HA's Spotify integration** (required; Spotify Premium): a Spotify developer app whose client ID
+   and secret go into Home Assistant.
+2. **Alexa Devices in HA** (optional): starts Spotify on an Echo when nothing has played for a while.
+3. **The Worker's own Spotify connection** (optional, the same developer app): every playlist (HA
+   lists only the first 48), sorted by what was last played on any device, and which one is playing.
+   Three settings in `.dev.vars` and a one-time sign-in with `node scripts/spotify-auth.mjs`.
 
 ## Timers
 
@@ -336,7 +366,8 @@ The frame boots into our own kiosk app (`kiosk/`, package `com.huntsyea.frame`):
 `kiosk/build.sh`, install with `adb install -r kiosk/build/frame.apk`, and set the dashboard URL
 once with `adb shell am start -n com.huntsyea.frame/.MainActivity -d '<url with ?key=>'`.
 [docs/frame.md](docs/frame.md) covers getting ADB working, every change made to the device with
-its undo command, day-to-day operation, and the Home Assistant setup for the Music tab.
+its undo command, and day-to-day operation. Music setup (Spotify, Home Assistant, Echos) is in
+[docs/music.md](docs/music.md).
 
 To set up a different frame, start from the upstream device guides in
 `reference/photo-frame-dashboard/docs/devices.md` (ADB, root, WebView 106, disabling the vendor

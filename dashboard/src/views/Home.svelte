@@ -1,11 +1,13 @@
 <script>
+  // What's playing (or paused within the last 30 minutes), from App, which also feeds the top bar.
+  let { playing = null } = $props();
+  let slotH = $state(0);
   import Icon from '../components/Icon.svelte';
   import EventRow from '../components/EventRow.svelte';
   import TaskRow from '../components/TaskRow.svelte';
-  import NowPlaying from '../components/NowPlaying.svelte';
   import CalendarPicker from '../components/CalendarPicker.svelte';
+  import NowPlaying from '../components/NowPlaying.svelte';
   import NoticeBanners from '../components/NoticeBanners.svelte';
-  import { nowPlaying } from '../lib/ha.svelte.js';
   import { clock, calendar, weather, lists, mealItems, ui, completeItem, loadCalendar, loadList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
 
@@ -40,28 +42,26 @@
   }
   let wx = $derived(weather.data);
   let info = $derived(wx ? weatherInfo(wx.code, wx.day) : null);
-  // UV for sunscreen: today's peak until sunset, then tomorrow's (the current reading is 0 at dawn).
-  let uv = $derived.by(() => {
-    if (!wx || !wx.days || !wx.days[0]) return null;
-    const afterSunset = wx.days[0].sunset && clock.now.getTime() > new Date(wx.days[0].sunset).getTime();
-    const d = afterSunset ? wx.days[1] : wx.days[0];
-    return d && d.uv != null ? { value: d.uv, tomorrow: afterSunset, ...uvBand(d.uv) } : null;
-  });
-  // clock.now re-checks the 30-minute hold every minute.
-  let playing = $derived(nowPlaying({ hold: true, now: clock.now.getTime() }));
+  // UV right now, for sunscreen (the same reading HA's weather shows, give or take the source). Hidden
+  // when it's under 1: night, dawn and dusk. The day's peak is in the weather sheet.
+  let uv = $derived(wx && wx.uvNow != null && wx.uvNow >= 1 ? { value: wx.uvNow, ...uvBand(wx.uvNow) } : null);
 </script>
 
 <div class="home">
   <section class="now">
     <div class="date">{longDate(clock.now)}</div>
     <div class="clock num">{clockTime(clock.now)}</div>
-    {#if playing}<div class="np-slot"><NowPlaying player={playing} /></div>{/if}
-    <!-- Home Assistant notices (lib/notices.svelte.js); one fits beside Now Playing, two without it. -->
-    <NoticeBanners max={playing ? 1 : 2} />
+    <!-- Home Assistant notices come first (lib/notices.svelte.js). Now Playing takes whatever room is
+         left above the weather: a row on the frame, a big cover on a taller screen, nothing when
+         there's no room for even the row (it's still in Music). -->
+    <NoticeBanners max={2} />
+    <div class="np-slot" bind:clientHeight={slotH}>
+      {#if playing && slotH >= 78}<NowPlaying player={playing} card slim={slotH < 136} cover={slotH >= 320 ? Math.min(slotH - 124, 360) : 0} />{/if}
+    </div>
 
     {#if wx}
       <div class="sheet weather">
-        {#if uv}<span class="uv {uv.cls}" title="UV index">UV {uv.value} · {uv.tomorrow ? 'tomorrow' : uv.label}</span>{/if}
+        {#if uv}<span class="uv {uv.cls}" title="UV index now">UV {uv.value} · {uv.label}</span>{/if}
         {#if wx.alerts && wx.alerts.length}
           {@const a = wx.alerts[0]}
           <button class="wx-alert" class:severe={a.severity === 'Severe' || a.severity === 'Extreme'} onclick={() => (ui.weatherDay = 0)}>
@@ -172,12 +172,13 @@
 {/snippet}
 
 <style>
+  /* Sized by the room left (basis 0), never by the card, so it can't push the weather down. */
+  .np-slot { flex: 1 1 0; min-height: 0; overflow: hidden; padding: 10px 0 8px; display: flex; flex-direction: column; }
   .home { display: grid; grid-template-columns: 384px 1.3fr 1fr; gap: 20px; height: 100%; padding: 10px 28px 28px; }
   .now { display: flex; flex-direction: column; min-width: 0; }
   .date { font-size: 26px; font-weight: 600; color: var(--secondary); padding: 6px 4px 0; }
   .clock { font-size: 146px; font-weight: 600; line-height: 1; letter-spacing: -.04em; margin: 2px 0 0 -4px; }
 
-  .np-slot { margin-top: 18px; }
   .weather { position: relative; margin-top: auto; padding: 22px 24px 18px; }
   /* Today's peak UV (tomorrow's after sunset), in the WHO colours. */
   .uv { position: absolute; top: 16px; right: 16px; padding: 4px 10px; border-radius: 10px; font-size: 15px; font-weight: 700; color: #fff; white-space: nowrap; }
@@ -206,7 +207,7 @@
   .cal, .list { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding-bottom: 16px; }
   .lists { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 20px; }
   .list.groceries { flex: 1 1 0; }
-  .list.todo { flex: 0 1 auto; max-height: 38%; }
+  .list.todo { flex: 0 1 auto; max-height: 47%; } /* room for two tasks with their due line */
   /* Groceries on Home: short one-line items, two columns when the card is wide enough. */
   .scroll.cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); column-gap: 16px; align-content: start; overflow-x: hidden; }
   .scroll.cols .empty { grid-column: 1 / -1; }

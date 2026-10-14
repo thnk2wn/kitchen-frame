@@ -13,6 +13,10 @@
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
+//   GET  /api/geo?q=                 an event location's coordinates, for its map (see maps.js)
+//   GET  /api/tiles/:z/:x/:y         OpenStreetMap tiles, cached
+//   GET  /api/spotify/playlists      every Spotify playlist, and when each was last played (spotify.js)
+//   GET  /api/spotify/now            the playlist playing now, if any
 //
 // Secrets (`wrangler secret put`, or .dev.vars locally):
 //   CALENDAR_NAMES optional names for the frame's Calendars list, comma-separated, in link order.
@@ -27,6 +31,11 @@
 //   ALBUM_URL      iCloud shared album link with Public Website on.
 //   AGENT_TOKEN    lets AI agents post messages and save recipes; it can't read anything.
 //   PAPRIKA_EMAIL, PAPRIKA_PASSWORD  optional: a Paprika Cloud Sync account to show our recipes.
+//   GROCERIES_SOURCE, TODO_SOURCE  optional: "reminders" to show that list from Apple Reminders
+//                  through a Mac at home instead of Todoist (bridge.js, docs/lists.md), with
+//                  REMINDERS_GROCERIES_LIST / REMINDERS_TODO_LIST naming the lists and BRIDGE_TOKEN.
+//   SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN  optional: all playlists and
+//                  their last-played order for the Music tab (scripts/spotify-auth.mjs).
 // Optional: DISPLAY_TZ  IANA zone for times with no TZID and no X-WR-TIMEZONE (default UTC).
 import { expand, merge, splitNotes } from './calendar.js';
 import { getWeather } from './weather.js';
@@ -34,7 +43,11 @@ import { LISTS, getList, addItem, completeItem } from './todoist.js';
 import { listPhotos, photoResponse } from './photos.js';
 import { room } from './messages.js';
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
+export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage } from './recipes.js';
+import { geocode, tile } from './maps.js';
+import { spotifyConfigured, getPlaylists, getNow } from './spotify.js';
+import { BRIDGE_LISTS, fromReminders, remindersName, bridge } from './bridge.js';
 import { syncPaprika, listPaprika, getPaprika, paprikaImage, listMeals } from './paprika.js';
 
 const KEY = 'calendar';
@@ -63,6 +76,17 @@ export default {
       if (!env.AGENT_TOKEN || req.headers.get('Authorization') !== 'Bearer ' + env.AGENT_TOKEN) return json({ error: 'unauthorized' }, 401);
       return room(env).fetch('https://room/post', { method: 'POST', body: await req.text() });
     }
+    // The Mac that bridges Apple Reminders (bridge/mac/) has its own token, for these routes only.
+    if (url.pathname.startsWith('/api/bridge/')) {
+      if (!env.BRIDGE_TOKEN || req.headers.get('Authorization') !== 'Bearer ' + env.BRIDGE_TOKEN) return json({ error: 'unauthorized' }, 401);
+      const what = url.pathname.slice('/api/bridge/'.length);
+      if (what === 'config') {
+        return json({ lists: Object.fromEntries(Object.keys(BRIDGE_LISTS).filter((l) => fromReminders(env, l)).map((l) => [l, remindersName(env, l)])) });
+      }
+      if (what === 'snapshot' && req.method === 'POST') return bridge(env).fetch('https://bridge/snapshot', { method: 'POST', body: await req.text() });
+      if (what === 'live') return bridge(env).fetch(new Request('https://bridge/live', req));
+      return json({ error: 'not found' }, 404);
+    }
     // Agents may also save recipes with their token (the frame saves with its own key).
     const agent = env.AGENT_TOKEN && req.headers.get('Authorization') === 'Bearer ' + env.AGENT_TOKEN;
     if (url.pathname === '/api/recipes' && req.method === 'POST' && agent) {
@@ -80,6 +104,22 @@ export default {
         return json(stored);
       }
       if (url.pathname === '/api/weather') return json(await getWeather(env));
+      if (url.pathname === '/api/spotify/playlists') {
+        if (!spotifyConfigured(env)) return json({ configured: false });
+        try { return json({ configured: true, ...(await getPlaylists(env)) }); }
+        catch (err) { return json({ configured: true, error: String(err.message || err) }, 502); }
+      }
+      if (url.pathname === '/api/spotify/now') {
+        if (!spotifyConfigured(env)) return json({ configured: false });
+        try { return json({ configured: true, ...(await getNow(env)) }); }
+        catch (err) { return json({ configured: true, error: String(err.message || err) }, 502); }
+      }
+      if (url.pathname === '/api/geo') {
+        try { return json({ place: await geocode(env, url.searchParams.get('q')) }, 200, 'private, max-age=86400'); }
+        catch (err) { return json({ place: null, error: String(err.message || err) }); } // not cached; tried again next open
+      }
+      const t = /^\/api\/tiles\/(\d+)\/(\d+)\/(\d+)$/.exec(url.pathname);
+      if (t) return tile(+t[1], +t[2], +t[3], ctx);
       if (url.pathname === '/api/photos') {
         if (!env.ALBUM_URL) return json({ photos: [], error: 'Add ALBUM_URL to show photos' });
         return json(await listPhotos(env, ctx));
@@ -116,6 +156,17 @@ export default {
       if (dismiss && req.method === 'POST') return room(env).fetch('https://room/dismiss/' + dismiss[1], { method: 'POST' });
 
       const [, , section, list, id, action] = url.pathname.split('/');
+      if (section === 'lists' && list in LISTS && fromReminders(env, list)) {
+        // This list comes from Apple Reminders through the Mac (bridge.js), not Todoist.
+        const b = bridge(env);
+        if (req.method === 'GET' && !id) return b.fetch('https://bridge/view/' + list);
+        if (req.method === 'POST' && !id) {
+          const body = await req.json();
+          const items = (Array.isArray(body.items) ? body.items : [body]).slice(0, 40);
+          return b.fetch('https://bridge/add/' + list, { method: 'POST', body: JSON.stringify({ items }) });
+        }
+        if (req.method === 'POST' && id && action === 'done') return b.fetch('https://bridge/done/' + list + '/' + encodeURIComponent(id), { method: 'POST' });
+      }
       if (section === 'lists' && list in LISTS) {
         if (!env.TODOIST_TOKEN) return json({ error: 'Add TODOIST_TOKEN to connect Todoist' }, 503);
         if (req.method === 'GET' && !id) return json(await getList(env, list));
@@ -211,7 +262,7 @@ function authorized(req, env) {
   if (req.headers.get('Authorization') === 'Bearer ' + env.DASHBOARD_KEY) return true;
   // <img> and WebSocket can't send headers, so they may carry the key in the URL instead (GET only).
   const url = new URL(req.url);
-  const keyInUrl = url.pathname.startsWith('/api/photos/') || url.pathname === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(url.pathname);
+  const keyInUrl = url.pathname.startsWith('/api/photos/') || url.pathname.startsWith('/api/tiles/') || url.pathname === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(url.pathname);
   return req.method === 'GET' && keyInUrl && url.searchParams.get('key') === env.DASHBOARD_KEY;
 }
 

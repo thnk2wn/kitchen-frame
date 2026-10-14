@@ -26,7 +26,7 @@
   });
   const who = (item) => (item.assignee && list.people ? list.people[item.assignee] : null);
   let noun = $derived(name === 'todo' ? ['task', 'tasks'] : ['item', 'items']);
-  let note = $derived(list.error && /TODOIST_TOKEN/.test(list.error) ? 'Todoist isn’t connected yet.' : list.error);
+  let note = $derived(list.error && /TODOIST_TOKEN/.test(list.error) ? 'Todoist isn’t connected yet.' : list.error || list.warning);
 
   // Adding: the field only appears after tapping Add, and stays open for several in a row.
   let adding = $state(false);

@@ -86,8 +86,12 @@
           {#if d.wind != null}
             <div class="fact"><span class="ic"><Icon name="wind" size={22} /></span><span class="k">Wind</span><span class="v num">{d.windDir || ''} {d.wind} {metric ? 'km/h' : 'mph'}{#if d.gusts > d.wind + 5}<small> · gusts {d.gusts}</small>{/if}</span></div>
           {/if}
+          <!-- Today: the UV right now (as on Home's badge) and the day's peak; other days: the peak. -->
+          {#if i === 0 && d.date === dayKey(clock.now) && wx.uvNow != null}
+            <div class="fact"><span class="ic sun"><Icon name="sun" size={22} /></span><span class="k">UV now</span><span class="v num">{wx.uvNow} <small>{uvLabel(wx.uvNow)}</small></span></div>
+          {/if}
           {#if d.uv != null}
-            <div class="fact"><span class="ic sun"><Icon name="sun" size={22} /></span><span class="k">UV index</span><span class="v num">{d.uv} <small>{uvLabel(d.uv)}</small></span></div>
+            <div class="fact"><span class="ic sun"><Icon name="sun" size={22} /></span><span class="k">Peak UV</span><span class="v num">{d.uv} <small>{uvLabel(d.uv)}</small></span></div>
           {/if}
           <div class="fact"><span class="ic sun"><Icon name="sunrise" size={22} /></span><span class="k">Sunrise</span><span class="v num">{time(new Date(d.sunrise))}</span></div>
           <div class="fact"><span class="ic"><Icon name="sunset" size={22} /></span><span class="k">Sunset</span><span class="v num">{time(new Date(d.sunset))}</span></div>

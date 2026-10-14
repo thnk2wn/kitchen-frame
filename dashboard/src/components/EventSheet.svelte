@@ -3,6 +3,7 @@
   // and its notes. Only calendars set to open (CALENDAR_DETAILS) can be tapped; the Worker never
   // keeps notes for the others.
   import Icon from './Icon.svelte';
+  import EventMap from './EventMap.svelte';
   import { ui, clock, calendar, calendarNames, eventNotes } from '../lib/state.svelte.js';
   import { calVars, timeRange, time, dayKey, addDays, isNow, isPast } from '../lib/format.js';
 
@@ -13,6 +14,11 @@
   });
   let notes = $derived(e ? eventNotes(e) : '');
   let calName = $derived(e ? calendarNames()[e.cal] || '' : '');
+  // Demo mode maps only the stadiums: a local place ("Aquatic center") would be found near the
+  // frame's real home and show its neighbourhood in screenshots.
+  let mapFor = $derived(e && e.location && (!ui.demo || /stadium/i.test(e.location)) ? e.location : '');
+  let mapped = $state(false);
+  let rowsHeight = $state(0); // the map matches the details beside it
 
   const plainDate = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
   // "Today", "Tomorrow" or "Saturday, October 17".
@@ -39,13 +45,14 @@
 
 {#if e}
   <div class="scrim" role="presentation" onclick={close}>
-    <div class="panel sheet" role="dialog" aria-label={e.title} tabindex="-1" style={calVars(e)} onclick={(ev) => ev.stopPropagation()} onkeydown={(ev) => ev.key === 'Escape' && close()}>
+    <div class="panel sheet" class:wide={mapped && !!mapFor} role="dialog" aria-label={e.title} tabindex="-1" style={calVars(e)} onclick={(ev) => ev.stopPropagation()} onkeydown={(ev) => ev.key === 'Escape' && close()}>
       <header>
         <span class="cal"><i></i>{calName}</span>
         <button class="x" onclick={close} aria-label="Close"><Icon name="close" size={26} /></button>
       </header>
       <h2>{e.title}</h2>
-      <div class="rows">
+      <div class="content">
+      <div class="rows" bind:clientHeight={rowsHeight}>
         <div class="row">
           <span class="ic"><Icon name="clock" size={24} /></span>
           <div><div class="day">{when.day}</div><div class="sub num">{when.hours}{#if status} · <b class:now={status === 'Now'}>{status}</b>{/if}</div></div>
@@ -56,6 +63,8 @@
         {#if notes}
           <div class="row notes"><span class="ic"><Icon name="notes" size={24} /></span><p>{notes}</p></div>
         {/if}
+      </div>
+      {#if mapFor}{#key mapFor}<EventMap location={mapFor} height={Math.max(220, Math.min(rowsHeight, 420))} bind:found={mapped} />{/key}{/if}
       </div>
     </div>
   </div>
@@ -69,7 +78,9 @@
   .cal i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
   .x { flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--track); color: var(--label); }
   h2 { margin: 4px 0 14px; font-size: 32px; line-height: 1.15; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
-  .rows { min-height: 0; display: flex; flex-direction: column; }
+  .panel.wide { width: 1080px; }
+  .content { min-height: 0; display: flex; align-items: flex-start; gap: 24px; }
+  .rows { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .row { display: flex; gap: 14px; padding: 12px 0; border-top: 1px solid var(--sep); }
   .ic { flex: none; color: var(--secondary); padding-top: 2px; }
   .day { font-size: 21px; font-weight: 600; overflow-wrap: anywhere; }

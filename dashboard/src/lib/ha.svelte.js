@@ -173,7 +173,10 @@ let held = localStorage.getItem('frame-np-held');
 let lastPlayed = Number(localStorage.getItem('frame-np-at') || 0);
 
 export function nowPlaying({ hold = false, now = Date.now() } = {}) {
-  const p = ha.players.find((x) => x.state === 'playing' && x.media_title);
+  // Spotify's player first: an Echo playing Spotify also reports the song through its own player
+  // (Alexa Devices), but only Spotify's knows the playlist.
+  const busy = ha.players.filter((x) => x.state === 'playing' && x.media_title);
+  const p = busy.find((x) => x.entity_id.startsWith('media_player.spotify_')) || busy[0];
   if (p) {
     // Remember it (saved at most once a minute, or when the speaker changes).
     if (p.entity_id !== held || now - lastPlayed > 60000) {

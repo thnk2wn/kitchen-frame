@@ -113,6 +113,8 @@ test('event notes are kept only when asked for, once per event', () => {
 test('notes: links, bare labels, a repeated title and HTML are cleaned up', () => {
   const sports = '[W] Football vs Furman\nW 56-9\nTV: SEC Network+\nStreaming Video: https://www.espn.com/watch/x\nTickets: https://tickets.example.com/y';
   assert.equal(cleanNotes(sports, '[W] Football vs Furman'), 'W 56-9\nTV: SEC Network+');
+  // Unencoded spaces in a link (seen in a real ticket link) don't leave its tail behind.
+  assert.equal(cleanNotes('TV: ABC\nTickets: https://tickets.example.com/e/1?utm_medium=schedule page&utm_campaign=F26 vs Alabama&CAMEFROM=X'), 'TV: ABC');
   assert.equal(cleanNotes('<p>Bring <b>snacks</b> &amp; water<br>Gate 3</p><p>Join: <a href="https://zoom.us/j/1">https://zoom.us/j/1</a></p>'), 'Bring snacks & water\nGate 3');
   assert.equal(cleanNotes('Agenda\n________________\n\n\n\nItem one'), 'Agenda\n\nItem one');
   assert.equal(cleanNotes('x'.repeat(1500)).length, 1000);

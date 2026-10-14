@@ -42,7 +42,11 @@ const DEMO = [
   { id: 'frame_alert_demo_freezer', title: 'Garage freezer is 18°F', message: 'Above 15°F for 45 minutes.', created: '', tone: 'alert' },
   { id: 'frame_info_demo_thermostat', title: 'Upstairs set to Auto, 70–75°', message: 'Changed outside Home Assistant (the thermostat, its app or voice).', created: '', tone: 'info' },
 ];
-let demoDismissed = $state([]);
+// ?notices=<n> shows only the first n demo notices (screenshots of Home with music playing).
+let demoDismissed = $state((() => {
+  const n = new URLSearchParams(location.search).get('notices');
+  return /^\d$/.test(n || '') ? DEMO.slice(Number(n)).map((d) => d.id) : [];
+})());
 export const notices = () => (ui.demo ? DEMO.filter((n) => !demoDismissed.includes(n.id)) : real.list);
 
 export function dismissNotice(id) {

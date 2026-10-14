@@ -15,13 +15,15 @@
   import EventSheet from './components/EventSheet.svelte';
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
+  import NowPlaying from './components/NowPlaying.svelte';
+  import { shown } from './lib/pending.svelte.js';
   import { notices, iconOf } from './lib/notices.svelte.js';
   import { timers } from './lib/timers.svelte.js';
-  import { connectHA, haConfigured, haDashboard } from './lib/ha.svelte.js';
+  import { connectHA, haConfigured, haDashboard, nowPlaying } from './lib/ha.svelte.js';
   import House from './views/House.svelte';
   import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible } from './lib/state.svelte.js';
   import { noteAlbum, prepare } from './lib/slides.js';
-  import { time, weatherInfo } from './lib/format.js';
+  import { time, clockTime, weatherInfo } from './lib/format.js';
 
   const TABS = [
     { id: 'home', label: 'Home' },
@@ -53,6 +55,10 @@
 
   // A list tab shows fresh items when opened (Groceries isn't polled while it's closed).
   $effect(() => { if (ui.tab === 'groceries' || ui.tab === 'todo') loadList(ui.tab); else if (ui.tab === 'home') loadList('groceries'); });
+  // Demo mode shows the Music tab's invented song (no cover art: a music note).
+  const DEMO_NP = { entity_id: 'media_player.spotify_demo', state: 'playing', media_title: 'Golden Hour', media_artist: 'The Lanterns', media_playlist: 'Sunday Morning' };
+  let playing = $derived(ui.demo ? DEMO_NP : shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
+  let mini = $derived(!!playing && ui.tab !== 'home' && ui.tab !== 'music');
 </script>
 
 <div class="stage">
@@ -63,6 +69,9 @@
         <button role="tab" aria-selected={on} class:on onclick={() => (ui.tab = t.views ? (on ? ui.tab : lastList()) : t.id)}>{t.label}</button>
       {/each}
     </nav>
+    <!-- Now playing, mini, between the tabs and the controls; Home has its own card and Music the
+         player (clock.now re-checks the 30-minute hold after pausing every minute). -->
+    {#if mini}<div class="np-slot"><NowPlaying player={playing} /></div>{/if}
     <div class="edge right">
       <Timers />
       <!-- Home shows notices as banners; other tabs get this chip. -->
@@ -70,11 +79,12 @@
         {@const n = notices()[0]}
         <button class="notice-chip {n.tone}" onclick={() => (ui.noticesOpen = true)}><Icon name={iconOf(n.tone)} size={20} />{notices().length > 1 ? notices().length : ''}</button>
       {/if}
-      {#if ui.tab !== 'home'}<span class="num now">{time(clock.now)}</span>{/if}
+      <!-- The time gives way when a timer and the music both need the room, and drops AM/PM beside the music. -->
+      {#if ui.tab !== 'home' && !(timers.list.some((t) => !t.done) && mini)}<span class="num now">{mini ? clockTime(clock.now) : time(clock.now)}</span>{/if}
       <!-- While a timer runs its chip takes this space; Home still shows the weather. -->
       {#if wx && !timers.list.some((t) => !t.done)}<button class="wxbtn" onclick={() => (ui.weatherDay = 0)} aria-label="Weather details"><span class="wx {info.tint}"><Icon name={info.icon} size={26} /></span><span class="num">{wx.temp}°</span></button>{/if}
-      <!-- The slideshow button also gives way to a running timer (with a notice chip there'd be no room). -->
-      {#if !timers.list.some((t) => !t.done)}<button class="gear play" onclick={startSlideshow} aria-label="Start slideshow"><Icon name="play" size={24} /></button>{/if}
+      <!-- The slideshow button gives way to a running timer or the music (otherwise there'd be no room). -->
+      {#if !timers.list.some((t) => !t.done) && !mini}<button class="gear play" onclick={startSlideshow} aria-label="Start slideshow"><Icon name="play" size={24} /></button>{/if}
       <button class="gear" onclick={() => (ui.settingsOpen = !ui.settingsOpen)} aria-label="Settings"><Icon name="gear" size={26} /></button>
     </div>
   </header>
@@ -83,7 +93,7 @@
        out, update every minute and keep in memory. -->
   <main class="view">
     {#if !ui.idle}
-    {#if ui.tab === 'home'}<Home />
+    {#if ui.tab === 'home'}<Home {playing} />
     {:else if ui.tab === 'calendar'}<Week />
     {:else if ui.tab === 'music'}<Music />
     {:else if ui.tab === 'house'}<House />
@@ -110,6 +120,7 @@
   .stage { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
   /* Tabs from the left edge; time, weather and buttons on the right. */
   .top { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px 14px; }
+  .np-slot { flex: none; display: flex; justify-content: center; }
   .edge { font-size: 22px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .right { justify-content: flex-end; }
   .now { margin-right: 14px; white-space: nowrap; }

@@ -27,3 +27,16 @@ TODOIST_TOKEN=""
 # Optional: a Paprika Cloud Sync account, to show your own recipes (read-only).
 # PAPRIKA_EMAIL=""
 # PAPRIKA_PASSWORD=""
+# Optional: a Spotify developer app (developer.spotify.com → Create app; add the redirect URI
+# http://127.0.0.1:8888/callback), so the Music tab lists every playlist, not just the first 48, and
+# sorts them by what was last played on any device. Then run: node scripts/spotify-auth.mjs
+# SPOTIFY_CLIENT_ID=""
+# SPOTIFY_CLIENT_SECRET=""
+# SPOTIFY_REFRESH_TOKEN=""
+# Optional: Groceries and/or Tasks from Apple Reminders through a Mac at home instead of Todoist
+# (bridge/mac/, docs/lists.md). "reminders" switches that list; the list names are as in Reminders.
+# GROCERIES_SOURCE="reminders"
+# REMINDERS_GROCERIES_LIST="Groceries"
+# TODO_SOURCE="reminders"
+# REMINDERS_TODO_LIST="To Do"
+# BRIDGE_TOKEN=""

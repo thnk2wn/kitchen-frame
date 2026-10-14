@@ -10,8 +10,8 @@
   "kv_namespaces": [{ "binding": "CALENDAR", "id": "c402f7fac06e4d6c9c3038dc91efc42b" }],
   // Agent messages: one SQLite-backed Durable Object holding the list and the frames' WebSockets
   // (hibernation API, so idle connections cost nothing). See worker/messages.js.
-  "durable_objects": { "bindings": [{ "name": "MESSAGES", "class_name": "MessageRoom" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MessageRoom"] }],
+  "durable_objects": { "bindings": [{ "name": "MESSAGES", "class_name": "MessageRoom" }, { "name": "BRIDGE", "class_name": "ListBridge" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MessageRoom"] }, { "tag": "v2", "new_sqlite_classes": ["ListBridge"] }],
   // Calendar refresh every 10 minutes; Paprika recipe sync every 15 (worker/index.js).
   "triggers": { "crons": ["*/10 * * * *", "*/15 * * * *"] },
   // Resizes photos of saved recipes once, when saved (worker/recipes.js).

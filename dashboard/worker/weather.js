@@ -14,7 +14,7 @@ export async function getWeather(env) {
   const url = 'https://api.open-meteo.com/v1/forecast?' + new URLSearchParams({
     latitude: env.WEATHER_LAT,
     longitude: env.WEATHER_LON,
-    current: 'temperature_2m,apparent_temperature,weather_code,is_day',
+    current: 'temperature_2m,apparent_temperature,weather_code,is_day,uv_index',
     daily: 'temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code,sunrise,sunset,'
       + 'precipitation_sum,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max',
     hourly: 'temperature_2m,precipitation_probability,weather_code,is_day',
@@ -61,6 +61,7 @@ export function shape(w, unit, nws = null) {
     feels: Math.round(c.apparent_temperature),
     code: c.weather_code,
     day: c.is_day === 1,
+    uvNow: c.uv_index == null ? null : Math.round(c.uv_index), // the UV right now (Home's badge)
     days: d.time.map((date, i) => ({
       date,
       hi: Math.round(d.temperature_2m_max[i]),

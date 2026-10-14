@@ -166,7 +166,9 @@ export function cleanNotes(raw, title = '') {
       .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
       .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
   }
-  const lines = t.replace(/\r/g, '').replace(/<?(https?:\/\/|mailto:|tel:)[^\s>]+>?/gi, '').split('\n').map((l) => l.replace(/[ \t]+/g, ' ').trim());
+  // A link runs to the end of its line: some feeds don't encode the spaces in theirs (a ticket link's
+  // "utm_campaign=F26 vs Alabama"), so stopping at a space would leave half of it behind.
+  const lines = t.replace(/\r/g, '').split('\n').map((l) => l.replace(/<?(https?:\/\/|mailto:|tel:)\S.*$/i, '').replace(/[ \t]+/g, ' ').trim());
   const out = [];
   for (const l of lines) {
     if (/^[-_=~:*.•\s]{3,}$/.test(l) || /^[^:]{1,40}:$/.test(l)) continue;

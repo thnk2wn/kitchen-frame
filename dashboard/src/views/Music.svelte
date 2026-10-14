@@ -1,7 +1,11 @@
 <script>
+  import { untrack } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import { ha, haUrl, callService, send } from '../lib/ha.svelte.js';
   import { ui } from '../lib/state.svelte.js';
+  import { api } from '../lib/api.js';
+  import { shown, busy, expectFor } from '../lib/pending.svelte.js';
+  import { nowList, playlistOf } from '../lib/playlist.svelte.js';
 
   // Demo mode: an invented Spotify player on invented speakers; taps change it locally only.
   const DEMO_TRACKS = [['Golden Hour', 'The Lanterns', 'Porch Light Sessions', 214], ['Saturday Pancakes', 'Maple & Co.', 'Kitchen Radio', 188], ['Slow River', 'Juniper Lane', 'Evening Songs', 241]];
@@ -21,7 +25,8 @@
     if (service === 'volume_set') demo.volume_level = data.volume_level;
     demo.media_position_updated_at = new Date().toISOString();
   }
-  const players = () => (ui.demo ? [demoPlayer] : ha.players);
+  // Shown as asked for while HA catches up (lib/pending.svelte.js).
+  const players = () => (ui.demo ? [demoPlayer] : ha.players.map(shown));
 
   // Two modes. With Home Assistant's Spotify integration, its player is what we control and its
   // Spotify Connect devices (Echos, Nest Hubs…) are the speakers: tapping one moves playback there.
@@ -87,9 +92,25 @@
     try { localStorage.setItem(PLAYED_KEY, JSON.stringify(played)); } catch {}
   }
   $effect(() => { if (!ui.demo && spotify && spotify.state === 'playing' && spotify.media_playlist) markPlayed(spotify.media_playlist); });
+  // With the Worker's Spotify connection, Spotify's own record of what was played (any device) counts
+  // too; whichever is later wins.
+  const lastPlayed = (pl) => Math.max(played[pl.title] || 0, spotifyPlayed[pl.media_content_id] || 0);
   let sorted = $derived(order === 'az'
     ? [...playlists].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
-    : playlists.map((pl, i) => ({ pl, i })).sort((a, b) => (played[b.pl.title] || 0) - (played[a.pl.title] || 0) || a.i - b.i).map((x) => x.pl));
+    : playlists.map((pl, i) => ({ pl, i, at: lastPlayed(pl) })).sort((a, b) => b.at - a.at || a.i - b.i).map((x) => x.pl));
+
+  // Scroll the playing playlist's card into view when it becomes the one playing.
+  function reveal(node, on) {
+    const show = (v) => { if (v) node.scrollIntoView({ block: 'nearest', inline: 'center' }); };
+    show(on);
+    return { update: show };
+  }
+
+  function sideways(e) {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    e.currentTarget.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }
 
   async function playList(item) {
     markPlayed(item.title);
@@ -102,9 +123,37 @@
   // active, so the list is kept (titles, ids, cover URLs) and shown from the copy when idle.
   const BROWSE = 131072;
   let playlists = $state(ui.demo ? DEMO_LISTS : JSON.parse(localStorage.getItem('frame-spotify-playlists') || '[]'));
+  let spotifyPlayed = $state((() => { try { return JSON.parse(localStorage.getItem('frame-spotify-played') || '{}'); } catch { return {}; } })());
+  // First choice: the Worker's own Spotify connection (SPOTIFY_* settings), which lists every playlist
+  // even while nothing is playing. Without it, Home Assistant's browser (first 48 playlists, only
+  // during a session).
+  let direct = $state(localStorage.getItem('frame-spotify-direct') === 'on');
+  $effect(() => {
+    if (ui.demo || !spotify) return;
+    const load = () => api('/api/spotify/playlists').then((r) => {
+      direct = !!r.configured && !r.error;
+      try { localStorage.setItem('frame-spotify-direct', direct ? 'on' : 'off'); } catch {}
+      if (!direct || !r.playlists || !r.playlists.length) return;
+      playlists = r.playlists;
+      spotifyPlayed = r.played || {};
+      try {
+        localStorage.setItem('frame-spotify-playlists', JSON.stringify(playlists));
+        localStorage.setItem('frame-spotify-played', JSON.stringify(spotifyPlayed));
+      } catch {}
+    }).catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60 * 1000); // pick up this morning's listening while the tab is open
+    return () => clearInterval(t);
+  });
+  // The playlist playing now (lib/playlist.svelte.js); it counts as just played for Recent.
+  let fromList = $derived(ui.demo ? 'Sunday Morning' : playlistOf(spotify));
+  $effect(() => {
+    const uri = nowList.uri;
+    if (!ui.demo && uri && spotify && spotify.state === 'playing') untrack(() => { spotifyPlayed = { ...spotifyPlayed, [uri]: Date.now() }; });
+  });
   let browsed = false;
   $effect(() => {
-    if (ui.demo || !spotify || browsed || ha.status !== 'connected' || !(spotify.supported_features & BROWSE)) return;
+    if (ui.demo || direct || !spotify || browsed || ha.status !== 'connected' || !(spotify.supported_features & BROWSE)) return;
     browsed = true;
     // From the library root to its "Playlists" node, so we use whatever ids this HA version gives it.
     const browse = (more = {}) => send({ type: 'media_player/browse_media', entity_id: spotify.entity_id, ...more });
@@ -130,6 +179,7 @@
   async function run(domain, service, data = {}) {
     if (ui.demo) return demoRun(service, data);
     error = null;
+    expectFor(player, service, data);
     try { await callService(domain, service, data, { entity_id: player.entity_id }); }
     catch (e) { error = e.message; }
   }
@@ -181,6 +231,7 @@
         {#if player.media_title}
           <h1>{player.media_title}</h1>
           <p class="artist">{player.media_artist || ''}</p>
+          {#if fromList}<p class="from">From <b>{fromList}</b></p>{/if}
           {#if player.media_album_name}<p class="album">{player.media_album_name}</p>{/if}
         {:else}
           <h1 class="idle">{player.state === 'off' ? 'Off' : 'Nothing playing'}</h1>
@@ -195,11 +246,11 @@
         {/if}
 
         <div class="controls">
-          <button class="ctl" onclick={() => run('media_player', 'media_previous_track')} aria-label="Previous"><Icon name="skipBack" size={34} /></button>
-          <button class="ctl main" onclick={playPause} aria-label={player.state === 'playing' ? 'Pause' : 'Play'}>
+          <button class="ctl" class:busy={busy(player, 'title')} onclick={() => run('media_player', 'media_previous_track')} aria-label="Previous"><Icon name="skipBack" size={34} /></button>
+          <button class="ctl main" class:busy={busy(player, 'state')} onclick={playPause} aria-label={player.state === 'playing' ? 'Pause' : 'Play'}>
             <Icon name={player.state === 'playing' ? 'pause' : 'play'} size={40} />
           </button>
-          <button class="ctl" onclick={() => run('media_player', 'media_next_track')} aria-label="Next"><Icon name="skipForward" size={34} /></button>
+          <button class="ctl" class:busy={busy(player, 'title')} onclick={() => run('media_player', 'media_next_track')} aria-label="Next"><Icon name="skipForward" size={34} /></button>
         </div>
 
         <div class="vol">
@@ -214,13 +265,15 @@
     </div>
 
     {#if spotify && playlists.length}
-      <section class="lists">
+      <!-- Swiped on the frame; a mouse wheel (testing on a computer) scrolls it sideways too. -->
+      <section class="lists" onwheel={sideways}>
         <div class="order" role="tablist" aria-label="Playlist order">
           <button role="tab" aria-selected={order === 'recent'} class:on={order === 'recent'} onclick={() => setOrder('recent')}>Recent</button>
           <button role="tab" aria-selected={order === 'az'} class:on={order === 'az'} onclick={() => setOrder('az')}>A–Z</button>
         </div>
         {#each sorted as pl, i (pl.media_content_id)}
-          <button class="pl sheet" onclick={() => playList(pl)}>
+          {@const on = !!fromList && (nowList.uri ? pl.media_content_id === nowList.uri : pl.title === fromList)}
+          <button class="pl sheet" class:on onclick={() => playList(pl)} use:reveal={on}>
             {#if pl.thumbnail}<img src={pl.thumbnail} alt="" loading="lazy" decoding="async" />{:else}<span class="noart" class:demo={ui.demo} style={ui.demo ? '--h:' + (i * 47 + 10) % 360 : ''}><Icon name="music" size={26} /></span>{/if}
             <span>{pl.title}</span>
           </button>
@@ -290,6 +343,9 @@
   .ctl { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: var(--label); }
   .ctl.main { width: 84px; height: 84px; background: var(--label); color: var(--sheet); }
   .ctl:active { opacity: .6; }
+  /* Sent, waiting for the speaker to catch up. */
+  .ctl.busy :global(svg) { animation: waiting 1s ease-in-out infinite; }
+  @keyframes waiting { 50% { opacity: .35; } }
   .vol { display: flex; align-items: center; gap: 14px; margin-top: 14px; color: var(--secondary); }
   .vol span { width: 36px; text-align: right; font-size: 17px; }
   input[type='range'] { flex: 1; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px; outline: none;
@@ -315,5 +371,10 @@
   .pl img, .pl .noart { display: grid; place-items: center; width: 128px; height: 96px; object-fit: cover; background: var(--track); }
   .pl span { display: block; padding: 6px 10px 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl:active { opacity: .7; }
+  /* The playlist playing now. */
+  .pl.on { box-shadow: inset 0 0 0 3px var(--pal-green); }
+  .pl.on span { color: var(--pal-green); }
+  .from { margin: 6px 0 0; font-size: 17px; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .from b { font-weight: 600; color: var(--label); }
   .here { flex: none; margin-left: auto; height: 52px; padding: 0 22px; border-radius: 26px; font-size: 18px; font-weight: 600; color: var(--blue-text); }
 </style>
