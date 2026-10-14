@@ -1,4 +1,5 @@
 <script>
+  import Txt from '../components/Txt.svelte';
   import Icon from '../components/Icon.svelte';
   import { clock, calendar, loadCalendar, canOpen, openEvent } from '../lib/state.svelte.js';
   import CalendarPicker from '../components/CalendarPicker.svelte';
@@ -69,7 +70,7 @@
             {#each d.events as e (key(e))}
               <button class="ev" class:past={isPast(e, clock.now)} class:open={open === key(e)} style={calVars(e)}
                 onclick={() => (canOpen(e) ? openEvent(e) : (open = open === key(e) ? null : key(e)))}>
-                <span class="title">{e.title}</span>
+                <span class="title"><Txt text={e.title} /></span>
                 {#if !e.allDay}<span class="t num">{time(new Date(e.start))}{open === key(e) ? ' – ' + time(new Date(e.end)) : ''}</span>{/if}
                 {#if open === key(e) && e.location}<span class="t">{e.location}</span>{/if}
               </button>

@@ -1,4 +1,5 @@
 <script>
+  import Txt from '../components/Txt.svelte';
   import Icon from '../components/Icon.svelte';
   import { ui, clock, calendar, weather, photos, messages, exitIdle, photosVisible } from '../lib/state.svelte.js';
   import { clockTime, longDate, weatherInfo, time, eventsOn } from '../lib/format.js';
@@ -70,7 +71,7 @@
         <div class="notice tone-{n.tone}"><Icon name={iconOf(n.tone)} size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span></div>
       {/if}
       {#if next}
-        <div class="next"><span>{next.title}</span><span class="num">{time(new Date(next.start))}</span></div>
+        <div class="next"><span><Txt text={next.title} /></span><span class="num">{time(new Date(next.start))}</span></div>
       {/if}
     </div>
   </div>

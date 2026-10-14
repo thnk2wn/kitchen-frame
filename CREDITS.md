@@ -36,6 +36,12 @@ Installed through npm (see `dashboard/package.json`), each under its own license
 [Wrangler and the Cloudflare Vite plugin](https://github.com/cloudflare/workers-sdk) (MIT/Apache-2.0),
 [ical.js](https://github.com/kewisch/ical.js) (MPL-2.0).
 
+Emoji the frame's older font can't draw are shown as [Twemoji](https://github.com/jdecked/twemoji)
+graphics (Copyright Twitter, Inc. and other contributors; graphics licensed under
+[CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/)), loaded from jsDelivr by
+`dashboard/src/lib/emoji.js`. The upload method in `dashboard/scripts/paprika-photos.mjs` follows
+[mcp-paprika](https://github.com/bojanrajkovic/mcp-paprika) (MIT).
+
 `dashboard/src/lib/icons.js` contains icon artwork generated from
 [Lucide](https://lucide.dev) by `dashboard/scripts/icons.mjs`. Its license follows.
 

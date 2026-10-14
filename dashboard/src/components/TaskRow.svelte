@@ -1,4 +1,5 @@
 <script>
+  import Txt from './Txt.svelte';
   import Icon from './Icon.svelte';
   import Avatar from './Avatar.svelte';
   import { dueLabel, dueAt, shortTime } from '../lib/format.js';
@@ -31,7 +32,7 @@
   <button class="hit" onclick={tap} aria-label={'Complete ' + item.content}><span class="ring">{#if checking}<Icon name="check" size={17} />{/if}</span></button>
   <button class="body" onclick={() => onopen && onopen(item)} aria-label={item.content} tabindex={onopen ? 0 : -1}>
     <span class="main">
-      <span class="text">{#if item.priority}<span class="prio" aria-label={['', 'Low', 'Medium', 'High'][item.priority] + ' priority'}>{'!'.repeat(item.priority)}</span>{/if}{item.content}{#if item.flagged}<span class="flag" aria-label="Flagged"><Icon name="flag" size={16} /></span>{/if}</span>
+      <span class="text">{#if item.priority}<span class="prio" aria-label={['', 'Low', 'Medium', 'High'][item.priority] + ' priority'}>{'!'.repeat(item.priority)}</span>{/if}<Txt text={item.content} />{#if item.flagged}<span class="flag" aria-label="Flagged"><Icon name="flag" size={16} /></span>{/if}</span>
       {#if !brief && (due || rest)}<span class="due"><span class:late>{due}</span>{due && rest ? ' · ' : ''}{rest}</span>{/if}
     </span>
     {#if person}<Avatar id={item.assignee} name={person} size={30} />{/if}

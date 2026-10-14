@@ -1,4 +1,5 @@
 <script>
+  import Txt from './Txt.svelte';
   // One event in detail, opened by tapping it on Home or the Calendar tab: its calendar, when, where
   // and its notes. Only calendars set to open (CALENDAR_DETAILS) can be tapped; the Worker never
   // keeps notes for the others.
@@ -50,7 +51,7 @@
         <span class="cal"><i></i>{calName}</span>
         <button class="x" onclick={close} aria-label="Close"><Icon name="close" size={26} /></button>
       </header>
-      <h2>{e.title}</h2>
+      <h2><Txt text={e.title} /></h2>
       <div class="content">
       <div class="rows" bind:clientHeight={rowsHeight}>
         <div class="row">

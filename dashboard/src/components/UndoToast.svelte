@@ -1,4 +1,5 @@
 <script>
+  import Txt from './Txt.svelte';
   // "Completed “Milk” · Undo" for a few seconds after an item is ticked off (state.svelte.js holds
   // the completion back until then). Shows the newest; Undo puts it back where it was.
   import { undos, undoComplete } from '../lib/state.svelte.js';
@@ -8,7 +9,7 @@
 {#if last}
   {#key last.key}
     <div class="toast" role="status">
-      <span class="text">Completed “{last.item.content}”</span>
+      <span class="text">Completed “<Txt text={last.item.content} />”</span>
       <button onclick={undoComplete}>Undo</button>
     </div>
   {/key}

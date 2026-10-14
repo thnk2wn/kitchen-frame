@@ -1,4 +1,5 @@
 <script>
+  import Txt from './Txt.svelte';
   import Icon from './Icon.svelte';
   import { calVars, timeRange, isPast, isNow } from '../lib/format.js';
   import { canOpen, openEvent } from '../lib/state.svelte.js';
@@ -12,7 +13,7 @@
   role={tappable ? 'button' : undefined} tabindex={tappable ? 0 : undefined} onclick={() => openEvent(event)} onkeydown={(e) => e.key === 'Enter' && openEvent(event)}>
   <span class="dot"></span>
   <div class="body">
-    <div class="title">{event.title}</div>
+    <div class="title"><Txt text={event.title} /></div>
     <div class="meta">
       {#if event.allDay}All day{:else if live}<b>Now</b> · until {timeRange(event).split(' – ')[1]}{:else}{timeRange(event)}{/if}{event.location && place ? ' · ' + event.location : ''}
     </div>
