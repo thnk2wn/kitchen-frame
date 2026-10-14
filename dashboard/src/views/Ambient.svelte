@@ -67,7 +67,7 @@
       {/if}
       {#if notices().length}
         {@const n = notices()[0]}
-        <div class="notice {n.tone}"><Icon name={iconOf(n.tone)} size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span></div>
+        <div class="notice tone-{n.tone}"><Icon name={iconOf(n.tone)} size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span></div>
       {/if}
       {#if next}
         <div class="next"><span>{next.title}</span><span class="num">{time(new Date(next.start))}</span></div>
@@ -89,10 +89,11 @@
   .music { display: flex; align-items: center; gap: 10px; max-width: 560px; font-size: 24px; font-weight: 600; }
   .music span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .photos .music { font-size: 20px; max-width: 520px; }
-  /* A Home Assistant notice keeps its own colour over the clock colour, so it stands out. */
+  /* A Home Assistant notice keeps its own colour over the clock colour, so it stands out. Its tone
+     classes are prefixed: a bare "info" would pick up the .info layout above. */
   .notice { align-self: flex-start; display: flex; align-items: center; gap: 10px; max-width: 560px; padding: 8px 16px; border-radius: 16px; background: #ff9500; color: #fff; font-size: 22px; font-weight: 700; }
-  .notice.alert { background: #ff3b30; }
-  .notice.info { background: #007aff; }
+  .notice.tone-alert { background: #ff3b30; }
+  .notice.tone-info { background: #007aff; }
   .notice span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* After sunset: same colour, dimmer, and photos dimmed, so the kitchen isn't lit up. */
   .night .info { opacity: .7; }
