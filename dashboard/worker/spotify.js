@@ -5,7 +5,7 @@
 // Playing still goes through Home Assistant.
 // Secrets: SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET (a developer.spotify.com app) and
 // SPOTIFY_REFRESH_TOKEN (scripts/spotify-auth.mjs). Read-only scopes: playlists, recently played,
-// currently playing.
+// currently playing, and playback state (for the queue; Up next).
 const API = 'https://api.spotify.com/v1';
 const LIST_MS = 10 * 60 * 1000;   // the library changes rarely
 const PLAYED_MS = 2 * 60 * 1000;  // listening changes often
@@ -96,6 +96,26 @@ export async function getPlaylists(env) {
 // The playlist playing now (any device), for the Music tab's "From …" line: { uri, title } or nulls.
 // Asked each time the song changes, so a short cache is enough.
 let current = null; // { at, value }
+// The ~300px picture from a Spotify images list (a cover for the tint), or the smallest at least
+// 64px (a thumbnail in Up next).
+function pick(images, min) {
+  const s = [...(images || [])].sort((a, b) => (a.width || 0) - (b.width || 0));
+  return (s.find((i) => (i.width || 0) >= min) || s[s.length - 1] || {}).url || null;
+}
+
+// What the song is playing from: a playlist (named), an album, an artist, Liked Songs, or nothing
+// (a song started on its own, or autoplay after a playlist ends).
+export function sourceOf(body, playlistTitle) {
+  const item = body && body.item, c = body && body.context;
+  if (!item) return null;
+  if (!c) return { kind: 'none' };
+  if (c.type === 'playlist') return { kind: 'playlist', name: playlistTitle || null };
+  if (c.type === 'album') return { kind: 'album', name: item.album && item.album.name };
+  if (c.type === 'artist') return { kind: 'artist', name: ((item.artists || []).find((a) => a.uri === c.uri) || (item.artists || [])[0] || {}).name };
+  if (c.type === 'collection') return { kind: 'liked', name: 'Liked Songs' };
+  return { kind: 'none' };
+}
+
 export async function getNow(env) {
   if (current && Date.now() - current.at < 10000) return current.value;
   const res = await fetch(API + '/me/player/currently-playing', { headers: { Authorization: 'Bearer ' + (await accessToken(env)) } });
@@ -114,6 +134,33 @@ export async function getNow(env) {
       title = r && r.name || null;
     }
   }
-  current = { at: Date.now(), value: { uri: ctx ? ctx.uri : null, title } };
+  const item = body && body.item;
+  current = { at: Date.now(), value: {
+    uri: ctx ? ctx.uri : null, title, from: sourceOf(body, title),
+    image: item ? pick((item.album && item.album.images) || item.images, 250) : null,
+  } };
   return current.value;
+}
+
+// Up next: the next few songs in Spotify's queue (needs the user-read-playback-state permission;
+// without it, { needsAuth: true }, and the Music tab says how to grant it).
+let queued = null; // { at, value }
+export async function getQueue(env) {
+  if (queued && Date.now() - queued.at < 10000) return queued.value;
+  const res = await fetch(API + '/me/player/queue', { headers: { Authorization: 'Bearer ' + (await accessToken(env)) } });
+  if (res.status === 401) token = null;
+  if (res.status === 401 || res.status === 403) return { needsAuth: true };
+  if (!res.ok && res.status !== 204) throw new Error('Spotify HTTP ' + res.status);
+  const body = res.status === 204 ? null : await res.json().catch(() => null);
+  const seen = new Set();
+  const items = [];
+  for (const t of (body && body.queue) || []) {
+    // Spotify repeats the last songs to fill the queue near the end of a playlist: once each.
+    if (!t || seen.has(t.uri)) continue;
+    seen.add(t.uri);
+    items.push({ title: t.name, artist: (t.artists || []).map((a) => a.name).join(', ') || (t.show && t.show.name) || '', image: pick((t.album && t.album.images) || t.images, 64) });
+    if (items.length === 6) break;
+  }
+  queued = { at: Date.now(), value: { items } };
+  return queued.value;
 }

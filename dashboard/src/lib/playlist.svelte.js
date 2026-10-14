@@ -4,7 +4,9 @@
 import { ha } from './ha.svelte.js';
 import { api } from './api.js';
 
-export const nowList = $state({ entity: null, uri: null, title: null });
+// from: { kind: playlist | album | artist | liked | none, name }; image: the cover (Spotify's, which
+// the frame may read colours from); queue: Up next, or null; queueAuth: Up next needs a permission.
+export const nowList = $state({ entity: null, uri: null, title: null, from: null, image: null, queue: null, queueAuth: false });
 
 $effect.root(() => {
   $effect(() => {
@@ -14,7 +16,11 @@ $effect.root(() => {
     let live = true;
     api('/api/spotify/now').then((r) => {
       if (!live || !r.configured || r.error) return;
-      Object.assign(nowList, { entity: sp.entity_id, uri: r.uri || null, title: r.uri ? r.title : null });
+      Object.assign(nowList, { entity: sp.entity_id, uri: r.uri || null, title: r.uri ? r.title : null, from: r.from || null, image: r.image || null });
+    }).catch(() => {});
+    api('/api/spotify/queue').then((r) => {
+      if (!live || !r.configured || r.error) return;
+      Object.assign(nowList, { queue: r.items || null, queueAuth: !!r.needsAuth });
     }).catch(() => {});
     return () => { live = false; };
   });

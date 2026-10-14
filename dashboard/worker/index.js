@@ -17,7 +17,8 @@
 //   GET  /api/geo?q=                 an event location's coordinates, for its map (see maps.js)
 //   GET  /api/tiles/:z/:x/:y         OpenStreetMap tiles, cached
 //   GET  /api/spotify/playlists      every Spotify playlist, and when each was last played (spotify.js)
-//   GET  /api/spotify/now            the playlist playing now, if any
+//   GET  /api/spotify/now            what's playing from (a playlist, album, ...) and its cover
+//   GET  /api/spotify/queue          the next few songs (Up next)
 //
 // Secrets (`wrangler secret put`, or .dev.vars locally):
 //   CALENDAR_NAMES optional names for the frame's Calendars list, comma-separated, in link order.
@@ -47,7 +48,7 @@ export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.j
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage } from './recipes.js';
 import { geocode, tile } from './maps.js';
-import { spotifyConfigured, getPlaylists, getNow } from './spotify.js';
+import { spotifyConfigured, getPlaylists, getNow, getQueue } from './spotify.js';
 import { level, BRIDGE_LISTS, fromReminders, remindersName, bridge } from './bridge.js';
 
 // An edit from the frame's item sheet: a new title and/or priority (0 clears it).
@@ -121,6 +122,11 @@ export default {
       if (url.pathname === '/api/spotify/now') {
         if (!spotifyConfigured(env)) return json({ configured: false });
         try { return json({ configured: true, ...(await getNow(env)) }); }
+        catch (err) { return json({ configured: true, error: String(err.message || err) }, 502); }
+      }
+      if (url.pathname === '/api/spotify/queue') {
+        if (!spotifyConfigured(env)) return json({ configured: false });
+        try { return json({ configured: true, ...(await getQueue(env)) }); }
         catch (err) { return json({ configured: true, error: String(err.message || err) }, 502); }
       }
       if (url.pathname === '/api/geo') {

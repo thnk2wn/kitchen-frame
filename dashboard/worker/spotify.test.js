@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getPlaylists, spotifyConfigured } from './spotify.js';
+import { getPlaylists, spotifyConfigured, sourceOf, getQueue } from './spotify.js';
 
 test('spotify: every page of playlists, a card-sized cover, and last played per playlist', async () => {
   const env = { SPOTIFY_CLIENT_ID: 'id', SPOTIFY_CLIENT_SECRET: 's', SPOTIFY_REFRESH_TOKEN: 'r', CALENDAR: { get: async () => null, put: async () => {} } };
@@ -36,4 +36,26 @@ test('spotify: a short list is retried, then refused rather than served', async 
   };
   await assert.rejects(fresh(env), /incomplete/);
   assert.equal(pages, 2);
+});
+
+test('spotify: what a song plays from, whatever the source', () => {
+  const item = { album: { name: 'Tunes Vol. 1' }, artists: [{ name: 'Blippi', uri: 'spotify:artist:b' }] };
+  assert.deepEqual(sourceOf({ item, context: { type: 'playlist', uri: 'spotify:playlist:1' } }, 'Kids'), { kind: 'playlist', name: 'Kids' });
+  assert.deepEqual(sourceOf({ item, context: { type: 'album' } }), { kind: 'album', name: 'Tunes Vol. 1' });
+  assert.deepEqual(sourceOf({ item, context: { type: 'artist', uri: 'spotify:artist:b' } }), { kind: 'artist', name: 'Blippi' });
+  assert.deepEqual(sourceOf({ item, context: { type: 'collection' } }), { kind: 'liked', name: 'Liked Songs' });
+  assert.deepEqual(sourceOf({ item, context: null }), { kind: 'none' });
+  assert.equal(sourceOf(null), null);
+});
+
+test('spotify: Up next, each song once, or a note that the permission is missing', async () => {
+  const env = { SPOTIFY_CLIENT_ID: 'id', SPOTIFY_CLIENT_SECRET: 's', SPOTIFY_REFRESH_TOKEN: 'r2', CALENDAR: { get: async () => null, put: async () => {} } };
+  const song = (n) => ({ uri: 'spotify:track:' + n, name: 'Song ' + n, artists: [{ name: 'A' }], album: { images: [{ url: 'big', width: 640 }, { url: 'small', width: 64 }] } });
+  globalThis.fetch = async (u) => {
+    u = String(u);
+    if (u.includes('/api/token')) return Response.json({ access_token: 'a', expires_in: 3600 });
+    return Response.json({ queue: [song(1), song(2), song(2), song(1)] });
+  };
+  const q = await getQueue(env);
+  assert.deepEqual(q.items.map((t) => [t.title, t.image]), [['Song 1', 'small'], ['Song 2', 'small']]);
 });

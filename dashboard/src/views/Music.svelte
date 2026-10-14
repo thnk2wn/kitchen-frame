@@ -7,6 +7,7 @@
   import { api } from '../lib/api.js';
   import { shown, busy, expectFor } from '../lib/pending.svelte.js';
   import { nowList, playlistOf } from '../lib/playlist.svelte.js';
+  import { coverColor } from '../lib/tint.js';
 
   // Demo mode: an invented Spotify player on invented speakers; taps change it locally only.
   const DEMO_TRACKS = [['Golden Hour', 'The Lanterns', 'Porch Light Sessions', 214], ['Saturday Pancakes', 'Maple & Co.', 'Kitchen Radio', 188], ['Slow River', 'Juniper Lane', 'Evening Songs', 241]];
@@ -148,6 +149,34 @@
   });
   // The playlist playing now (lib/playlist.svelte.js); it counts as just played for Recent.
   let fromList = $derived(ui.demo ? 'Sunday Morning' : playlistOf(spotify));
+  // What the shown song plays from, said whatever it is: a playlist, an album, an artist, Liked Songs,
+  // or nothing (a song started on its own, or autoplay after a playlist ends).
+  let mine = $derived(!!spotify && player === spotify && nowList.entity === spotify.entity_id);
+  let source = $derived.by(() => {
+    if (ui.demo) return { lead: 'From', name: 'Sunday Morning' };
+    const f = mine ? nowList.from : null;
+    if (!f) return fromList ? { lead: 'From', name: fromList } : null;
+    if (f.kind === 'playlist') return { lead: 'From', name: fromList || f.name || 'a playlist' };
+    if (f.kind === 'album') return { lead: 'From the album', name: f.name };
+    if (f.kind === 'artist') return { lead: 'From the artist', name: f.name };
+    if (f.kind === 'liked') return { lead: 'From', name: 'Liked Songs' };
+    return { lead: 'Not from a playlist', name: '' };
+  });
+  // Up next (Spotify's queue), as many rows as fit between the song and the controls.
+  const DEMO_QUEUE = [['Porch Swing', 'The Lanterns'], ['Sunday Paper', 'Maple & Co.'], ['Long Way Home', 'Juniper Lane'], ['Lemonade', 'The Lanterns'], ['Fireflies', 'Juniper Lane'], ['Back Roads', 'Maple & Co.']]
+    .map(([title, artist], i) => ({ title, artist, hue: 20 + i * 55 }));
+  let upNext = $derived(ui.demo ? DEMO_QUEUE : mine && nowList.queue ? nowList.queue : []);
+  let midH = $state(0);
+  let rows = $derived(Math.max(0, Math.min(Math.ceil(upNext.length / 2), Math.floor((midH - 34) / 66))));
+  // The card is tinted with the cover's main colour, like Spotify and Apple Music do.
+  let tint = $state(null);
+  $effect(() => {
+    const url = ui.demo ? null : mine ? nowList.image : null;
+    if (ui.demo) { tint = '217, 72, 107'; return; }
+    let live = true;
+    coverColor(url).then((c) => { if (live) tint = c ? c.join(', ') : null; });
+    return () => { live = false; };
+  });
   $effect(() => {
     const uri = nowList.uri;
     if (!ui.demo && uri && spotify && spotify.state === 'playing') untrack(() => { spotifyPlayed = { ...spotifyPlayed, [uri]: Date.now() }; });
@@ -227,17 +256,33 @@
         {/if}
       </div>
 
-      <section class="sheet now">
+      <section class="sheet now" class:tinted={!!tint} style={tint ? '--tint:' + tint : ''}>
         <div class="where"><Icon name="speaker" size={20} />{spotify ? (target || 'Spotify') : player.label}</div>
         {#if player.media_title}
           <h1>{player.media_title}</h1>
           <p class="artist">{player.media_artist || ''}</p>
-          {#if fromList}<p class="from">From <b>{fromList}</b></p>{/if}
-          {#if player.media_album_name}<p class="album">{player.media_album_name}</p>{/if}
+          {#if source}<p class="from">{source.lead}{#if source.name}{' '}<b>{source.name}</b>{/if}</p>{/if}
+          {#if player.media_album_name && source?.lead !== 'From the album'}<p class="album">{player.media_album_name}</p>{/if}
         {:else}
           <h1 class="idle">{player.state === 'off' ? 'Off' : 'Nothing playing'}</h1>
           {#if playing}<p class="artist">Playing on {playing.label}</p>{/if}
         {/if}
+
+        <div class="mid" bind:clientHeight={midH}>
+          {#if rows > 0}
+            <div class="next-h">Up next</div>
+            <div class="next" style="--rows:{rows}">
+              {#each upNext as t, i (i)}
+                <div class="q">
+                  {#if t.image}<img src={t.image} alt="" />{:else}<span class="qart" style="--h:{t.hue || 200}"><Icon name="music" size={20} /></span>{/if}
+                  <div class="qt"><b>{t.title}</b><span>{t.artist}</span></div>
+                </div>
+              {/each}
+            </div>
+          {:else if mine && nowList.queueAuth && midH >= 40}
+            <p class="hint">For Up next, run <code>scripts/spotify-auth.mjs</code> again (it adds Spotify's playback permission).</p>
+          {/if}
+        </div>
 
         {#if duration}
           <div class="progress">
@@ -333,7 +378,22 @@
   h1.idle { color: var(--secondary); }
   .artist { margin: 8px 0 0; font-size: 24px; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .album { margin: 4px 0 0; font-size: 18px; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .progress { margin-top: auto; padding-top: 16px; }
+  .progress { padding-top: 16px; }
+  /* The cover's colour washed across the card, strongest at the top left. */
+  .now.tinted { background-image: linear-gradient(135deg, rgba(var(--tint), .34), rgba(var(--tint), .14) 55%, rgba(var(--tint), .05)); }
+  /* Up next: two columns, as many rows as the space allows (rows past that are left out, not cut). */
+  .mid { flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; padding-top: 12px; }
+  .next-h { font-size: 15px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--secondary); margin-bottom: 10px; }
+  .next { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows), 56px); grid-auto-rows: 0; column-gap: 24px; row-gap: 10px; height: calc(var(--rows) * 56px + (var(--rows) - 1) * 10px); overflow: hidden; }
+  .q { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .q img, .qart { flex: none; width: 56px; height: 56px; border-radius: 8px; object-fit: cover; }
+  .qart { display: grid; place-items: center; background: linear-gradient(150deg, hsl(var(--h), 70%, 62%), hsl(calc(var(--h) + 40), 65%, 45%)); color: rgba(255, 255, 255, .8); }
+  .qt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .qt b, .qt span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qt b { font-size: 18px; font-weight: 600; }
+  .qt span { font-size: 15px; color: var(--secondary); }
+  .hint { margin: 0; font-size: 15px; color: var(--secondary); }
+  .hint code { font-size: 14px; }
   .bar { height: 6px; border-radius: 3px; background: var(--tertiary); overflow: hidden; }
   .bar span { display: block; height: 100%; background: var(--label); transform-origin: 0 50%; }
   .times { display: flex; justify-content: space-between; margin-top: 6px; font-size: 15px; color: var(--secondary); }

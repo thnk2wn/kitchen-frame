@@ -75,10 +75,15 @@ Worker reads those from Spotify itself:
 - every playlist in your library, the ones you made and the ones you follow;
 - **Recent** sorted by when each was last played on any device (Spotify keeps your last 50 songs and
   where each was played from; the frame adds what it has seen itself);
-- the playlist playing now, shown as "From …" under the artist, with its card outlined.
+- what's playing from, under the artist: a playlist ("From …", with its card outlined), an album,
+  an artist, Liked Songs, or "Not from a playlist" (a song started on its own, or autoplay);
+- **Up next**: the next songs in Spotify's queue, between the song and the controls when there's room
+  (a big window; on the frame's 1280×720 the controls fill the card);
+- the cover's main colour, washed across the Now Playing card.
 
 Playing still goes through Home Assistant. The Worker asks for read-only access: your playlists,
-recently played and currently playing.
+recently played, currently playing and playback state (for the queue). A sign-in made before Up next
+existed lacks that last one: run the sign-in script again (step 3) and push the new token.
 
 **Setup** (about five minutes, once). The same developer app as part 1 works:
 

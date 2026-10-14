@@ -11,7 +11,7 @@ import { execFile } from 'node:child_process';
 
 const FILE = new URL('../.dev.vars', import.meta.url);
 const REDIRECT = 'http://127.0.0.1:8888/callback';
-const SCOPES = 'playlist-read-private playlist-read-collaborative user-read-recently-played user-read-currently-playing';
+const SCOPES = 'playlist-read-private playlist-read-collaborative user-read-recently-played user-read-currently-playing user-read-playback-state';
 
 const text = readFileSync(FILE, 'utf8');
 const get = (k) => (new RegExp('^' + k + '="?([^"\\n]*)"?', 'm').exec(text) || [])[1] || '';
