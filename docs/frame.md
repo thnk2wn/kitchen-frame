@@ -8,24 +8,32 @@ and IP address are deliberately not recorded here.
 
 | | |
 | --- | --- |
-| Model / firmware | Pastigio `FRAME156` · `FrameO.DP105F.v2026010414` |
+| Model / firmware | Pastigio `FRAME156` · `FrameO.DP105F.v2026010414` (10-12); `FrameO.DP105F.v2026051219` by 10-14 (see below) |
 | Android | 8.1.0 (API 27), security patch 2020-11-05, SELinux permissive |
 | SoC / RAM | Rockchip RK3326, 32-bit userspace (`armeabi-v7a`) · 951 MB |
 | Screen | 1920×1080 at 170 dpi (the dashboard was designed for 1280×800 and must be adapted) |
 | WebView | 106.0.5249.126, already current, no swap needed |
-| Root | `su -c id` returns uid 0 with no prompt. Any app on the frame can get root: install nothing untrusted |
+| Root | `su -c id` returns uid 0 with no prompt (still true on the 2026-05 firmware). Any app on the frame can get root: install nothing untrusted |
 | Home app | `net.frameo.frame` (Frameo) |
 | Network ADB | off (nothing listening on 5555) |
 | Clock | **No battery-backed clock** (`/dev/rtc0` missing). Every power-up starts at 2008-12-31 until Wi-Fi time sync, so the first HTTPS load fails with a certificate-date error. The kiosk retries until it loads (verified 2026-10-12 by setting the clock back). |
 
 ## Getting ADB working (what actually worked)
 
-1. Frameo setting **Transfer from computer: off**. With it on, the frame shows up on USB for a moment,
+1. Frameo **Settings → About → Beta Program: on**. Only then does **ADB Access** appear below it;
+   turn it on and accept Frameo's warning. (Joining the beta only changes which Frameo updates arrive,
+   and Frameo is turned off below.)
+2. Frameo setting **Transfer from computer: off**. With it on, the frame shows up on USB for a moment,
    then Frameo takes the USB connection and ADB disappears before the approval prompt can appear.
-2. Plug in by USB (it worked through an Apple USB-C Digital AV Multiport Adapter).
-3. Open Frameo's Settings screen so the slideshow isn't in front, then re-request authorization
-   from the Mac (`adb reconnect`) until "Allow USB debugging?" appears; tap Allow.
-4. The USB link still drops for a few seconds now and then; retry commands rather than assuming failure.
+3. **Cable:** the frame's **USB-C** port (the USB-A port is a host port, for thumb drives), with a
+   cable whose other end is **USB-A** into the computer (a dock's USB-A port, or the Apple USB-C
+   Digital AV Multiport Adapter's). A USB-C-to-USB-C cable, even Apple's, shows nothing at all: the
+   frame's port seems to lack what C-to-C needs. If the Mac doesn't list a Rockchip device
+   (`system_profiler SPUSBHostDataType`), it's the cable or port, not a setting.
+4. Open Frameo's Settings screen so the slideshow isn't in front, then re-request authorization
+   from the Mac (`adb reconnect`) until "Allow USB debugging?" appears; tap Allow. Turning ADB Access
+   off and on again also brings the prompt back.
+5. The USB link still drops for a few seconds now and then; retry commands rather than assuming failure.
 
 ## Changes made
 
@@ -38,6 +46,27 @@ and IP address are deliberately not recorded here.
 | 2026-10-12 | Kiosk made the Home app | `cmd package set-home-activity com.huntsyea.frame/.MainActivity` | `cmd package set-home-activity net.frameo.frame/.ui.activities.AWaitForDeferredInitCompleted` after re-enabling Frameo |
 
 Nothing under `/system` or any flash partition has been written. No backup taken (owner's choice).
+
+### Found reset, set up again (2026-10-14)
+
+The frame came back on Frameo's first-run Welcome screen with newer firmware
+(`FrameO.DP105F.v2026051219`), so a vendor or Frameo update had reset it: the kiosk was gone, Frameo
+and the updaters were on again. Root (`su`) still works on that firmware, and network ADB was off.
+During setup Frameo updated itself to 1.32.15 (an app update in `/data/app`; the firmware didn't
+change). Redone over USB:
+
+| Change | Command | Undo |
+| --- | --- | --- |
+| Vendor and Rockchip updaters off | `pm disable-user --user 0 com.muxintu.app.mxota` and `android.rockchip.update.service` | `pm enable …` |
+| Kiosk 1.4 installed, URL set | `adb install -r kiosk/build/frame.apk`, then `am start … -d "'$(dashboard/scripts/frame-url.sh)'"` (dashboard key and HA settings) | `adb uninstall com.huntsyea.frame` |
+| Kiosk made the Home app | `cmd package set-home-activity com.huntsyea.frame/.MainActivity`, plus **Always** on Android's "Select a Home app" dialog | as above |
+| Frameo hidden for the user (not just disabled) | `pm uninstall -k --user 0 net.frameo.frame` (keeps its data) | `cmd package install-existing net.frameo.frame` |
+
+**Wait before rebooting.** Android saves these package changes about 10 seconds after they're made.
+Rebooting straight after `pm disable-user` or `pm uninstall --user 0` loses them, and Frameo was back
+after the first two reboots for that reason, not because anything re-enables it. Wait 30 s (or check
+`/data/system/users/0/package-restrictions.xml` with `su`), then reboot. Verified after a reboot:
+boots into the kiosk, Frameo and the updaters not installed or running.
 
 ## Day-to-day
 
