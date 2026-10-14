@@ -48,32 +48,34 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 
 ## What this fork adds
 
+**New** marks something the original didn't have; **Better** marks an improvement to something it did.
+
 ### Home Assistant
 
-| Feature | What it does |
-| --- | --- |
-| **[House tab](#house-tab-home-assistant-devices)** | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling, HA-rendered markdown, camera snapshots on tap. |
-| **[Doorbell pop-up](#doorbell)** | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
-| **[Notices](#notices-from-home-assistant)** | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
-| **[Presence](#clock-screen-and-presence)** | The clock screen comes on once the kitchen's motion sensors have seen nobody for a while, and goes away when someone walks in. Never with a recipe open or a timer running. |
-| **Music** | Spotify through HA: Spotify Connect speakers, playlists (recent or A–Z), and starting from silence on an Echo. |
+| Feature | | What it does |
+| --- | --- | --- |
+| **[House tab](#house-tab-home-assistant-devices)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling, HA-rendered markdown, camera snapshots on tap. |
+| **[Doorbell pop-up](#doorbell)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
+| **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
+| **[Presence](#clock-screen-and-presence)** | Better | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
+| **Music** | Better | Spotify through HA: Spotify Connect speakers, playlists (recent or A–Z), and starting from silence on an Echo. |
 
 ### In the kitchen
 
-| Feature | What it does |
-| --- | --- |
-| **[Paprika recipes](#our-recipes-from-paprika)** | A read-only sync of your library: categories, search, an A–Z index, your notes and nutrition. Tap a direction to mark your place; earlier ones are checked off. |
-| **Meal plan** | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
-| **[Timers](#timers)** | Tap a time, then a name (Pasta, Oven). Recipe steps' times are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
-| **Lists** | Groceries and Tasks in one tab, and side by side on Home. |
+| Feature | | What it does |
+| --- | --- | --- |
+| **[Paprika recipes](#our-recipes-from-paprika)** | New | A read-only sync of your library: categories, search, an A–Z index, your notes and nutrition. Tap a direction to mark your place; earlier ones are checked off. |
+| **Meal plan** | New | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
+| **[Timers](#timers)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
+| **Lists** | Better | Groceries and Tasks in one tab, and side by side on Home. |
 
 ### At a glance
 
-| Feature | What it does |
-| --- | --- |
-| **Weather** | A three-day forecast on Home. Tap the weather for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, UV, sun times. |
-| **Calendar** | A roomier Home calendar, named calendars you can hide per frame, and `#private` to keep an event off the frame. |
-| **Photos** | Classic iCloud shared album links work, and videos show as their cover frame. Idle times up to two hours before the slideshow. |
+| Feature | | What it does |
+| --- | --- | --- |
+| **Weather** | Better | Today's UV on Home and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, sun times. |
+| **Calendar** | Better | Upcoming grouped by day, colours and names per calendar, hide any calendar per frame, and `#private` to keep an event off the frame. |
+| **Clock screen** | Better | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours). Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
 
 ## How it fits together
 
@@ -286,18 +288,11 @@ After a while untouched (Settings → Clock screen after: 30 minutes by default)
 clock over the photo slideshow, and any tap brings the dashboard back. It never switches while a
 recipe is open or a timer is running.
 
-With Home Assistant, set `PRESENCE_AREA` in `dashboard/.frame.vars` (or `?presence_area=` in a setup
-link) to an HA area such as `kitchen`. The frame then watches every motion, occupancy and presence
-sensor HA has in that area: the clock screen waits until none has seen anyone for the chosen time,
-and the dashboard comes back by itself when one does. Only a sensor *turning on* counts, so one
-stuck on (an occupancy sensor that holds, a dead battery) can't keep the clock screen away. Sensors
-added to or moved out of the area in HA are picked up without touching the frame.
-
-An Echo's presence detection doesn't reach HA by itself (the Alexa Devices integration polls and
-misses it). To use one: create a toggle helper in HA, expose only it to Alexa (HA Cloud), add a
-template binary sensor in the area that mirrors it with device class `motion`, an automation that
-turns the toggle off a minute after it turns on, and an Alexa routine "when the Echo detects
-presence, turn the toggle on".
+With motion sensors in a Home Assistant area, set `PRESENCE_AREA` (for example `kitchen`) in
+`dashboard/.frame.vars`: the clock screen then waits until no sensor has seen anyone for that long,
+and the dashboard comes back by itself when one does. [docs/presence.md](docs/presence.md) covers
+setup, which sensors count, how sensors that stick "on" are handled, how different kinds of sensor
+behave, and bringing in an Echo's presence detection through an Alexa routine.
 
 ## Doorbell
 
