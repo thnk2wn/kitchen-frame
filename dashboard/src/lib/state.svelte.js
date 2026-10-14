@@ -405,12 +405,11 @@ function reloadIfUpdated() {
 }
 
 // The clock screen comes on after idleMinutes without a touch, and, with a presence area (see
-// presence.svelte.js), without anyone seen in the room either. Never while a recipe is open or a
+// presence.svelte.js), without a sensor in the room seeing anyone either. Never while a recipe is open or a
 // timer is running: hands are busy then and the screen is in use.
 function idleCheck() {
   if (ui.idle || !ui.idleMinutes) return;
   if (ui.recipeOpen || timers.list.some((t) => !t.done)) return;
-  if (presenceArea() && presence.occupied) return;
   const quietSince = Math.max(lastTouch, presenceArea() ? presence.lastSeen : 0);
   if (Date.now() - quietSince < ui.idleMinutes * MIN) return;
   ui.idle = true; ui.tab = 'home'; ui.settingsOpen = false; loadPhotos();

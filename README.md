@@ -289,8 +289,15 @@ recipe is open or a timer is running.
 With Home Assistant, set `PRESENCE_AREA` in `dashboard/.frame.vars` (or `?presence_area=` in a setup
 link) to an HA area such as `kitchen`. The frame then watches every motion, occupancy and presence
 sensor HA has in that area: the clock screen waits until none has seen anyone for the chosen time,
-and the dashboard comes back by itself when one does. Sensors added to or moved out of the area in
-HA are picked up without touching the frame.
+and the dashboard comes back by itself when one does. Only a sensor *turning on* counts, so one
+stuck on (an occupancy sensor that holds, a dead battery) can't keep the clock screen away. Sensors
+added to or moved out of the area in HA are picked up without touching the frame.
+
+An Echo's presence detection doesn't reach HA by itself (the Alexa Devices integration polls and
+misses it). To use one: create a toggle helper in HA, expose only it to Alexa (HA Cloud), add a
+template binary sensor in the area that mirrors it with device class `motion`, an automation that
+turns the toggle off a minute after it turns on, and an Alexa routine "when the Echo detects
+presence, turn the toggle on".
 
 ## Doorbell
 

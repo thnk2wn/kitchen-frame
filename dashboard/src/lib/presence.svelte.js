@@ -21,11 +21,11 @@ export const presenceArea = () => { try { return localStorage.getItem(KEY) || ''
 
 export const presence = $state({
   sensors: [],      // entity ids found in the area
-  occupied: false,  // any of them on right now
-  lastSeen: 0,      // when one was last on (ms)
+  on: [],           // the ones on right now
+  lastSeen: 0,      // when one last turned on (ms)
 });
 const arrivals = new Set();
-// fn runs when the room goes from empty to occupied.
+// fn runs whenever a sensor turns on (someone just moved).
 export function onArrive(fn) { arrivals.add(fn); return () => arrivals.delete(fn); }
 
 const template = (area) => `{% set ids = area_entities(${JSON.stringify(area)}) | select('match', 'binary_sensor\\\\.') | list %}` +
@@ -39,11 +39,15 @@ onHAConnect(() => {
     let r = ev.result;
     if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return; } }
     if (!r || !Array.isArray(r.on)) return;
-    const was = presence.occupied;
+    // Only a sensor turning on counts as someone there: a sensor stuck on (an occupancy sensor that
+    // holds, a dead battery) would otherwise keep the clock screen away forever. Motion sensors
+    // re-trigger every few minutes while people are about, so a busy room keeps counting as busy.
+    const fresh = r.on.filter((id) => !presence.on.includes(id));
     presence.sensors = r.sensors || [];
-    presence.occupied = r.on.length > 0;
-    if (presence.occupied) presence.lastSeen = Date.now();
-    else if (was) presence.lastSeen = Date.now(); // empty from now on
-    if (presence.occupied && !was) for (const fn of arrivals) { try { fn(); } catch (e) { console.error(e); } }
+    presence.on = r.on;
+    if (fresh.length) {
+      presence.lastSeen = Date.now();
+      for (const fn of arrivals) { try { fn(); } catch (e) { console.error(e); } }
+    }
   }).catch((e) => console.error('presence', e));
 });
