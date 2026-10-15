@@ -132,7 +132,8 @@
   .right { justify-content: flex-end; }
   .now { margin-right: 14px; white-space: nowrap; }
   .wx { color: var(--secondary); }
-  .bell { position: relative; }
+  /* Not the gear's tuck to the right: with a badge it would touch the time beside it. */
+  .bell { position: relative; margin-right: 6px; }
   .badge { position: absolute; top: 2px; right: 0; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center; background: var(--orange); color: #fff; font-size: 14px; font-weight: 800; line-height: 1; }
   .badge.alert { background: var(--red); }
   .badge.info { background: var(--blue); }
