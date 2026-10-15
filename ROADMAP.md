@@ -57,6 +57,18 @@ Thoughts to try in a branch and measure on the frame, not plans:
   through Cloudflare Workers AI, which has a free daily allowance far beyond a household's list,
   once per new item, and remember the answer. No keyword lists.
 
+## Announcements
+
+Built: Settings → Announcements (speaker, volume, alert volume, agent messages) and
+`script.frame_announce`. Next, in order:
+
+- **Event reminders:** per calendar (all off to start), at the event's own reminder (VALARM, which
+  some feeds include) or a default lead time (30 minutes, a setting); "Announced 30 min before"
+  in the event's details.
+- **Red alerts:** a leak or the freezer, at the alert volume, at night too; an "Announced" tag in
+  the notices sheet. Orange optional, blue never.
+- **Later:** leave-by reminders from travel time; the washer reminder moved onto the shared script.
+
 ## Home Assistant
 
 - **More notice blueprints:** garage door left open, a bedtime check (doors unlocked, lights on).

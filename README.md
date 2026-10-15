@@ -26,7 +26,7 @@ lists other frames that work.
 | --- |
 | ![Weather details](docs/images/weather-light.jpg) |
 
-Screenshots use the built-in demo mode (Settings → Demo mode, or `?demo=on`), so all data shown is
+Screenshots use the built-in demo mode (Settings → About → Demo mode, or `?demo=on`), so all data shown is
 invented, apart from the weather. It's also handy for showing the frame to people without your own
 calendar and lists on it. `?tab=`, `?open=<recipe id>`, `?timer=Pasta:7` and `?weather=<day>` set up
 a particular screen.
@@ -196,7 +196,8 @@ The Worker merges any number of calendar feeds into one agenda: Google, iCloud, 
 Outlook/Exchange, or a subscribed .ics link like a sports team's schedule. Put the links in
 `CALENDAR_URLS`; optionally name and colour each one (`CALENDAR_NAMES`, `CALENDAR_COLORS`), and hide
 any of them per frame from **Calendars** on Home or the Calendar tab. The frame shows titles, times
-and locations, and `#private` in an event keeps it off the frame.
+and locations (a Zoom, Teams or Meet link as a location shows as "Video call"; other links are
+dropped), and `#private` in an event keeps it off the frame.
 
 Choose which calendars open when an event is tapped (`CALENDAR_DETAILS`): the family calendar or a
 team's schedule, say, but not work. Those events show a › and open a sheet with the calendar, the
@@ -296,14 +297,17 @@ The **Media** tab has **Music | TV** at the bottom when Home Assistant has a TV.
 
 **Music** is Spotify on the house's speakers, through Home Assistant: song, controls, volume,
 playlists and speakers, with a Now Playing card on Home and a small one in every other tab's top bar.
-Controls show the change at once instead of waiting seconds for Spotify to confirm.
+Controls show the change at once instead of waiting seconds for Spotify to confirm, and a tapped
+playlist shows in the player straight away ("Starting on Kitchen…") until Spotify reports it
+playing; the frame also asks Home Assistant to check Spotify right after a tap rather than at its
+next 30-second poll. With nothing playing, the volume slider sets the chosen speaker's own volume.
 
 **TV** is any TV Home Assistant knows, found by its integration (Apple TV, Android TV, Roku, LG
 webOS, Samsung, Sony Bravia, Vizio, Philips, Panasonic, DirecTV) or a `tv` device class: what's
 playing in any app (title, episode, artwork, progress), play/pause and 10 s back and forward, the
 TV's apps (the ones watched lately first; one tap opens one), power, and an on-screen remote
 (arrows, OK, back, home) when the TV has a `remote` entity on the same device and its integration
-is Apple TV, Android TV Remote or Roku. A TV playing shows in Now Playing too; **Settings → Now
+is Apple TV, Android TV Remote or Roku. A TV playing shows in Now Playing too; **Settings → Home → Now
 Playing → Music only** leaves TVs out. Volume steps and mute go to the TV, or to the speaker that
 plays its sound when `TV_AUDIO` in `.frame.vars` names one (`media_player.tv=media_player.soundbar`,
 comma-separated for several TVs). That's needed behind a soundbar: an Apple TV can't read the
@@ -334,21 +338,21 @@ to see them all, add a minute or cancel). Timers survive a reload.
 
 When a timer ends: the frame chimes (Web Audio, no sound files), a full-screen alert offers +1 min
 or Dismiss, and, with Home Assistant, a speaker announces it through a `notify` entity, such as an
-Echo's "Announce" from the Alexa Devices integration (Settings → Timer alerts; by default the one
+Echo's "Announce" from the Alexa Devices integration (Settings → Announcements → Timer alerts; by default the one
 with "kitchen" in its name). The frame has no microphone, so voice timers stay with your smart
 speakers. The kiosk app (1.4+) lets the page play sound without a tap first.
 
 ## Clock screen and presence
 
-After a while untouched (Settings → Clock screen after: 30 minutes by default) the frame shows a
+After a while untouched (Settings → Display → Clock screen after: 30 minutes by default) the frame shows a
 clock over the photo slideshow, and any tap brings the dashboard back. It never switches while a
 recipe is open or a timer is running.
 
-**Night** (Settings → Night, 10:30 PM to 6:30 AM by default, or off): the clock screen comes on two
-minutes after the last touch, without photos, in red (Settings → Night clock color: red, orange, yellow
+**Night** (Settings → Display → Night, 10:30 PM to 6:30 AM by default, or off): the clock screen comes on two
+minutes after the last touch, without photos, in red (Settings → Display → Night clock color: red, orange, yellow
 or the daytime colour) and at the screen's lowest brightness, and motion in
 the room doesn't bring the dashboard back. A tap does, at the daytime brightness, as do a timer alert
-and the doorbell. The daytime brightness (Settings → Brightness) comes back each morning, and agent
+and the doorbell. The daytime brightness (Settings → Display → Brightness) comes back each morning, and agent
 messages aren't read aloud during these hours.
 
 With motion sensors in a Home Assistant area, set `PRESENCE_AREA` (for example `kitchen`) in
@@ -368,7 +372,7 @@ Nothing to configure in the usual case: every event entity with device class `do
 Reolink, UniFi Protect, Nest and others provide one) is watched, and the camera is the one on the
 same device. To override, set `DOORBELL` (entity ids, comma-separated, or `off`) and
 `DOORBELL_CAMERA` in `dashboard/.frame.vars` (or `?doorbell=` / `?doorbell_camera=` in a setup link).
-Settings → Doorbell → Test shows the pop-up without anyone at the door.
+Settings → Home → Doorbell → Test shows the pop-up without anyone at the door.
 
 ## Notices from Home Assistant
 
@@ -411,9 +415,24 @@ For messages that should take over the screen (and be read aloud), use
 
 <br clear="right">
 
+## Announcements
+
+**Settings → Announcements** sets what the frame says out loud, on one speaker from Home Assistant
+(an Echo, a Nest speaker, anything with text-to-speech): the speaker, an announcement volume and a
+louder **alert volume** for red alerts, a **Test** for each, and whether agent messages are read
+aloud. Nothing is said at night (Settings → Display → Night). Timer alerts keep their own speaker
+on the same page.
+
+The frame speaks through a Home Assistant script, [`homeassistant/scripts/frame-announce.yaml`](homeassistant/scripts/frame-announce.yaml)
+(add it as `script.frame_announce`): an Echo's Announce when the speaker has one, otherwise
+text-to-speech, at the announcement volume, putting the speaker's own volume back afterwards.
+Other automations can use it too. Without the script the frame falls back to plain text-to-speech
+at the speaker's current volume. Event reminders and red alerts are next ([ROADMAP](ROADMAP.md)).
+
 ## Messages from agents
 
 AI agents can post full-screen messages to the frame: see [docs/messages.md](docs/messages.md).
+Settings → Announcements → Agent messages reads them aloud.
 
 ## Recipes
 

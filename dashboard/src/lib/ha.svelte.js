@@ -7,6 +7,7 @@ export const ha = $state({
   error: null,
   players: [],     // media players, Music Assistant ones first; TVs have tv: true (and remote, platform)
   tts: [],         // text-to-speech engines (tts.* entities)
+  scripts: [],     // script entity ids (the frame looks for script.frame_announce)
   notify: [],      // notify entities [{ entity_id, name }] (e.g. an Echo's "Announce", for timer alerts)
 });
 
@@ -123,6 +124,7 @@ export function send(msg, onEvent) {
 async function subscribe() {
   const states = await send({ type: 'get_states' });
   ha.tts = states.filter((s) => s.entity_id.startsWith('tts.')).map((s) => s.entity_id);
+  ha.scripts = states.filter((s) => s.entity_id.startsWith('script.')).map((s) => s.entity_id); // e.g. script.frame_announce
   ha.notify = states.filter((s) => s.entity_id.startsWith('notify.') && s.state !== 'unavailable')
     .map((s) => ({ entity_id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id }));
   for (const fn of stateHooks) { try { fn(states); } catch (e) { console.error(e); } }

@@ -3,7 +3,8 @@
 import { api, cached, remember, changed, forget, withKey } from './api.js';
 import { dayKey, recipeTitle, setCalendarColors } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
-import { ha, announce } from './ha.svelte.js';
+import { ha } from './ha.svelte.js';
+import { say, speaker, speak } from './announce.svelte.js';
 import { timers } from './timers.svelte.js';
 import { presence, presenceArea, onArrive } from './presence.svelte.js';
 import { night, NIGHT_IDLE_MS, quietNow } from './night.svelte.js';
@@ -18,9 +19,6 @@ function single(key, fn) {
   if (!inflight.has(key)) inflight.set(key, fn().finally(() => inflight.delete(key)));
   return inflight.get(key);
 }
-// Preferred speaker for reading messages aloud until one is picked in Settings; if Home Assistant
-// has no such speaker, the first Music Assistant speaker is used instead (see announceTarget).
-const DEFAULT_SPEAKER = 'media_player.kitchen_display';
 const pref = (k, d) => { try { return localStorage.getItem('frame-' + k) || d; } catch { return d; } };
 // ?demo=on|off is saved like the other settings; ?tab= opens a tab once (screenshots, setup links),
 // and ?weather=<day> opens that day's weather sheet.
@@ -49,12 +47,10 @@ export const ui = $state({
   nightPhotos: pref('night-photos', 'on') === 'on', // slideshow after sunset (dimmed)
   demo: pref('demo', 'off') === 'on',          // sample data instead of real calendars, lists, photos
   clockColor: pref('clock-color', '#ffffff'),  // clock-screen text colour (dimmed at night)
-  announceOn: pref('announce', DEFAULT_SPEAKER), // speaker that reads messages aloud, or 'off'
 });
 export function setSetting(key, value) {
   if (key === 'themePref') { ui.themePref = value; localStorage.setItem('frame-theme', value); applyTheme(); }
   if (key === 'idleMinutes') { ui.idleMinutes = value; localStorage.setItem('frame-idle', String(value)); rearmIdle(); }
-  if (key === 'announceOn') { ui.announceOn = value; localStorage.setItem('frame-announce', value); }
   if (key === 'clockColor') { ui.clockColor = value; localStorage.setItem('frame-clock-color', value); }
   if (key === 'nightPhotos') { ui.nightPhotos = value; localStorage.setItem('frame-night-photos', value ? 'on' : 'off'); }
   if (key === 'demo') {
@@ -259,20 +255,13 @@ function announceNew(items) {
     announced = new Set(saved ? JSON.parse(saved) : items.map((m) => m.id));
     if (!saved) saveAnnounced();
   }
-  const target = announceTarget();
-  if (ui.demo || !target || ha.status !== 'connected' || quiet()) return;
+  if (ui.demo || !say.messages || !speaker() || ha.status !== 'connected' || quiet()) return;
   for (const m of items) {
     if (announced.has(m.id) || m.speak === false || Date.now() - Date.parse(m.at) > 10 * MIN) continue;
     const text = (m.from ? 'Message from ' + m.from + '. ' : '') + [m.title, m.body].filter(Boolean).join('. ');
     announced.add(m.id); // claim it now so the next poll doesn't repeat it
-    announce(text.slice(0, 400), target.entity_id).then(saveAnnounced, () => announced.delete(m.id));
+    speak(text).then(saveAnnounced, () => announced.delete(m.id));
   }
-}
-// The speaker that reads messages aloud: the chosen one if Home Assistant has it, else the first
-// speaker; null when read-aloud is off or there are no speakers.
-export function announceTarget() {
-  if (ui.announceOn === 'off') return null;
-  return ha.players.find((p) => p.entity_id === ui.announceOn) || ha.players[0] || null;
 }
 function saveAnnounced() {
   try { localStorage.setItem('frame-announced', JSON.stringify([...announced].slice(-100))); } catch {}

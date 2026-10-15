@@ -1,10 +1,19 @@
 <script>
   import Icon from './Icon.svelte';
-  import { ui, calendar, photos, setSetting, announceTarget } from '../lib/state.svelte.js';
+  import { ui, calendar, photos, setSetting } from '../lib/state.svelte.js';
+  import { say, setSay, speakers, speaker, speak } from '../lib/announce.svelte.js';
+  // Sections, as tabs at the top; the last one chosen is remembered.
+  const TABS = [['display', 'Display'], ['announce', 'Announcements'], ['home', 'Home'], ['about', 'About']];
+  let tab = $state((() => { try { return localStorage.getItem('frame-settings-tab') || 'display'; } catch { return 'display'; } })());
+  $effect(() => { try { localStorage.setItem('frame-settings-tab', tab); } catch {} });
+  let testing = $state(false);
+  async function test(alert) {
+    testing = true;
+    try { await speak(alert ? 'This is a test alert from the kitchen frame.' : 'This is a test announcement from the kitchen frame.', { alert }); } catch {}
+    setTimeout(() => (testing = false), 4000);
+  }
   import { ha, haConfigured, nowPrefs, setNowTv } from '../lib/ha.svelte.js';
   import { night, setNight, dayBrightness, setDayBrightness } from '../lib/night.svelte.js';
-  // Speaker offered for reading agent messages aloud: the chosen one, else the fallback (first speaker).
-  let announceSpeaker = $derived(ha.players.find((p) => p.entity_id === ui.announceOn) || announceTarget() || ha.players[0]);
   import { api } from '../lib/api.js';
   import { time } from '../lib/format.js';
 
@@ -49,8 +58,14 @@
     <header>
       <h2>Settings</h2>
       <button class="done" onclick={close}>Done</button>
+      <nav class="tabs seg" role="tablist" aria-label="Settings sections">
+        {#each TABS as [v, label] (v)}
+          <button role="tab" aria-selected={tab === v} class:on={tab === v} onclick={() => (tab = v)}>{label}</button>
+        {/each}
+      </nav>
     </header>
 
+    {#if tab === 'display'}
     <div class="row">
       <span>Appearance</span>
       <div class="seg">
@@ -79,15 +94,6 @@
       </div>
     </div>
 
-    {#if ha.players.some((p) => p.tv)}
-      <div class="row">
-        <span>Now Playing<small>On Home and the top bar</small></span>
-        <div class="seg">
-          <button class:on={nowPrefs.tv} onclick={() => setNowTv(true)}>Music and TV</button>
-          <button class:on={!nowPrefs.tv} onclick={() => setNowTv(false)}>Music only</button>
-        </div>
-      </div>
-    {/if}
 
     <div class="row">
       <span>Photos after sunset</span>
@@ -138,16 +144,50 @@
       </div>
     {/if}
 
-    {#if haConfigured() && announceSpeaker}
+
+
+
+
+    {:else if tab === 'announce'}
+    {#if !haConfigured()}
+      <p class="hint pad">Announcements need Home Assistant (see the README).</p>
+    {:else}
       <div class="row">
-        <span>Read messages aloud<small>{night.on ? 'Not at night' : 'Not 10 PM–7 AM'}</small></span>
-        <div class="seg">
-          <button class:on={ui.announceOn === announceSpeaker.entity_id} onclick={() => setSetting('announceOn', announceSpeaker.entity_id)}>{announceSpeaker.label}</button>
-          <button class:on={ui.announceOn === 'off'} onclick={() => setSetting('announceOn', 'off')}>Off</button>
+        <span>Speaker<small>Says messages, and soon reminders and alerts</small></span>
+        <select class="pick" value={speaker()?.entity_id || ''} onchange={(e) => setSay({ speaker: e.currentTarget.value })} aria-label="Speaker for announcements">
+          {#each speakers() as p (p.entity_id)}<option value={p.entity_id}>{p.label || p.friendly_name}</option>{/each}
+        </select>
+      </div>
+      <div class="row">
+        <span>Volume<small>Set for each announcement, then put back</small></span>
+        <div class="bright">
+          <Icon name="volume" size={20} />
+          <input type="range" min="10" max="100" step="5" value={Math.round(say.volume * 100)} oninput={(e) => setSay({ volume: e.currentTarget.value / 100 })} aria-label="Announcement volume" style="--pct:{((say.volume * 100 - 10) / 90) * 100}%" />
+          <span class="pct num">{Math.round(say.volume * 100)}%</span>
         </div>
       </div>
-    {/if}
-
+      <div class="row">
+        <span>Alert volume<small>Red alerts, such as a leak</small></span>
+        <div class="bright">
+          <Icon name="alert" size={20} />
+          <input type="range" min="10" max="100" step="5" value={Math.round(say.alertVolume * 100)} oninput={(e) => setSay({ alertVolume: e.currentTarget.value / 100 })} aria-label="Alert volume" style="--pct:{((say.alertVolume * 100 - 10) / 90) * 100}%" />
+          <span class="pct num">{Math.round(say.alertVolume * 100)}%</span>
+        </div>
+      </div>
+      <div class="row">
+        <span>Test<small>Says a short sentence on {speaker()?.label || 'the speaker'}</small></span>
+        <div class="tests">
+          <button class="reload" disabled={testing} onclick={() => test(false)}><Icon name="volume" size={20} />Normal</button>
+          <button class="reload" disabled={testing} onclick={() => test(true)}><Icon name="alert" size={20} />Alert</button>
+        </div>
+      </div>
+      <div class="row">
+        <span>Agent messages<small>{night.on ? 'Read aloud, not at night' : 'Read aloud, not 10 PM–7 AM'}</small></span>
+        <div class="seg">
+          <button class:on={say.messages} onclick={() => setSay({ messages: true })}>On</button>
+          <button class:on={!say.messages} onclick={() => setSay({ messages: false })}>Off</button>
+        </div>
+      </div>
     {#if haConfigured() && announcers.length}
       <div class="row">
         <span>Timer alerts<small>Also said on a speaker</small></span>
@@ -157,14 +197,25 @@
         </select>
       </div>
     {/if}
-
+    {/if}
+    {:else if tab === 'home'}
+    {#if ha.players.some((p) => p.tv)}
+      <div class="row">
+        <span>Now Playing<small>On Home and the top bar</small></span>
+        <div class="seg">
+          <button class:on={nowPrefs.tv} onclick={() => setNowTv(true)}>Music and TV</button>
+          <button class:on={!nowPrefs.tv} onclick={() => setNowTv(false)}>Music only</button>
+        </div>
+      </div>
+    {/if}
     {#if bell.doorbells.length}
       <div class="row">
         <span>Doorbell<small>{bell.doorbells.map((d) => d.name).join(', ')} shows here when it rings</small></span>
         <button class="reload" onclick={() => { close(); ring({ ...bell.doorbells[0], test: true }); }}><Icon name="bell" size={20} />Test</button>
       </div>
     {/if}
-
+    {#if !ha.players.some((p) => p.tv) && !bell.doorbells.length}<p class="hint pad">Nothing here yet: TVs and doorbells from Home Assistant show their settings here.</p>{/if}
+    {:else}
     <div class="row">
       <span>Demo mode<small>Sample data, for showing people</small></span>
       <div class="seg">
@@ -172,11 +223,11 @@
         <button class:on={!ui.demo} onclick={() => setSetting('demo', false)}>Off</button>
       </div>
     </div>
-
     <div class="row last">
       <span>{ui.demo ? 'Showing demo data' : (calendar.data ? 'Calendar updated ' + time(new Date(calendar.data.updated)) : 'Calendar not loaded') + ' · ' + photos.items.length + ' photos'} · version {version}</span>
       <button class="reload" disabled={reloading} onclick={reload}><Icon name="reload" size={20} />{reloading ? 'Reloading…' : 'Reload'}</button>
     </div>
+    {/if}
   </section>
 </div>
 
@@ -189,17 +240,26 @@
   .done { font-size: 20px; font-weight: 600; color: var(--blue-text); padding: 8px 0 8px 16px; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 64px; padding: 8px 0; border-top: 1px solid var(--sep); font-size: 20px; }
   .row.last { color: var(--secondary); font-size: 17px; }
+  header { flex-wrap: wrap; }
+  .tabs { flex: 1 0 100%; margin-top: 12px; }
+  .tabs button { flex: 1; min-width: 0; }
+  .hint.pad { margin: 18px 0; }
+  .tests { display: flex; gap: 10px; }
+  .pct { width: 48px; text-align: right; font-size: 17px; color: var(--secondary); }
   .hint { margin: -6px 0 8px; font-size: 15px; color: var(--secondary); }
   .seg { display: flex; padding: 3px; border-radius: 11px; background: var(--track); }
   .nightset { display: flex; align-items: center; gap: 8px; }
   .nightset select { height: 44px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--fill); font: inherit; font-size: 17px; color: var(--label); }
   .nightset .to { font-size: 16px; color: var(--secondary); }
+  .nightset .seg button { min-width: 56px; padding: 0 10px; }
   .seg button { min-width: 84px; height: 40px; padding: 0 14px; border-radius: 9px; font-size: 17px; font-weight: 500; text-align: center; }
   .seg button.on { background: var(--thumb); font-weight: 600; }
   .seg button:not(.on):active { opacity: .5; }
   .row small { display: block; font-size: 15px; color: var(--secondary); margin-top: 2px; }
   /* A setting's name never wraps; its controls take the rest of the row. */
   .row > span:first-child { flex: none; white-space: nowrap; }
+  /* Its description may wrap, so a row with wide controls (Night) still fits. */
+  .row > span:first-child small { max-width: 210px; white-space: normal; }
   .row.last > span:first-child { flex: 1 1 auto; white-space: normal; }
   .pick { height: 44px; max-width: 260px; padding: 0 12px; border: 0; border-radius: 11px; background: var(--fill); font: inherit; font-size: 18px; color: var(--label); }
   .swatches { display: flex; gap: 10px; }
