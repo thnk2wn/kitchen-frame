@@ -10,6 +10,8 @@
   // slim: two lines (song; artist · playlist) and a smaller cover, where height is tight.
   let { player, card = false, cover = 0, slim = false } = $props();
   let from = $derived(card ? playlistOf(player) : null);
+  // Opens the Media tab on what's playing: the TV view for a TV, Music otherwise.
+  const openIt = () => { ui.media = player.tv ? 'tv' : 'music'; ui.tab = 'music'; };
 
   // The pill opens the Music tab; the button pauses without leaving the tab.
   function toggle(e) {
@@ -19,7 +21,7 @@
   }
 </script>
 
-<div class="np" class:card class:slim class:tall={cover > 0} class:sheet={card} style={cover ? '--cover:' + cover + 'px' : ''} role="button" tabindex="0" title={player.media_title} onclick={() => (ui.tab = 'music')} onkeydown={(e) => e.key === 'Enter' && (ui.tab = 'music')}>
+<div class="np" class:card class:slim class:tall={cover > 0} class:sheet={card} style={cover ? '--cover:' + cover + 'px' : ''} role="button" tabindex="0" title={player.media_title} onclick={openIt} onkeydown={(e) => e.key === 'Enter' && openIt()}>
   {#if player.entity_picture}<img src={haUrl(player.entity_picture)} alt="" />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
   {#if card}
     <div class="txt">

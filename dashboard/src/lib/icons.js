@@ -57,4 +57,11 @@ export const ICONS = {
   sortAz: "<path d=\"m3 16 4 4 4-4\" /><path d=\"M7 20V4\" /><path d=\"M20 8h-5\" /><path d=\"M15 10V6.5a2.5 2.5 0 0 1 5 0V10\" /><path d=\"M15 14h5l-5 6h5\" />", // lucide: arrow-down-a-z
   sortTime: "<path d=\"M12 6v6l2 1\" /><path d=\"M12.337 21.994a10 10 0 1 1 9.588-8.767\" /><path d=\"m14 18 4 4 4-4\" /><path d=\"M18 14v8\" />", // lucide: clock-arrow-down
   flag: "<path d=\"M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528\" />", // lucide: flag
+  tv: "<path d=\"m17 2-5 5-5-5\" /><rect width=\"20\" height=\"15\" x=\"2\" y=\"7\" rx=\"2\" />", // lucide: tv
+  rewind: "<path d=\"M12 6a2 2 0 0 0-3.414-1.414l-6 6a2 2 0 0 0 0 2.828l6 6A2 2 0 0 0 12 18z\" /><path d=\"M22 6a2 2 0 0 0-3.414-1.414l-6 6a2 2 0 0 0 0 2.828l6 6A2 2 0 0 0 22 18z\" />", // lucide: rewind
+  fastForward: "<path d=\"M12 6a2 2 0 0 1 3.414-1.414l6 6a2 2 0 0 1 0 2.828l-6 6A2 2 0 0 1 12 18z\" /><path d=\"M2 6a2 2 0 0 1 3.414-1.414l6 6a2 2 0 0 1 0 2.828l-6 6A2 2 0 0 1 2 18z\" />", // lucide: fast-forward
+  chevronUp: "<path d=\"m18 15-6-6-6 6\" />", // lucide: chevron-up
+  chevronDown: "<path d=\"m6 9 6 6 6-6\" />", // lucide: chevron-down
+  home: "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\" /><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\" />", // lucide: house
+  power: "<path d=\"M12 2v10\" /><path d=\"M18.4 6.6a9 9 0 1 1-12.77.04\" />", // lucide: power
 };

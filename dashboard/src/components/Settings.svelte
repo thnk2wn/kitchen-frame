@@ -1,7 +1,7 @@
 <script>
   import Icon from './Icon.svelte';
   import { ui, calendar, photos, setSetting, announceTarget } from '../lib/state.svelte.js';
-  import { ha, haConfigured } from '../lib/ha.svelte.js';
+  import { ha, haConfigured, nowPrefs, setNowTv } from '../lib/ha.svelte.js';
   // Speaker offered for reading agent messages aloud: the chosen one, else the fallback (first speaker).
   let announceSpeaker = $derived(ha.players.find((p) => p.entity_id === ui.announceOn) || announceTarget() || ha.players[0]);
   import { api } from '../lib/api.js';
@@ -72,6 +72,16 @@
         {/each}
       </div>
     </div>
+
+    {#if ha.players.some((p) => p.tv)}
+      <div class="row">
+        <span>Now Playing<small>On Home and the top bar</small></span>
+        <div class="seg">
+          <button class:on={nowPrefs.tv} onclick={() => setNowTv(true)}>Music and TV</button>
+          <button class:on={!nowPrefs.tv} onclick={() => setNowTv(false)}>Music only</button>
+        </div>
+      </div>
+    {/if}
 
     <div class="row">
       <span>Photos at night</span>

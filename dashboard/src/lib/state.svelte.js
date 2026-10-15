@@ -36,6 +36,7 @@ export const ui = $state({
   noticesOpen: false,                        // the Home Assistant notices sheet (lib/notices.svelte.js)
   // The event whose details are showing ({ uid, start }); ?event=<uid> opens one, for screenshots.
   event: q.get('event') ? { uid: q.get('event'), start: null } : null,
+  media: q.get('media') === 'tv' ? 'tv' : 'music', // the Media tab's view (?media=tv opens TV)
   // { list, id }: the list item whose sheet is open; ?task=<id> opens a task, for screenshots.
   task: q.get('task') ? { list: 'todo', id: q.get('task') } : null,
   weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,

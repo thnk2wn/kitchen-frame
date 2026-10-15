@@ -7,6 +7,7 @@
   import Ambient from './views/Ambient.svelte';
   import Settings from './components/Settings.svelte';
   import Music from './views/Music.svelte';
+  import TV from './views/TV.svelte';
   import Recipes from './views/Recipes.svelte';
   import Message from './components/Message.svelte';
   import Timers from './components/Timers.svelte';
@@ -33,8 +34,9 @@
     // Groceries and Tasks share one tab with a switch inside; it reopens the list used last.
     { id: 'lists', label: 'Lists', views: ['groceries', 'todo'] },
     { id: 'recipes', label: 'Recipes' },
-    // Music appears once the frame has a Home Assistant token (see docs/frame.md).
-    ...(haConfigured() || ui.demo ? [{ id: 'music', label: 'Music' }] : []), // demo: an invented player
+    // Media (music, and TVs when Home Assistant has any) appears once the frame has a Home Assistant
+    // token (see docs/frame.md). Its id stays 'music' so older links and settings keep working.
+    ...(haConfigured() || ui.demo ? [{ id: 'music', label: 'Media' }] : []), // demo: an invented player
     // House mirrors a Home Assistant dashboard, once the frame has its URL path (frame-ha-dashboard).
     ...((haConfigured() && haDashboard()) || ui.demo ? [{ id: 'house', label: 'House' }] : []), // demo: an invented house
   ];
@@ -97,7 +99,7 @@
     {#if !ui.idle}
     {#if ui.tab === 'home'}<Home {playing} />
     {:else if ui.tab === 'calendar'}<Week />
-    {:else if ui.tab === 'music'}<Music />
+    {:else if ui.tab === 'music'}{#if ui.media === 'tv'}<TV />{:else}<Music />{/if}
     {:else if ui.tab === 'house'}<House />
     {:else if ui.tab === 'recipes'}<Recipes />
     {:else if ui.tab === 'groceries'}<List name="groceries" title="Groceries" accent="var(--orange)" accentText="var(--orange-text)" />

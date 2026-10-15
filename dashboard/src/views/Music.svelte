@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import SortButton from '../components/SortButton.svelte';
+  import MediaSwitch from '../components/MediaSwitch.svelte';
   import { ha, haUrl, callService, send } from '../lib/ha.svelte.js';
   import { ui } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
@@ -28,7 +29,7 @@
     demo.media_position_updated_at = new Date().toISOString();
   }
   // Shown as asked for while HA catches up (lib/pending.svelte.js).
-  const players = () => (ui.demo ? [demoPlayer] : ha.players.map(shown));
+  const players = () => (ui.demo ? [demoPlayer] : ha.players.filter((p) => !p.tv).map(shown)); // TVs: the TV view
 
   // Two modes. With Home Assistant's Spotify integration, its player is what we control and its
   // Spotify Connect devices (Echos, Nest Hubs…) are the speakers: tapping one moves playback there.
@@ -337,6 +338,7 @@
     {/if}
 
     <section class="sheet speakers">
+      <MediaSwitch />
       {#if spotify}
         {#each devices as d (d)}
           <button class="spk" class:on={d === target} onclick={() => pickSpeaker(d)}>

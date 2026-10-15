@@ -5,7 +5,7 @@
 export const ha = $state({
   status: 'off',   // off (not set up) | connecting | connected | error
   error: null,
-  players: [],     // media players, Music Assistant ones first
+  players: [],     // media players, Music Assistant ones first; TVs have tv: true (and remote, platform)
   tts: [],         // text-to-speech engines (tts.* entities)
   notify: [],      // notify entities [{ entity_id, name }] (e.g. an Echo's "Announce", for timer alerts)
 });
@@ -23,6 +23,14 @@ export const ha = $state({
 }
 
 const entities = new Map(); // entity_id -> { state, attributes }
+// TVs among the media players, found by their integration (or a "tv" device class), each with the
+// remote entity on the same device when there is one (an on-screen remote sends its buttons).
+const TV_PLATFORMS = ['apple_tv', 'androidtv', 'androidtv_remote', 'roku', 'webostv', 'samsungtv', 'braviatv', 'vizio', 'philips_js', 'panasonic_viera', 'directv', 'fire_tv'];
+let tvInfo = new Map(); // entity_id -> { platform, remote }
+
+// Whether Now Playing (Home's card and the top bar) shows TVs too, or only music. Settings sets it.
+export const nowPrefs = $state({ tv: (() => { try { return localStorage.getItem('frame-now-tv') !== 'off'; } catch { return true; } })() });
+export function setNowTv(on) { nowPrefs.tv = on; try { localStorage.setItem('frame-now-tv', on ? 'on' : 'off'); } catch {} }
 let ws = null;
 let nextId = 0;
 let pending = new Map();
@@ -108,6 +116,20 @@ async function subscribe() {
     .map((s) => ({ entity_id: s.entity_id, name: (s.attributes && s.attributes.friendly_name) || s.entity_id }));
   for (const fn of stateHooks) { try { fn(states); } catch (e) { console.error(e); } }
   const ids = states.filter((s) => s.entity_id.startsWith('media_player.')).map((s) => s.entity_id);
+  // Which players are TVs, and their remotes: from the entity registry (integration and device).
+  try {
+    const reg = (await send({ type: 'config/entity_registry/list_for_display' })).entities || [];
+    const byId = new Map(reg.map((e) => [e.ei, e]));
+    const remoteOf = new Map(reg.filter((e) => e.ei.startsWith('remote.') && e.di).map((e) => [e.di, e.ei]));
+    tvInfo = new Map();
+    for (const s of states) {
+      if (!s.entity_id.startsWith('media_player.')) continue;
+      const e = byId.get(s.entity_id) || {};
+      if (TV_PLATFORMS.includes(e.pl) || (s.attributes && s.attributes.device_class === 'tv')) {
+        tvInfo.set(s.entity_id, { platform: e.pl || '', remote: (e.di && remoteOf.get(e.di)) || null });
+      }
+    }
+  } catch (err) { console.error('tv discovery', err); }
   entities.clear();
   if (!ids.length) { ha.players = []; return; }
   await send({ type: 'subscribe_entities', entity_ids: ids });
@@ -140,9 +162,10 @@ const roomName = (entity_id) => entity_id.replace(/^media_player\./, '').replace
 function publish() {
   let list = [...entities.entries()]
     .filter(([, e]) => e.state !== 'unavailable')
-    .map(([entity_id, e]) => ({ entity_id, state: e.state, ...e.attributes, ma: isMA(e.attributes) }));
-  // When Music Assistant is in use, show only its speakers (TVs and duplicates are noise here).
-  if (list.some((p) => p.ma)) list = list.filter((p) => p.ma);
+    .map(([entity_id, e]) => ({ entity_id, state: e.state, ...e.attributes, ma: isMA(e.attributes),
+      ...(tvInfo.has(entity_id) ? { tv: true, ...tvInfo.get(entity_id) } : {}) }));
+  // When Music Assistant is in use, its speakers are the speakers (others are duplicates); TVs stay.
+  if (list.some((p) => p.ma)) list = list.filter((p) => p.ma || p.tv);
   const counts = {};
   for (const p of list) counts[p.friendly_name] = (counts[p.friendly_name] || 0) + 1;
   for (const p of list) p.label = counts[p.friendly_name] > 1 ? p.friendly_name + ' · ' + roomName(p.entity_id) : (p.friendly_name || roomName(p.entity_id));
@@ -175,7 +198,7 @@ let lastPlayed = Number(localStorage.getItem('frame-np-at') || 0);
 export function nowPlaying({ hold = false, now = Date.now() } = {}) {
   // Spotify's player first: an Echo playing Spotify also reports the song through its own player
   // (Alexa Devices), but only Spotify's knows the playlist.
-  const busy = ha.players.filter((x) => x.state === 'playing' && x.media_title);
+  const busy = ha.players.filter((x) => x.state === 'playing' && x.media_title && (nowPrefs.tv || !x.tv));
   const p = busy.find((x) => x.entity_id.startsWith('media_player.spotify_')) || busy[0];
   if (p) {
     // Remember it (saved at most once a minute, or when the speaker changes).
@@ -188,7 +211,7 @@ export function nowPlaying({ hold = false, now = Date.now() } = {}) {
   }
   if (!hold || !held || now - lastPlayed > HOLD_MS) return null;
   const h = ha.players.find((x) => x.entity_id === held);
-  return h && (h.state === 'paused' || h.state === 'idle') && h.media_title ? h : null;
+  return h && (nowPrefs.tv || !h.tv) && (h.state === 'paused' || h.state === 'idle') && h.media_title ? h : null;
 }
 
 // Have Home Assistant speak text on a speaker. Prefers Piper (local, private). Speakers that

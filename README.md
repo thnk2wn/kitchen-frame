@@ -58,7 +58,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | **[Doorbell pop-up](#doorbell)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
 | **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
 | **[Presence](#clock-screen-and-presence)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
-| **[Music](#music)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist (last played on any device, or A–Z) and what's playing from (a playlist, album, artist or autoplay), Up next, a card tinted with the cover's colour, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. |
+| **[Media](#media-music-and-tv)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist (last played on any device, or A–Z) and what's playing from (a playlist, album, artist or autoplay), Up next, a card tinted with the cover's colour, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. |
 
 ### In the kitchen
 
@@ -290,11 +290,21 @@ Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `TH
 then `open "$(dashboard/scripts/frame-url.sh)"` (a browser) or pass the same URL to the kiosk with
 `adb shell am start … -d`. The page saves the settings and removes them from the address bar.
 
-## Music
+## Media: music and TV
 
-Spotify on the house's speakers, through Home Assistant: the Music tab (song, controls, volume,
-playlists, speakers), a Now Playing card on Home and a small one in every other tab's top bar.
+The **Media** tab has **Music | TV** at the bottom when Home Assistant has a TV.
+
+**Music** is Spotify on the house's speakers, through Home Assistant: song, controls, volume,
+playlists and speakers, with a Now Playing card on Home and a small one in every other tab's top bar.
 Controls show the change at once instead of waiting seconds for Spotify to confirm.
+
+**TV** is any TV Home Assistant knows, found by its integration (Apple TV, Android TV, Roku, LG
+webOS, Samsung, Sony Bravia, Vizio, Philips, Panasonic, DirecTV) or a `tv` device class: what's
+playing in any app (title, episode, artwork, progress), play/pause and 10 s back and forward, the
+TV's apps (the ones watched lately first; one tap opens one), power, and an on-screen remote
+(arrows, OK, back, home) when the TV has a `remote` entity on the same device and its integration
+is Apple TV, Android TV Remote or Roku. A TV playing shows in Now Playing too; **Settings → Now
+Playing → Music only** leaves TVs out. Nothing about the household's TVs is in the code.
 
 Setup, in [docs/music.md](docs/music.md):
 
