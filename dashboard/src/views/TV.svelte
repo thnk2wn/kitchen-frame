@@ -54,7 +54,10 @@
       if (service === 'turn_off') demo.state = 'off';
       if (service === 'turn_on') demo.state = 'idle';
       if (service === 'select_source') { demo.app_name = data.source; demo.state = 'idle'; }
-      if (service === 'volume_mute') demo.is_volume_muted = data.is_volume_muted;
+      const d = target.entity_id === demoBar.entity_id ? demoBar : demo;
+      if (service === 'volume_mute') d.is_volume_muted = data.is_volume_muted;
+      if (d === demoBar && service === 'volume_up') demoBar.volume_level = Math.min(1, demoBar.volume_level + 0.05);
+      if (d === demoBar && service === 'volume_down') demoBar.volume_level = Math.max(0, demoBar.volume_level - 0.05);
       return;
     }
     try { await callService(domain, service, data, target); }
@@ -64,7 +67,16 @@
   // Volume in steps and mute, on the TV's soundbar when TV_AUDIO names one (lib/ha.svelte.js),
   // otherwise on the TV where its integration offers them. The soundbar shows its level.
   const FEAT = { VOLUME_MUTE: 8, VOLUME_STEP: 1024 };
-  let audio = $derived((!ui.demo && tv && tvAudio[tv.entity_id] && ha.players.find((p) => p.entity_id === tvAudio[tv.entity_id])) || tv);
+  // Sound: Soundbar | TV, beside the volume when TV_AUDIO names a speaker, for nights the soundbar
+  // isn't working and the TV's own speakers are on. Remembered per TV.
+  let ownSpeakers = $state((() => { try { return JSON.parse(localStorage.getItem('frame-tv-own-speakers') || '[]'); } catch { return []; } })());
+  function useOwn(on) {
+    ownSpeakers = on ? [...new Set([...ownSpeakers, tv.entity_id])] : ownSpeakers.filter((id) => id !== tv.entity_id);
+    try { localStorage.setItem('frame-tv-own-speakers', JSON.stringify(ownSpeakers)); } catch {}
+  }
+  const demoBar = $state({ entity_id: 'media_player.demo_soundbar', friendly_name: 'Soundbar', supported_features: 1024 | 8, volume_level: 0.2, is_volume_muted: false });
+  let speaker = $derived(ui.demo ? demoBar : tv && tvAudio[tv.entity_id] ? ha.players.find((p) => p.entity_id === tvAudio[tv.entity_id]) : null);
+  let audio = $derived((speaker && !ownSpeakers.includes(tv.entity_id) && speaker) || tv);
   let canStep = $derived(!!audio && ((audio.supported_features || 0) & FEAT.VOLUME_STEP) !== 0);
   let canMute = $derived(!!audio && ((audio.supported_features || 0) & FEAT.VOLUME_MUTE) !== 0);
   let level = $derived(audio && audio !== tv && audio.volume_level != null ? Math.round(audio.volume_level * 100) : null);
@@ -128,6 +140,12 @@
             </span>
           {/if}
         </div>
+        {#if speaker}
+          <div class="sound" role="radiogroup" aria-label="Sound from">
+            <button role="radio" aria-checked={audio === speaker} class:on={audio === speaker} onclick={() => useOwn(false)}>{speaker.friendly_name || 'Soundbar'}</button>
+            <button role="radio" aria-checked={audio !== speaker} class:on={audio !== speaker} onclick={() => useOwn(true)}>TV speakers</button>
+          </div>
+        {/if}
         {#if error}<p class="err">{error}</p>{/if}
       </section>
 
@@ -201,6 +219,9 @@
   .vol { display: flex; align-items: center; gap: 4px; margin-left: 12px; padding: 4px; border-radius: 30px; background: var(--fill); }
   .vbtn, .vlbl { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--label); }
   .vlbl { color: var(--secondary); }
+  .sound { display: flex; align-self: center; gap: 2px; margin-top: 10px; padding: 3px; border-radius: 12px; background: var(--fill); }
+  .sound button { height: 34px; padding: 0 14px; border-radius: 9px; font-size: 15px; font-weight: 500; color: var(--secondary); }
+  .sound button.on { background: var(--thumb); color: var(--label); font-weight: 600; }
   .lvl { min-width: 48px; padding-right: 10px; font-size: 17px; font-weight: 600; color: var(--secondary); text-align: center; }
   .vbtn.on { background: var(--thumb); }
   .vbtn:disabled { opacity: .35; }
