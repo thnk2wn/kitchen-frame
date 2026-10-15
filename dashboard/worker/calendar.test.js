@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { expand, merge, prefilter, cleanNotes, splitNotes } from './calendar.js';
+import { expand, merge, prefilter, cleanNotes, splitNotes, place } from './calendar.js';
 
 const DAY = 864e5;
 const now = Date.parse('2026-10-12T12:00:00Z');
@@ -119,4 +119,14 @@ test('notes: links, bare labels, a repeated title and HTML are cleaned up', () =
   assert.equal(cleanNotes('Agenda\n________________\n\n\n\nItem one'), 'Agenda\n\nItem one');
   assert.equal(cleanNotes('x'.repeat(1500)).length, 1000);
   assert.equal(cleanNotes('  '), '');
+});
+
+test('place: links in a location are dropped; a meeting link alone becomes "Video call"', () => {
+  assert.equal(place('https://acme.zoom.us/j/123456789?pwd=abc'), 'Video call');
+  assert.equal(place('Microsoft Teams Meeting'), 'Video call');
+  assert.equal(place('https://teams.microsoft.com/l/meetup-join/19%3a…'), 'Video call');
+  assert.equal(place('Room 4B; https://zoom.us/j/123'), 'Room 4B');
+  assert.equal(place('https://example.com/signup'), '');
+  assert.equal(place('Riverside Park, Field 3'), 'Riverside Park, Field 3');
+  assert.equal(place('  '), '');
 });

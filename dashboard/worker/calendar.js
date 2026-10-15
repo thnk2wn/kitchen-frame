@@ -149,9 +149,22 @@ function toEvent(comp, uid, cal, start, end, tz, withNotes) {
     // All-day events stay as plain dates (end exclusive) so the frame shows them on its own day.
     start: allDay ? dateStr(start) : new Date(startMs).toISOString(),
     end: allDay ? dateStr(end) : new Date(endMs).toISOString(),
-    ...(location ? { location: String(location) } : {}),
+    ...(place(location) ? { location: place(location) } : {}),
     ...(notes ? { notes } : {}),
   };
+}
+
+// An event's location as a place to show: links dropped (nothing on the frame can open them, and
+// they'd go to the map lookup), so a Zoom or Teams link alone becomes "Video call", and one beside a
+// room ("Room 4B; https://zoom.us/j/…") leaves just the room.
+const URL_RE = /\b(?:https?:\/\/|www\.)\S+/gi;
+const MEETING_RE = /zoom\.us|teams\.microsoft|teams\.live|meet\.google|webex\.com|gotomeet|whereby\.com|chime\.aws|bluejeans/i;
+export function place(location) {
+  const raw = String(location || '').trim();
+  if (!raw) return '';
+  const rest = raw.replace(URL_RE, ' ').replace(/\s*[;,|]\s*(?=[;,|]|$)/g, '').replace(/^[\s;,|·-]+|[\s;,|·-]+$/g, '').replace(/\s{2,}/g, ' ');
+  if (rest && /\w/.test(rest) && !/^(?:microsoft teams meeting|zoom meeting|google meet|zoom)$/i.test(rest)) return rest;
+  return MEETING_RE.test(raw) || /meeting|zoom|teams|meet/i.test(rest) ? 'Video call' : '';
 }
 
 // Event notes as plain text for the frame: HTML (Google, Outlook) turned into lines, links dropped
