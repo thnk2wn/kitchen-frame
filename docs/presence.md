@@ -28,14 +28,19 @@ If Home Assistant has motion sensors in the room, the frame can use them so that
 2. Tell the frame the area: `PRESENCE_AREA="kitchen"` in `dashboard/.frame.vars`, then open the
    setup link from `scripts/frame-url.sh` on the frame (or add `?presence_area=kitchen` to the
    dashboard URL once). Use the area's id, as in its URL in HA.
-3. Check Settings on the frame: under **Clock screen after** it should say *Once nobody has been
-   seen in the kitchen (N sensors) this long*.
+3. Check Settings on the frame: under **Display → Clock screen after** it should say *Once no one's
+   in the kitchen*, and **Home → Presence sensors** should list the area's sensors.
 
 The frame uses the token you already gave it for Home Assistant; nothing else to configure.
 
 ### Which sensors count
 
-Every `binary_sensor` in the area whose device class is **motion**, **occupancy** or **presence**.
+Every `binary_sensor` in the area whose device class is **motion**, **occupancy** or **presence**,
+except those left out in **Settings → Home → Presence sensors** (tap a sensor to leave it out or
+bring it back). Occupancy sensors start left out: an ecobee room sensor, for one, stays "occupied"
+for hours after the last motion, so it adds nothing beside a motion sensor. The frame's event log
+records which sensor woke the dashboard (`screen.awake`) and what was seen last before the clock
+screen came on (`screen.clock`).
 Add, remove or move sensors between areas in Home Assistant and the frame follows within seconds;
 there's nothing to change on the frame. Other sensors in the area (doors, windows, tamper switches)
 are ignored.

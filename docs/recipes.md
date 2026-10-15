@@ -76,7 +76,7 @@ curl -X POST https://photo-frame-dashboard.<your-subdomain>.workers.dev/api/reci
 | GET | `/api/recipes` | frame | saved recipes |
 | POST | `/api/recipes` | frame or agent | save one (deduplicated by `ref`, e.g. a TheMealDB id) |
 | DELETE | `/api/recipes/:id` | frame | remove one and its photo |
-| GET | `/api/recipes/:id/image` | frame (`?key=`) | a saved recipe's photo |
+| GET | `/api/recipes/:id/image` | frame (its auth cookie) | a saved recipe's photo |
 | POST | `/api/lists/groceries` | frame | `{"items": [{"content", "description"}]}` adds several at once |
 
 Saved recipes are one KV value (`recipes`). Photos are stored as `recipe-image:<id>`.

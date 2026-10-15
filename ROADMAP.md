@@ -64,6 +64,20 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
 
 - **Leave-by reminders** from travel time (with the commute idea under Calendar and events).
 - **The washer reminder** moved onto the shared announce script, so all speech shares one volume routine.
+- **Snooze a reminder from the frame:** dismissing "Washer done" could pause the spoken reminders until
+  morning, or "remind me in 2 hours", rather than nothing; an hour's snooze was judged not worth it
+  against a 30-minute repeat.
+
+## Operations and security
+
+- **A status page** for the frame and the backend (check-ins, a day's timeline of awake / clock /
+  night, the event log, calendar, Paprika and Reminders health): its own small Worker behind
+  Cloudflare Access, reading the same KV.
+- **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).
+- **A PIN for Settings:** unlocking has one (Settings → Home). Settings changes are logged and the
+  last 10 versions kept, so a PIN there waits until a change slips by unnoticed.
+- **Drop the old `?key=` URLs:** images and the messages socket now use the auth cookie; once the
+  Worker's "key in URL" log lines stop, remove that fallback.
 
 ## Home Assistant
 

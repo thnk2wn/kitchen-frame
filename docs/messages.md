@@ -29,7 +29,8 @@ curl -X POST https://photo-frame-dashboard.<your-subdomain>.workers.dev/api/mess
   to accept a connection, store a post or dismissal, or remove a message whose `ttl_minutes`
   ran out (a scheduled alarm). This fits well inside the free plan's Durable Objects allowance.
 - **Demo mode** holds messages back; they appear when demo mode is switched off.
-- **Read aloud:** the frame has Home Assistant speak each new message on the Kitchen Mini (Piper voice,
-  local): "Message from <from>. <title>. <body>", up to 400 characters. Music on that speaker pauses and
-  resumes. Not between 10 PM and 7 AM, not in demo mode, not for messages over 10 minutes old, and never
-  twice. Send `"speak": false` to show a message silently. Settings → Read messages aloud turns it off.
+- **Read aloud:** with Settings → Announcements on and **Agent messages** on, the frame has Home
+  Assistant say each new message on the Announcements speaker, at its announcement volume (through
+  `script.frame_announce`; README → Announcements): "Message from <from>. <title>. <body>", up to 400
+  characters. Not during night hours, not in demo mode, not for messages over 10 minutes old, and never
+  twice. Send `"speak": false` to show a message silently.

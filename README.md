@@ -57,6 +57,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | **[House tab](#house-tab-home-assistant-devices)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling (kept the thermostat's minimum gap apart), HA-rendered markdown, camera snapshots with a Refresh button, and a camera full screen on tap (live video, sharper through ring-mqtt where the frame can play it). |
 | **[Doorbell pop-up](#doorbell)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
 | **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves; a bell counts new ones and keeps the last 24 hours. Blueprints for temperature limits and thermostat changes. |
+| **[Announcements](#announcements)** | New | Said out loud on a speaker from HA (an Echo's Announce, or text-to-speech): event reminders for the calendars you pick ("In 30 minutes: Swim lesson"), red alerts such as a leak at a louder volume and at night, optionally orange ones, and agent messages. Sets the announcement volume first and puts the speaker's back after. Off until turned on. |
 | **[Presence](#clock-screen-and-presence)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
 | **[Media](#media-music-and-tv)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist (last played on any device, or A–Z) and what's playing from (a playlist, album, artist or autoplay), Up next, a card tinted with the cover's colour, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. |
 
@@ -75,6 +76,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | --- | --- | --- |
 | **Weather** | Updated | The UV right now on Home (for sunscreen) and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, the day's peak UV, sun times. |
 | **[Calendar](#calendar)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details and notes on the calendars you choose, hide any calendar per frame, and `#private` to keep an event off the frame. |
+| **[Settings](#announcements)** | Updated | In tabs (Display, Announcements, Home, About), and backed up to the Worker: after a reset the frame takes its choices back by itself. The frame also checks in, so `scripts/frame-status.sh` shows what it's running. |
 | **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours). Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
 
 ## How it fits together
@@ -269,7 +271,8 @@ locks, covers, scenes), thermostats get setpoint buttons, sensors show their val
 the **Refresh** button by their heading, not on a timer, since asking a battery camera wakes it).
 Tap a camera for it full screen: live video over WebRTC, one retry, then a fresh snapshot every 15 s
 if it won't stream; it closes itself after two minutes. Edit the dashboard in HA and the frame follows.
-Unlocking takes two taps. Thermostats in heat/cool keep their two setpoints apart by `THERMOSTAT_GAP`
+Unlocking takes two taps, or asks for a PIN once one is set in Settings → Home (forgotten:
+`scripts/frame-url.sh --clear-pin` over ADB). Thermostats in heat/cool keep their two setpoints apart by `THERMOSTAT_GAP`
 (°F, default 5, the ecobee's own minimum unless changed; set it in `.frame.vars`), moving the other one
 as the thermostat's app does. Use a non-admin HA user's token.
 
@@ -290,6 +293,12 @@ picture, with sound) and **Sharper** back.
 Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `THERMOSTAT_GAP`, `PRESENCE_AREA`, …) in the gitignored `dashboard/.frame.vars`,
 then `open "$(dashboard/scripts/frame-url.sh)"` (a browser) or pass the same URL to the kiosk with
 `adb shell am start … -d`. The page saves the settings and removes them from the address bar.
+
+For the frame, make `HA_URL` Home Assistant's address on the home network (`http://<HA's IP>:8123`;
+the kiosk lets the https page reach it), not a Nabu Casa or other remote address, and give HA a
+fixed IP (a router reservation, or a static address in HA outside the router's DHCP range). Then
+`HA_TOKEN` can belong to a non-admin HA user marked **Can only log in from the local network**, so
+the token is useless outside the house ([docs/frame.md → Security](docs/frame.md#security)).
 
 ## Media: music and TV
 
@@ -359,7 +368,9 @@ With motion sensors in a Home Assistant area, set `PRESENCE_AREA` (for example `
 `dashboard/.frame.vars`: the clock screen then waits until no sensor has seen anyone for that long,
 and the dashboard comes back by itself when one does. [docs/presence.md](docs/presence.md) covers
 setup, which sensors count, how sensors that stick "on" are handled, how different kinds of sensor
-behave, and bringing in an Echo's presence detection through an Alexa routine.
+behave, and bringing in an Echo's presence detection through an Alexa routine. **Settings → Home →
+Presence sensors** lists the area's sensors; tap one to leave it out. Occupancy sensors start left
+out, since they hold "occupied" long after the last motion.
 
 ## Doorbell
 
@@ -417,6 +428,8 @@ For messages that should take over the screen (and be read aloud), use
 
 ## Announcements
 
+![Settings → Announcements: on, the Kitchen speaker, announcement and alert volumes, Test, and event reminders with Family and Tennessee Football picked](docs/images/settings-light.jpg)
+
 **Settings → Announcements** (off until you turn it on) sets what the frame says out loud, on one speaker from Home Assistant
 (an Echo, a Nest speaker, anything with text-to-speech): the speaker, an announcement volume and a
 louder **alert volume** for red alerts, a **Test** for each, **event reminders**, and whether agent
@@ -461,6 +474,31 @@ once with `adb shell am start -n com.huntsyea.frame/.MainActivity -d '<url with 
 [docs/frame.md](docs/frame.md) covers getting ADB working, every change made to the device with
 its undo command, and day-to-day operation. Music setup (Spotify, Home Assistant, Echos) is in
 [docs/music.md](docs/music.md).
+
+**Troubleshooting from anywhere:** the frame checks in with the Worker every 10 minutes, with its
+versions, what it's showing and an event log (page loads, Home Assistant dropping or refusing an
+action, failed calls to the Worker, the clock screen coming and going and why, what was announced,
+errors). `dashboard/scripts/frame-status.sh --log` prints it; Settings → About → Recent events shows
+it on the frame; in Cloudflare (Worker → Observability) search `source = "frame"`.
+
+### Status page (optional)
+
+`dashboard/ops/` is a private status page, its own Worker (`kitchen-frame-ops`) behind GitHub
+sign-in: whether the frame is online and what it's running, a 24-hour strip of dashboard / clock
+screen / night / Home Assistant down, the event log with filters, and the backend's health
+(calendar feeds, Paprika, the Reminders bridge, Spotify) and recent notices. It reads one summary
+from the main Worker (`GET /api/ops/summary`, counts and times rather than content) over a service
+binding, and can't change anything. Only one GitHub account (by its numeric ID) can sign in;
+anything else, and any request without a session, is refused, and so is everything if a secret is
+missing.
+
+1. Create a GitHub OAuth app (github.com → Settings → Developer settings → OAuth Apps → New): homepage
+   `https://kitchen-frame-ops.<your-subdomain>.workers.dev`, callback the same plus `/callback`.
+2. `cd dashboard && ./node_modules/.bin/wrangler deploy --config ops/wrangler.jsonc`
+3. Its secrets (`./node_modules/.bin/wrangler secret put NAME --config ops/wrangler.jsonc`):
+   `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (the app's), `ALLOWED_GITHUB_ID`
+   (`gh api user --jq .id`), `SESSION_SECRET` (`openssl rand -hex 32`; changing it signs everyone
+   out) and `DASHBOARD_KEY` (the main Worker's).
 
 To set up a different frame, start from the upstream device guides in
 `reference/photo-frame-dashboard/docs/devices.md` (ADB, root, WebView 106, disabling the vendor
