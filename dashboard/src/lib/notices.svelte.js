@@ -116,6 +116,10 @@ export const dismissAll = () => Promise.all(notices().map((n) => dismissNotice(n
 
 const past = $state({ items: [], keepHours: 24, infoHours: 24 });
 
+// One notice, however its start is written: HA sends microseconds and an offset (…03.123456+00:00),
+// the Worker keeps an ISO time (…03.123Z), so comparing the strings showed it twice.
+const same = (x) => x.id + '|' + Date.parse(x.created);
+
 // A notice has ended: show it under Earlier at once, and keep it in the Worker.
 function record(n) {
   if (!n || !n.notification_id || !n.notification_id.startsWith(PREFIX)) return;
@@ -123,7 +127,7 @@ function record(n) {
   const item = { id, title: n.title || '', message: n.message || '', tone: toneOf(id), created: n.created_at,
     ended: new Date().toISOString(), how: endedHere.get(id) || 'cleared' };
   endedHere.delete(id);
-  past.items = [item, ...past.items.filter((x) => !(x.id === id && x.created === item.created))];
+  past.items = [item, ...past.items.filter((x) => same(x) !== same(item))];
   api('/api/notices', { method: 'POST', body: JSON.stringify(item) }).catch((e) => console.error('notices: not saved', e));
 }
 
@@ -133,9 +137,8 @@ export async function loadEarlier() {
   try {
     const got = await api('/api/notices');
     // Keep anything recorded here that the Worker doesn't list yet (KV can lag a few seconds).
-    const key = (x) => x.id + '|' + x.created;
-    const have = new Set(got.items.map(key));
-    past.items = [...past.items.filter((x) => !have.has(key(x))), ...got.items];
+    const have = new Set(got.items.map(same));
+    past.items = [...past.items.filter((x) => !have.has(same(x))), ...got.items];
     past.keepHours = got.keepHours;
     past.infoHours = got.infoHours;
   } catch {}
