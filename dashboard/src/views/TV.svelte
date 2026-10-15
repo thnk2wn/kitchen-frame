@@ -18,7 +18,7 @@
   // Demo mode: an invented TV and show; taps change it locally only.
   const demo = $state({
     entity_id: 'media_player.demo_tv', friendly_name: 'Living Room', label: 'Living Room', tv: true, platform: 'apple_tv', remote: 'remote.demo_tv',
-    state: 'playing', app_name: 'Nature Channel', media_title: 'Coastlines', media_artist: 'S1:E3 Tide Pools',
+    state: 'playing', app_name: 'Nature Channel', supported_features: 1024 | 8, is_volume_muted: false, media_title: 'Coastlines', media_artist: 'S1:E3 Tide Pools',
     media_duration: 2640, media_position: 812, media_position_updated_at: new Date().toISOString(),
     source_list: ['Nature Channel', 'Kids Shows', 'Movies', 'Music', 'Photos', 'Settings'],
   });
@@ -54,12 +54,23 @@
       if (service === 'turn_off') demo.state = 'off';
       if (service === 'turn_on') demo.state = 'idle';
       if (service === 'select_source') { demo.app_name = data.source; demo.state = 'idle'; }
+      if (service === 'volume_mute') demo.is_volume_muted = data.is_volume_muted;
       return;
     }
     try { await callService(domain, service, data, target); }
     catch (e) { error = e.message || String(e); setTimeout(() => (error = null), 5000); }
   }
-  const key = (k) => keys && run('remote', 'send_command', { command: keys[k] }, { entity_id: tv.remote });
+  const key = (k) => keys && !off && run('remote', 'send_command', { command: keys[k] }, { entity_id: tv.remote });
+  // Volume in steps (an Apple TV changes the TV's volume over HDMI but doesn't report the level),
+  // and mute where the TV's integration offers it.
+  const FEAT = { VOLUME_MUTE: 8, VOLUME_STEP: 1024 };
+  let canStep = $derived(!!tv && ((tv.supported_features || 0) & FEAT.VOLUME_STEP) !== 0);
+  let canMute = $derived(!!tv && ((tv.supported_features || 0) & FEAT.VOLUME_MUTE) !== 0);
+  // An app tapped while the TV is off turns it on first, then opens the app.
+  async function openApp(a) {
+    if (off && !ui.demo) { await run('media_player', 'turn_on'); await new Promise((r) => setTimeout(r, 4000)); }
+    run('media_player', 'select_source', { source: a });
+  }
   // Back and forward 10 s: the remote's skip buttons when there are some, otherwise a seek.
   function skip(sec) {
     if (keys && keys[sec > 0 ? 'fwd' : 'rew']) return key(sec > 0 ? 'fwd' : 'rew');
@@ -104,13 +115,21 @@
           <button class="ctl" disabled={off} onclick={() => skip(-10)} aria-label="Back 10 seconds"><Icon name="rewind" size={32} /></button>
           <button class="ctl main" disabled={off} onclick={() => run('media_player', 'media_play_pause')} aria-label={tv.state === 'playing' ? 'Pause' : 'Play'}><Icon name={tv.state === 'playing' ? 'pause' : 'play'} size={40} /></button>
           <button class="ctl" disabled={off} onclick={() => skip(10)} aria-label="Forward 10 seconds"><Icon name="fastForward" size={32} /></button>
+          {#if canStep || canMute}
+            <span class="vol" role="group" aria-label="Volume">
+              {#if canStep}<button class="vbtn" disabled={off} onclick={() => run('media_player', 'volume_down')} aria-label="Volume down"><Icon name="minus" size={22} /></button>{/if}
+              {#if canMute}<button class="vbtn" class:on={tv.is_volume_muted} disabled={off} onclick={() => run('media_player', 'volume_mute', { is_volume_muted: !tv.is_volume_muted })} aria-label={tv.is_volume_muted ? 'Unmute' : 'Mute'}><Icon name={tv.is_volume_muted ? 'volumeOff' : 'volume'} size={22} /></button>
+              {:else}<span class="vlbl"><Icon name="volume" size={22} /></span>{/if}
+              {#if canStep}<button class="vbtn" disabled={off} onclick={() => run('media_player', 'volume_up')} aria-label="Volume up"><Icon name="plus" size={22} /></button>{/if}
+            </span>
+          {/if}
         </div>
         {#if error}<p class="err">{error}</p>{/if}
       </section>
 
       {#if keys}
         <!-- The TV's own remote, for menus: arrows, OK, back and home. -->
-        <section class="sheet remote" aria-label="Remote">
+        <section class="sheet remote" class:dim={off} aria-label="Remote">
           <div class="pad">
             <button class="k up" onclick={() => key('up')} aria-label="Up"><Icon name="chevronUp" size={30} /></button>
             <button class="k left" onclick={() => key('left')} aria-label="Left"><Icon name="chevronLeft" size={30} /></button>
@@ -130,7 +149,7 @@
       <!-- The TV's apps, recently watched first: one tap opens one. -->
       <section class="apps">
         {#each apps as a (a)}
-          <button class="sheet appbtn" class:on={a === app} onclick={() => run('media_player', 'select_source', { source: a })}>{a}</button>
+          <button class="sheet appbtn" class:on={a === app && !off} onclick={() => openApp(a)}>{a}</button>
         {/each}
       </section>
     {/if}
@@ -174,6 +193,15 @@
   .ctl.main { width: 76px; height: 76px; background: var(--label); color: var(--sheet); }
   .ctl:disabled { opacity: .35; }
   .ctl:active { opacity: .6; }
+  /* Volume, beside the playback controls. */
+  .vol { display: flex; align-items: center; gap: 4px; margin-left: 12px; padding: 4px; border-radius: 30px; background: var(--fill); }
+  .vbtn, .vlbl { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--label); }
+  .vlbl { color: var(--secondary); }
+  .vbtn.on { background: var(--thumb); }
+  .vbtn:disabled { opacity: .35; }
+  .vbtn:active { opacity: .6; }
+  /* The TV off: the remote can't do anything. */
+  .remote.dim { opacity: .4; pointer-events: none; }
   .err { margin: 8px 0 0; font-size: 15px; color: var(--red-text); text-align: center; }
 
   .remote { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 18px; }

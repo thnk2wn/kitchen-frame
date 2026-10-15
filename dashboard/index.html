@@ -9,7 +9,18 @@
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
-  <div id="app"><p id="boot" style="margin:48px;font:22px sans-serif;color:#6e6e73">Starting…</p></div>
+  <!-- The start screen, on black like the kiosk before it, until the app replaces it. Inline styles:
+       it shows before the stylesheet has loaded. -->
+  <div id="app"><div style="position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;font-family:-apple-system,Roboto,'Segoe UI',sans-serif">
+    <svg width="112" height="112" viewBox="0 0 112 112" fill="none" aria-hidden="true">
+      <rect x="6" y="14" width="100" height="74" rx="14" stroke="#e5e5ea" stroke-width="5"/>
+      <path d="M30 70 L48 48 L60 60 L70 50 L84 70 Z" fill="#ff9f0a"/>
+      <circle cx="76" cy="36" r="7" fill="#ffd60a"/>
+      <path d="M40 98 H72" stroke="#e5e5ea" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+    <div style="font-size:30px;font-weight:600;letter-spacing:-.01em;color:#e5e5ea">Kitchen Frame</div>
+    <p id="boot" style="margin:0;max-width:900px;padding:0 40px;text-align:center;font-size:19px;color:#8e8e93">Starting…</p>
+  </div></div>
   <script>
     // Wall display self-healing: if the bundle failed to start, keep reloading until it does.
     // A script error is shown on screen instead, so the frame can be diagnosed without a cable.

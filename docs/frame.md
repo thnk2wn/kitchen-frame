@@ -62,6 +62,17 @@ change). Redone over USB:
 | Kiosk made the Home app | `cmd package set-home-activity com.huntsyea.frame/.MainActivity`, plus **Always** on Android's "Select a Home app" dialog | as above |
 | Frameo hidden for the user (not just disabled) | `pm uninstall -k --user 0 net.frameo.frame` (keeps its data) | `cmd package install-existing net.frameo.frame` |
 
+**Firmware backup (2026-10-14).** Every eMMC partition except `userdata`, plus the 8 MiB before
+`uboot` (partition table and loader area) and `mmcblk2boot0/1`, each verified against a SHA-256 taken
+on the frame: 527 MB compressed, kept off the repo (it holds device identifiers). Method from
+`reference/photo-frame-dashboard/docs/pastigio-frame156.md`, with two traps found here: this `dd`
+rejects `bs=1M` (use `bs=1048576`), and the USB link can drop mid-copy, so check every checksum and
+retry the parts that fail. Restoring would need Rockchip loader mode, still untested on this model.
+
+**Read-only audit (2026-10-14).** No Aimor apps. Only the kiosk holds network connections (the
+Worker on Cloudflare, and a CDN); Frameo and both updaters are off, and the factory test app
+(`com.szclink.app.cldevicetest`) is installed but not running.
+
 **Wait before rebooting.** Android saves these package changes about 10 seconds after they're made.
 Rebooting straight after `pm disable-user` or `pm uninstall --user 0` loses them, and Frameo was back
 after the first two reboots for that reason, not because anything re-enables it. Wait 30 s (or check
