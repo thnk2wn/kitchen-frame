@@ -217,11 +217,11 @@
     chosen = p.entity_id;
     localStorage.setItem('frame-music-player', p.entity_id);
   }
-  async function run(domain, service, data = {}) {
+  async function run(domain, service, data = {}, on = player) {
     if (ui.demo) return demoRun(service, data);
     error = null;
-    expectFor(player, service, data);
-    try { await callService(domain, service, data, { entity_id: player.entity_id }); }
+    expectFor(on, service, data);
+    try { await callService(domain, service, data, { entity_id: on.entity_id }); }
     catch (e) { error = e.message; }
   }
 
@@ -239,13 +239,19 @@
   const mmss = (s) => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 
   // Volume: follow HA unless the slider is being dragged; send at most every 250 ms while dragging.
+  // Spotify's player only takes a volume while a session is active; otherwise the slider sets the
+  // chosen speaker's own player (an Echo through Alexa Devices) when Home Assistant has one.
+  const VOLUME_SET = 4;
+  let volPlayer = $derived(spotify && !(spotify.supported_features & VOLUME_SET)
+    ? players().find((p) => p !== spotify && (p.friendly_name === target || p.label === target) && (p.supported_features & VOLUME_SET)) || null
+    : player);
   let dragging = $state(false);
   let volume = $state(50);
-  $effect(() => { if (!dragging && player && player.volume_level != null) volume = Math.round(player.volume_level * 100); });
+  $effect(() => { if (!dragging && volPlayer && volPlayer.volume_level != null) volume = Math.round(volPlayer.volume_level * 100); });
   let lastSent = 0, timer;
   function onVolume() {
     clearTimeout(timer);
-    const sendNow = () => { lastSent = Date.now(); run('media_player', 'volume_set', { volume_level: volume / 100 }); };
+    const sendNow = () => { lastSent = Date.now(); if (volPlayer) run('media_player', 'volume_set', { volume_level: volume / 100 }, volPlayer); };
     if (Date.now() - lastSent > 250) sendNow(); else timer = setTimeout(sendNow, 250);
   }
 </script>
@@ -311,11 +317,11 @@
           <button class="ctl" class:busy={busy(player, 'title')} onclick={() => run('media_player', 'media_next_track')} aria-label="Next"><Icon name="skipForward" size={34} /></button>
         </div>
 
-        <div class="vol">
+        <div class="vol" class:none={!volPlayer && !ui.demo}>
           <Icon name="volume" size={24} />
           <input type="range" min="0" max="100" step="1" bind:value={volume}
             onpointerdown={() => (dragging = true)} onpointerup={() => (dragging = false)} onpointercancel={() => (dragging = false)}
-            oninput={onVolume} aria-label="Volume" style="--pct:{volume}%" />
+            oninput={onVolume} disabled={!volPlayer && !ui.demo} aria-label="Volume" style="--pct:{volume}%" />
           <span class="num">{volume}</span>
         </div>
         {#if error}<p class="err">{error}</p>{/if}
@@ -452,4 +458,6 @@
   .from { margin: 6px 0 0; font-size: 17px; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .from b { font-weight: 600; color: var(--label); }
   .here { flex: none; margin-left: auto; height: 52px; padding: 0 22px; border-radius: 26px; font-size: 18px; font-weight: 600; color: var(--blue-text); }
+  /* No speaker to set a volume on (Spotify idle on a speaker Home Assistant doesn't have). */
+  .vol.none { opacity: .4; }
 </style>
