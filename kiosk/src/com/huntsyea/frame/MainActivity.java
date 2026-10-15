@@ -161,7 +161,12 @@ public class MainActivity extends Activity {
     setContentView(root);
 
     handleIntent(getIntent());
-    if (url == null) url = getSharedPreferences(PREFS, MODE_PRIVATE).getString("url", null);
+    if (url == null) {
+      url = getSharedPreferences(PREFS, MODE_PRIVATE).getString("url", null);
+      // Kiosks before 1.6 saved the whole setup link, key and Home Assistant token included. Load it
+      // as it is this once (the page saves what it needs), and keep only the address from now on.
+      if (url != null && url.contains("?")) getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("url", withoutQuery(url)).apply();
+    }
     if (url != null) { web.loadUrl(url); handler.postDelayed(watchdog, WATCHDOG_MS); }
     else web.loadData("<body style='background:#000;color:#999;font:24px sans-serif;padding:48px'>"
         + "No dashboard URL set. Set one over ADB:<br><br><code>adb shell am start -n "
@@ -181,12 +186,22 @@ public class MainActivity extends Activity {
     Uri data = intent == null ? null : intent.getData();
     if (data == null) return false;
     url = data.toString();
-    getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("url", url).apply();
+    getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("url", withoutQuery(url)).apply();
     handler.removeCallbacks(retry);
     loadedOnce = false;
     handler.removeCallbacks(watchdog);
     handler.postDelayed(watchdog, WATCHDOG_MS);
     return true;
+  }
+
+  /**
+   * The dashboard's address without its query: the setup link carries the dashboard key and the
+   * Home Assistant token, which the page keeps in its own storage, so the kiosk needn't (and
+   * shouldn't) keep a copy. After a wipe of the page's storage, run the setup link again.
+   */
+  static String withoutQuery(String u) {
+    int q = u.indexOf('?');
+    return q < 0 ? u : u.substring(0, q);
   }
 
   /** Window brightness 0.02–1, or below 0 to follow the system setting. Only while the kiosk is in front. */
