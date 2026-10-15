@@ -54,6 +54,16 @@
   }
   const iconFor = (item) => ({ toggle: item.entity.startsWith('fan.') ? 'fan' : item.entity.startsWith('light.') ? 'lightbulb' : 'toggle', lock: on(item.entity) ? 'unlock' : 'lock', cover: 'blinds', value: /temperature/.test(attr(item.entity).device_class || item.entity) ? 'thermometer' : 'gauge', run: 'play' })[item.kind] || 'house';
 
+  // While a tap waits for the device: what it's doing, from the state it started in.
+  function actingText(item) {
+    const a = house.acting[item.entity];
+    if (!a) return null;
+    if (a.failed) return 'Didn’t change';
+    if (item.kind === 'lock') return a.from === 'unlocked' ? 'Locking…' : 'Unlocking…';
+    if (item.kind === 'cover') return a.from === 'open' ? 'Closing…' : 'Opening…';
+    return a.from === 'on' ? 'Turning off…' : 'Turning on…';
+  }
+
   // Unlocking takes two taps: the first arms it for 4 seconds.
   let armed = $state(null);
   let armTimer;
@@ -179,7 +189,7 @@
                   <span class="ic"><Icon name={iconFor(item)} size={22} /></span>
                   <span class="txt">
                     <span class="name">{label(item)}</span>
-                    <span class="sub">{armed === item.entity ? 'Tap again to unlock' : item.kind === 'toggle' ? toggleText(item.entity) : item.kind === 'cover' ? coverText(item.entity) : valueText(item.entity)}</span>
+                    <span class="sub" class:bad={house.acting[item.entity]?.failed}>{armed === item.entity ? 'Tap again to unlock' : actingText(item) || (item.kind === 'toggle' ? toggleText(item.entity) : item.kind === 'cover' ? coverText(item.entity) : valueText(item.entity))}</span>
                   </span>
                 </button>
               {/if}

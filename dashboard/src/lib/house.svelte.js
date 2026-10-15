@@ -21,7 +21,12 @@ export const house = $state({
   // Thermostat changes sent but not yet reported back (thermostats can take seconds to confirm):
   // "entity:which" -> { value, failed? }. The tile shows the pending value dimmed.
   pending: {},
+  // Taps on toggles, locks and covers waiting for the device to report its new state (a Ring lock
+  // takes several seconds): entity_id -> { from, failed? }. The tile says "Locking…" meanwhile.
+  acting: {},
 });
+const ACT_MS = 20000;
+const actTimers = new Map();
 const PENDING_MS = 30000;
 const timers = new Map();
 
@@ -66,6 +71,7 @@ async function load() {
         if (houseDemo.on) return;
         house.states = Object.fromEntries(map);
         settle();
+        settleActs();
       }));
     }
     // HA renders each markdown template and re-sends it whenever its entities change.
@@ -110,15 +116,53 @@ const flip = { on: 'off', off: 'on', open: 'closed', closed: 'open' };
 
 // ---- Actions
 
-export const toggle = (entity) => houseDemo.on ? local(entity, flip[house.states[entity]?.state] || 'on') : callService('homeassistant', 'toggle', {}, { entity_id: entity });
+// Marks a tap as waiting for the device, then sends it. If the device hasn't reported a change in
+// ACT_MS, its state is read afresh (in case an update was missed); still unchanged means it failed.
+function acting(entity, call) {
+  const from = (house.states[entity] || {}).state;
+  house.acting = { ...house.acting, [entity]: { from } };
+  clearTimeout(actTimers.get(entity));
+  actTimers.set(entity, setTimeout(() => recheck(entity), ACT_MS));
+  return call().catch((e) => { endAct(entity); throw e; });
+}
+function endAct(entity) {
+  clearTimeout(actTimers.get(entity));
+  actTimers.delete(entity);
+  const next = { ...house.acting };
+  delete next[entity];
+  house.acting = next;
+}
+function settleActs() {
+  for (const [entity, a] of Object.entries(house.acting)) {
+    if (!a.failed && (house.states[entity] || {}).state !== a.from) endAct(entity);
+  }
+}
+async function recheck(entity) {
+  try {
+    const s = (await send({ type: 'get_states' })).find((x) => x.entity_id === entity);
+    // HA has a newer state than the subscription delivered: show it, and subscribe afresh.
+    if (s && house.states[entity] && s.state !== house.states[entity].state) {
+      console.warn('house: missed an update for', entity);
+      house.states = { ...house.states, [entity]: { state: s.state, attributes: s.attributes || {} } };
+      load();
+    }
+  } catch {}
+  const a = house.acting[entity];
+  if (!a) return;
+  if ((house.states[entity] || {}).state !== a.from) return endAct(entity);
+  house.acting = { ...house.acting, [entity]: { ...a, failed: true } };
+  actTimers.set(entity, setTimeout(() => endAct(entity), 5000));
+}
+
+export const toggle = (entity) => houseDemo.on ? local(entity, flip[house.states[entity]?.state] || 'on') : acting(entity, () => callService('homeassistant', 'toggle', {}, { entity_id: entity }));
 export const run = (entity) => {
   if (houseDemo.on) return Promise.resolve();
   const domain = entity.split('.')[0];
   return callService(domain, domain === 'button' ? 'press' : 'turn_on', {}, { entity_id: entity }); // buttons are pressed
 };
-export const coverToggle = (entity) => houseDemo.on ? local(entity, flip[house.states[entity]?.state] || 'open', { current_position: 100 }) : callService('cover', 'toggle', {}, { entity_id: entity });
-export const lock = (entity) => houseDemo.on ? local(entity, 'locked') : callService('lock', 'lock', {}, { entity_id: entity });
-export const unlock = (entity) => houseDemo.on ? local(entity, 'unlocked') : callService('lock', 'unlock', {}, { entity_id: entity });
+export const coverToggle = (entity) => houseDemo.on ? local(entity, flip[house.states[entity]?.state] || 'open', { current_position: 100 }) : acting(entity, () => callService('cover', 'toggle', {}, { entity_id: entity }));
+export const lock = (entity) => houseDemo.on ? local(entity, 'locked') : acting(entity, () => callService('lock', 'lock', {}, { entity_id: entity }));
+export const unlock = (entity) => houseDemo.on ? local(entity, 'unlocked') : acting(entity, () => callService('lock', 'unlock', {}, { entity_id: entity }));
 
 // Thermostats: one setpoint (heat or cool) or a range (heat_cool / auto). which = 'low' | 'high' | null.
 // Taps build on the value on screen (pending or reported), so three taps make three steps. In a range,
