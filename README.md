@@ -54,20 +54,20 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 
 | Feature | | What it does |
 | --- | --- | --- |
-| **[House tab](#house-tab-home-assistant-devices)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling, HA-rendered markdown, camera snapshots on tap. |
+| **[House tab](#house-tab-home-assistant-devices)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling (kept the thermostat's minimum gap apart), HA-rendered markdown, camera snapshots with a Refresh button, and a camera full screen on tap (live video, sharper through ring-mqtt where the frame can play it). |
 | **[Doorbell pop-up](#doorbell)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
 | **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
 | **[Presence](#clock-screen-and-presence)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
-| **[Music](#music)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist (last played on any device, or A–Z) and which one is playing, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. |
+| **[Music](#music)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist (last played on any device, or A–Z) and what's playing from (a playlist, album, artist or autoplay), Up next, a card tinted with the cover's colour, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. |
 
 ### In the kitchen
 
 | Feature | | What it does |
 | --- | --- | --- |
-| **[Paprika recipes](#our-recipes-from-paprika)** | New | A read-only sync of your library: categories, search, an A–Z index, your notes and nutrition. Tap a direction to mark your place; earlier ones are checked off. |
+| **[Paprika recipes](#our-recipes-from-paprika)** | New | A read-only sync of your library: categories (A–Z, plus Uncategorized), search, an A–Z index, your notes and nutrition, and the full-size photo. Tap a direction to mark your place; earlier ones are checked off. A script fixes recipes whose imports only got a thumbnail, in Paprika itself. |
 | **Meal plan** | New | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
 | **[Timers](#timers)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
-| **[Lists](#weather-and-lists)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds). |
+| **[Lists](#weather-and-lists)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds), with priorities, due times, aisles and flags. Tap an item to edit it; ticking one gives a few seconds to undo. |
 
 ### At a glance
 

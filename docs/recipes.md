@@ -1,7 +1,10 @@
 # Recipes
 
-The Recipes tab has two parts:
+The Recipes tab has four views:
 
+- **Meals:** the Paprika meal plan for the week (see the README's Paprika section).
+- **Paprika:** your Paprika library, synced read-only, with its categories (A–Z, and Uncategorized
+  when a recipe has none), search and an A–Z strip.
 - **Explore:** recipes from [TheMealDB](https://www.themealdb.com) (free, a few hundred curated
   recipes with photos; the free API key is for personal use). Browse by category or tap
   **Surprise me** for a random recipe. Vegetarian and Vegan recipes are left out (`HIDDEN` in
@@ -10,11 +13,11 @@ The Recipes tab has two parts:
   trash button on its page.
 
 On a recipe page, tap the ingredients you already have to cross them off. **Add N to Groceries**
-then adds the rest to the Todoist grocery list (`TODOIST_GROCERY_PROJECT`), one task each, such as
-"Chicken thighs (2 lb)". Each task's description reads "For: <recipe title>". The frame shows that
-note in small grey text under the item (the first line of any Todoist description is shown the
-same way, on Groceries and Tasks). In demo mode
-nothing reaches Todoist.
+then adds the rest to Groceries (Todoist's grocery project, or the Reminders list when Groceries
+comes from Reminders; see [lists.md](lists.md)), one item each, such as "Chicken thighs (2 lb)". Each
+item's note reads "For: <recipe title>", which the frame shows in small grey text under it (the
+first line of any note is shown the same way, on Groceries and Tasks). In demo mode nothing leaves
+the frame.
 
 ## Saving a recipe from an agent
 

@@ -85,9 +85,11 @@ frame: tick, add ──▶ Worker queue ──WebSocket──▶ bridge app ─�
 | Subtasks, tags, images | Not shown (EventKit doesn't expose them); subtasks show as ordinary items |
 
 Order on the frame: Groceries in the order items were added; Tasks with dated items first (soonest
-at the top; within a day, untimed then by time), then the rest in the order added. Reminders' own manual order and its automatic
-grocery sections aren't available to EventKit. Each list can also be shown A–Z: the **Added**
-chip on Home, or **Added | A–Z** on the Lists tab (remembered per list, on that frame).
+at the top; within a day, untimed then by time), then the rest in the order added. Reminders' own
+manual order isn't available to EventKit; its grocery aisles are, with
+[extras](#extras-sections-flags-and-assignees). Each list can also be shown A–Z: the small sort
+button by the list's name on Home, or beside **Add** on the Lists tab, switches between as added (a
+clock) and A–Z (remembered per list, on that frame).
 
 ### Settings
 
