@@ -14,6 +14,24 @@ The dashboard was built and tested in a browser at the frame's size. On a real f
 - Presence: the clock screen coming on and going away with real comings and goings.
 - Real-world notices: a weather alert, a freezer warming, a thermostat change.
 
+## Performance experiments
+
+Thoughts to try in a branch and measure on the frame, not plans:
+
+- **Newer WebView first.** The kiosk runs on Android's System WebView; on Android 8.1 that's a
+  separate, updatable app. A current one could be faster and would lift the Chrome 106 build target.
+  Cheapest to try.
+- **Native clock screen.** Draw the clock and slideshow, the screen shown most of the day, with
+  Android views in the kiosk app, and hand over to the web dashboard on a touch. Others report native
+  views feeling much smoother than a WebView on these frames. Go further (Recipes scrolling, say)
+  only if it clearly feels better; a full native rewrite would give up CSS, instant deploys and
+  desktop previews.
+- **Linux instead of Android.** The frame's RK3326 is the chip in several handheld game consoles that
+  run mainline Linux with an open GPU driver (Panfrost), so a current Chromium or WPE WebKit in a
+  kiosk session is plausible, booted from microSD to leave Android on the eMMC untouched. The unknowns
+  are this board's display panel, touch controller and Wi-Fi drivers, and hardware video decode for
+  cameras. A hobby project, with a backup of the firmware first.
+
 ## Calendar and events
 
 - **Commute time** on an event's details: "25 min with traffic · leave by 7:55". Google's Routes API
