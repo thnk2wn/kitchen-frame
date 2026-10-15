@@ -59,12 +59,9 @@ Thoughts to try in a branch and measure on the frame, not plans:
 
 ## Announcements
 
-Built: Settings → Announcements (speaker, volume, alert volume, agent messages) and
-`script.frame_announce`. Next, in order:
+Built: Settings → Announcements (speaker, volume, alert volume, agent messages, event reminders
+by calendar) and `script.frame_announce`. Next:
 
-- **Event reminders:** per calendar (all off to start), at the event's own reminder (VALARM, which
-  some feeds include) or a default lead time (30 minutes, a setting); "Announced 30 min before"
-  in the event's details.
 - **Red alerts:** a leak or the freezer, at the alert volume, at night too; an "Announced" tag in
   the notices sheet. Orange optional, blue never.
 - **Later:** leave-by reminders from travel time; the washer reminder moved onto the shared script.

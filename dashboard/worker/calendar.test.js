@@ -130,3 +130,15 @@ test('place: links in a location are dropped; a meeting link alone becomes "Vide
   assert.equal(place('Riverside Park, Field 3'), 'Riverside Park, Field 3');
   assert.equal(place('  '), '');
 });
+
+test('alarm: the event\'s own reminder, in minutes, when 0 to 120 minutes before it starts', () => {
+  const ics = (alarms) => ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', 'UID:a1', 'DTSTART:20261020T150000Z',
+    'DTEND:20261020T160000Z', 'SUMMARY:Swim lesson', ...alarms.flatMap((t) => ['BEGIN:VALARM', 'ACTION:DISPLAY', 'TRIGGER' + t, 'END:VALARM']),
+    'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const at = (alarms) => expand(ics(alarms), 0, Date.UTC(2026, 9, 19), Date.UTC(2026, 9, 22), 'UTC')[0].alarm;
+  assert.equal(at([':-PT10M']), 10);
+  assert.equal(at([':-PT10M', ':-PT30M', ':-P1D']), 30);   // the longest within two hours
+  assert.equal(at([':-P1D']), undefined);                   // only a day before: none
+  assert.equal(at([';RELATED=END:-PT5M']), undefined);      // relative to the end: skipped
+  assert.equal(at([]), undefined);
+});

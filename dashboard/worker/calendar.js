@@ -151,7 +151,24 @@ function toEvent(comp, uid, cal, start, end, tz, withNotes) {
     end: allDay ? dateStr(end) : new Date(endMs).toISOString(),
     ...(place(location) ? { location: place(location) } : {}),
     ...(notes ? { notes } : {}),
+    ...(!allDay && alarmOf(comp) != null ? { alarm: alarmOf(comp) } : {}),
   };
+}
+
+// The event's own reminder, in minutes before it starts, for the frame's spoken reminders: the
+// longest one between 0 and 2 hours before the start (a day-before reminder isn't something to say
+// out loud in the kitchen). null when it has none, or only ones outside that range.
+export function alarmOf(comp) {
+  let best = null;
+  for (const alarm of comp.getAllSubcomponents('valarm')) {
+    const prop = alarm.getFirstProperty('trigger');
+    if (!prop || String(prop.getParameter('related') || 'START').toUpperCase() !== 'START') continue;
+    const value = prop.getFirstValue();
+    if (!value || typeof value.toSeconds !== 'function') continue; // an absolute time: skip
+    const minutes = Math.round(-value.toSeconds() / 60);
+    if (minutes >= 0 && minutes <= 120 && (best === null || minutes > best)) best = minutes;
+  }
+  return best;
 }
 
 // An event's location as a place to show: links dropped (nothing on the frame can open them, and

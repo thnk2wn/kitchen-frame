@@ -419,15 +419,23 @@ For messages that should take over the screen (and be read aloud), use
 
 **Settings → Announcements** (off until you turn it on) sets what the frame says out loud, on one speaker from Home Assistant
 (an Echo, a Nest speaker, anything with text-to-speech): the speaker, an announcement volume and a
-louder **alert volume** for red alerts, a **Test** for each, and whether agent messages are read
-aloud. Nothing is said at night (Settings → Display → Night). Timer alerts keep their own speaker
-on the same page.
+louder **alert volume** for red alerts, a **Test** for each, **event reminders**, and whether agent
+messages are read aloud. Nothing is said at night (Settings → Display → Night). Timer alerts keep
+their own speaker on the same page.
+
+**Event reminders:** tap a calendar to have its events announced ("In 30 minutes: Swim lesson, at
+the Aquatic center"), all off to start. Each event is said once, at its own reminder when the feed
+has one between 0 and 2 hours before (the iCal `VALARM`; Google and Outlook links usually leave
+them out), otherwise at the lead time chosen (30 minutes by default). All-day events aren't said.
+An event's details show when it will be announced. The frame does the timing, so nothing is said
+while it's off; a reminder missed by up to 10 minutes (a reload) is still said if the event hasn't
+started.
 
 The frame speaks through a Home Assistant script, [`homeassistant/scripts/frame-announce.yaml`](homeassistant/scripts/frame-announce.yaml)
 (add it as `script.frame_announce`): an Echo's Announce when the speaker has one, otherwise
 text-to-speech, at the announcement volume, putting the speaker's own volume back afterwards.
 Other automations can use it too. Without the script the frame falls back to plain text-to-speech
-at the speaker's current volume. Event reminders and red alerts are next ([ROADMAP](ROADMAP.md)).
+at the speaker's current volume. Red alerts are next ([ROADMAP](ROADMAP.md)).
 
 ## Messages from agents
 

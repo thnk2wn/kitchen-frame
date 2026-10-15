@@ -1,6 +1,7 @@
 <script>
   import Icon from './Icon.svelte';
-  import { ui, calendar, photos, setSetting } from '../lib/state.svelte.js';
+  import { ui, calendar, photos, setSetting, calendarNames } from '../lib/state.svelte.js';
+  import { calColorVars } from '../lib/format.js';
   import { say, setSay, speakers, speaker, speak } from '../lib/announce.svelte.js';
   // Sections, as tabs at the top; the last one chosen is remembered.
   const TABS = [['display', 'Display'], ['announce', 'Announcements'], ['home', 'Home'], ['about', 'About']];
@@ -162,7 +163,7 @@
       </div>
       {#if say.on}
       <div class="row">
-        <span>Speaker<small>Messages now; event reminders and red alerts next</small></span>
+        <span>Speaker<small>Messages and event reminders; red alerts next</small></span>
         <select class="pick" value={speaker()?.entity_id || ''} onchange={(e) => setSay({ speaker: e.currentTarget.value })} aria-label="Speaker for announcements">
           {#each speakers() as p (p.entity_id)}<option value={p.entity_id}>{p.label || p.friendly_name}</option>{/each}
         </select>
@@ -190,6 +191,32 @@
           <button class="reload" disabled={testing} onclick={() => test(true)}><Icon name="alert" size={20} />Alert</button>
         </div>
       </div>
+      <h3 class="sub">Event reminders</h3>
+      <div class="row">
+        <span>Calendars<small>Tap to have them announced</small></span>
+        <div class="chips">
+          {#each calendarNames() as name, i (i)}
+            {@const on = !!say.reminders.cals[name]}
+            <button class="chip" class:on style={calColorVars(i)} onclick={() => setSay({ reminders: { ...say.reminders, cals: { ...say.reminders.cals, [name]: !on } } })} aria-pressed={on}>
+              <span class="dot"></span>{name}
+            </button>
+          {/each}
+        </div>
+      </div>
+      <div class="row">
+        <span>Announce<small>Before each event</small></span>
+        <select class="pick" value={String(say.reminders.lead)} onchange={(e) => setSay({ reminders: { ...say.reminders, lead: Number(e.currentTarget.value) } })} aria-label="How long before an event">
+          {#each [10, 15, 30, 45, 60, 90] as m (m)}<option value={String(m)}>{m < 60 ? m + ' min' : m === 60 ? '1 hour' : '1½ hours'} before</option>{/each}
+        </select>
+      </div>
+      <div class="row">
+        <span>Own reminders<small>Use an event's own when it has one</small></span>
+        <div class="seg">
+          <button class:on={say.reminders.own} onclick={() => setSay({ reminders: { ...say.reminders, own: true } })}>On</button>
+          <button class:on={!say.reminders.own} onclick={() => setSay({ reminders: { ...say.reminders, own: false } })}>Off</button>
+        </div>
+      </div>
+      <h3 class="sub">Also</h3>
       <div class="row">
         <span>Agent messages<small>{night.on ? 'Read aloud, not at night' : 'Read aloud, not 10 PM–7 AM'}</small></span>
         <div class="seg">
@@ -255,6 +282,13 @@
   .tabs button { flex: 1; min-width: 0; }
   .hint.pad { margin: 18px 0; }
   .tests { display: flex; gap: 10px; }
+  h3.sub { margin: 18px 0 2px; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--secondary); }
+  .chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  /* A calendar in its colour: outlined while off, filled while it's announced. */
+  .chip { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 20px; border: 2px solid var(--c); font-size: 17px; font-weight: 600; color: var(--label); }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  .chip.on { background: var(--c-tint); }
+  .chip:not(.on) { color: var(--secondary); border-color: var(--track); }
   .pct { width: 48px; text-align: right; font-size: 17px; color: var(--secondary); }
   /* Announcement volumes: a shorter slider, so the percentage fits beside it. */
   .bright.vol input[type='range'] { width: 200px; }

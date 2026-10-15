@@ -7,6 +7,8 @@
   import EventMap from './EventMap.svelte';
   import { ui, clock, calendar, calendarNames, eventNotes } from '../lib/state.svelte.js';
   import { calVars, timeRange, time, dayKey, addDays, isNow, isPast } from '../lib/format.js';
+  import { reminderFor } from '../lib/reminders.svelte.js';
+  import { speaker } from '../lib/announce.svelte.js';
 
   let e = $derived.by(() => {
     const want = ui.event, events = calendar.data && calendar.data.events;
@@ -17,7 +19,9 @@
   let calName = $derived(e ? calendarNames()[e.cal] || '' : '');
   // Demo mode maps only the stadiums: a local place ("Aquatic center") would be found near the
   // frame's real home and show its neighbourhood in screenshots.
-  let mapFor = $derived(e && e.location && (!ui.demo || /stadium/i.test(e.location)) ? e.location : '');
+  let mapFor = $derived(e && e.location && e.location !== 'Video call' && (!ui.demo || /stadium/i.test(e.location)) ? e.location : '');
+  // Settings → Announcements → Event reminders: when this one will be said out loud.
+  let reminder = $derived(e && Date.parse(e.start) > clock.now.getTime() ? reminderFor(e) : null);
   let mapped = $state(false);
   let rowsHeight = $state(0); // the map matches the details beside it
 
@@ -60,6 +64,9 @@
         </div>
         {#if e.location}
           <div class="row"><span class="ic"><Icon name="mapPin" size={24} /></span><div class="day">{e.location}</div></div>
+        {/if}
+        {#if reminder}
+          <div class="row"><span class="ic"><Icon name="volume" size={24} /></span><div class="sub">Announced {reminder.minutes ? reminder.minutes + ' min before' : 'as it starts'}{reminder.own ? ' (its own reminder)' : ''}{speaker() ? ' on ' + speaker().label : ''}</div></div>
         {/if}
         {#if notes}
           <div class="row notes"><span class="ic"><Icon name="notes" size={24} /></span><p>{notes}</p></div>

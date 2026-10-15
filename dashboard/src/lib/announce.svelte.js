@@ -1,6 +1,6 @@
 // Announcements: what the frame says out loud on a speaker, through Home Assistant. One speaker and
-// two volumes (Settings → Announcements), used by everything the frame says: agent messages today,
-// event reminders and red Home Assistant alerts next. Timer alerts keep their own speaker setting.
+// two volumes (Settings → Announcements), used by everything the frame says: agent messages, event
+// reminders (lib/reminders.svelte.js), and red Home Assistant alerts next. Timer alerts keep their own speaker setting.
 //
 // Speaking goes through the Home Assistant script script.frame_announce (homeassistant/scripts/):
 // it uses an Echo's Announce when the speaker has one, otherwise text-to-speech, sets the
@@ -16,13 +16,17 @@ const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'
 function initial() {
   let old = null;
   try { old = localStorage.getItem('frame-announce'); } catch {}
-  return { on: false, speaker: old && old !== 'off' ? old : null, volume: 0.4, alertVolume: 0.7, messages: old !== 'off' };
+  return { on: false, speaker: old && old !== 'off' ? old : null, volume: 0.4, alertVolume: 0.7, messages: old !== 'off',
+    // Event reminders (lib/reminders.svelte.js): calendars by name (all off to start), minutes
+    // before, and whether an event's own reminder (0-120 min) wins over that.
+    reminders: { cals: {}, lead: 30, own: true } };
 }
-export const say = $state({ ...initial(), ...(read() || {}) });
+const saved = read() || {};
+export const say = $state({ ...initial(), ...saved, reminders: { ...initial().reminders, ...(saved.reminders || {}) } });
 
 export function setSay(changes) {
   Object.assign(say, changes);
-  try { localStorage.setItem(KEY, JSON.stringify({ on: say.on, speaker: say.speaker, volume: say.volume, alertVolume: say.alertVolume, messages: say.messages })); } catch {}
+  try { localStorage.setItem(KEY, JSON.stringify(say)); } catch {}
 }
 
 // Speakers that can talk: Home Assistant's media players, not TVs or a Spotify account.
