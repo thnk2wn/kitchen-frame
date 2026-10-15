@@ -1,6 +1,6 @@
 // Announcements: what the frame says out loud on a speaker, through Home Assistant. One speaker and
 // two volumes (Settings → Announcements), used by everything the frame says: agent messages, event
-// reminders (lib/reminders.svelte.js), and red Home Assistant alerts next. Timer alerts keep their own speaker setting.
+// reminders (lib/reminders.svelte.js) and Home Assistant alerts (lib/alerts.svelte.js). Timer alerts keep their own speaker setting.
 //
 // Speaking goes through the Home Assistant script script.frame_announce (homeassistant/scripts/):
 // it uses an Echo's Announce when the speaker has one, otherwise text-to-speech, sets the
@@ -19,10 +19,14 @@ function initial() {
   return { on: false, speaker: old && old !== 'off' ? old : null, volume: 0.4, alertVolume: 0.7, messages: old !== 'off',
     // Event reminders (lib/reminders.svelte.js): calendars by name (all off to start), minutes
     // before, and whether an event's own reminder (0-120 min) wins over that.
-    reminders: { cals: {}, lead: 30, own: true } };
+    reminders: { cals: {}, lead: 30, own: true },
+    // Home Assistant alerts (lib/alerts.svelte.js): red ones said (at night too, by default), orange
+    // optional, and red repeated every 10 minutes until cleared or dismissed if wanted.
+    alerts: { red: true, night: true, repeat: false, orange: false } };
 }
 const saved = read() || {};
-export const say = $state({ ...initial(), ...saved, reminders: { ...initial().reminders, ...(saved.reminders || {}) } });
+export const say = $state({ ...initial(), ...saved, reminders: { ...initial().reminders, ...(saved.reminders || {}) },
+  alerts: { ...initial().alerts, ...(saved.alerts || {}) } });
 
 export function setSay(changes) {
   Object.assign(say, changes);

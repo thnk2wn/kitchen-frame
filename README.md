@@ -435,7 +435,12 @@ The frame speaks through a Home Assistant script, [`homeassistant/scripts/frame-
 (add it as `script.frame_announce`): an Echo's Announce when the speaker has one, otherwise
 text-to-speech, at the announcement volume, putting the speaker's own volume back afterwards.
 Other automations can use it too. Without the script the frame falls back to plain text-to-speech
-at the speaker's current volume. Red alerts are next ([ROADMAP](ROADMAP.md)).
+at the speaker's current volume.
+
+**Home alerts:** a red notice (a leak, the freezer) is said when it appears, "Alert: Water under the
+kitchen sink", at the alert volume and at night too (or kept quiet at night), once or every 10
+minutes until it clears or is dismissed. Orange notices can be said too, at the normal volume and
+never at night; blue ones never are. The notices sheet marks the ones said as "Announced".
 
 ## Messages from agents
 

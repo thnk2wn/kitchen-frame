@@ -163,7 +163,7 @@
       </div>
       {#if say.on}
       <div class="row">
-        <span>Speaker<small>Messages and event reminders; red alerts next</small></span>
+        <span>Speaker<small>Messages, event reminders and alerts</small></span>
         <select class="pick" value={speaker()?.entity_id || ''} onchange={(e) => setSay({ speaker: e.currentTarget.value })} aria-label="Speaker for announcements">
           {#each speakers() as p (p.entity_id)}<option value={p.entity_id}>{p.label || p.friendly_name}</option>{/each}
         </select>
@@ -214,6 +214,37 @@
         <div class="seg">
           <button class:on={say.reminders.own} onclick={() => setSay({ reminders: { ...say.reminders, own: true } })}>On</button>
           <button class:on={!say.reminders.own} onclick={() => setSay({ reminders: { ...say.reminders, own: false } })}>Off</button>
+        </div>
+      </div>
+      <h3 class="sub">Home alerts</h3>
+      <div class="row">
+        <span>Red alerts<small>A leak, the freezer: at the alert volume</small></span>
+        <div class="seg">
+          <button class:on={say.alerts.red} onclick={() => setSay({ alerts: { ...say.alerts, red: true } })}>On</button>
+          <button class:on={!say.alerts.red} onclick={() => setSay({ alerts: { ...say.alerts, red: false } })}>Off</button>
+        </div>
+      </div>
+      {#if say.alerts.red}
+        <div class="row">
+          <span>At night<small>Red alerts only</small></span>
+          <div class="seg">
+            <button class:on={say.alerts.night} onclick={() => setSay({ alerts: { ...say.alerts, night: true } })}>Said</button>
+            <button class:on={!say.alerts.night} onclick={() => setSay({ alerts: { ...say.alerts, night: false } })}>Quiet</button>
+          </div>
+        </div>
+        <div class="row">
+          <span>Repeat<small>Every 10 min until cleared or dismissed</small></span>
+          <div class="seg">
+            <button class:on={say.alerts.repeat} onclick={() => setSay({ alerts: { ...say.alerts, repeat: true } })}>On</button>
+            <button class:on={!say.alerts.repeat} onclick={() => setSay({ alerts: { ...say.alerts, repeat: false } })}>Once</button>
+          </div>
+        </div>
+      {/if}
+      <div class="row">
+        <span>Orange notices<small>Washer done, a door left open: not at night</small></span>
+        <div class="seg">
+          <button class:on={say.alerts.orange} onclick={() => setSay({ alerts: { ...say.alerts, orange: true } })}>On</button>
+          <button class:on={!say.alerts.orange} onclick={() => setSay({ alerts: { ...say.alerts, orange: false } })}>Off</button>
         </div>
       </div>
       <h3 class="sub">Also</h3>

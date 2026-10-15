@@ -60,11 +60,10 @@ Thoughts to try in a branch and measure on the frame, not plans:
 ## Announcements
 
 Built: Settings → Announcements (speaker, volume, alert volume, agent messages, event reminders
-by calendar) and `script.frame_announce`. Next:
+by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. Later:
 
-- **Red alerts:** a leak or the freezer, at the alert volume, at night too; an "Announced" tag in
-  the notices sheet. Orange optional, blue never.
-- **Later:** leave-by reminders from travel time; the washer reminder moved onto the shared script.
+- **Leave-by reminders** from travel time (with the commute idea under Calendar and events).
+- **The washer reminder** moved onto the shared announce script, so all speech shares one volume routine.
 
 ## Home Assistant
 

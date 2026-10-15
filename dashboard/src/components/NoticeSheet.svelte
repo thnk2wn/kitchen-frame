@@ -9,6 +9,7 @@
   import { ui, clock } from '../lib/state.svelte.js';
   import { notices, earlier, isNew, markSeen, dismissNotice, dismissAll, loadEarlier, iconOf } from '../lib/notices.svelte.js';
   import { time, dayKey, dow } from '../lib/format.js';
+  import { said, keyOf } from '../lib/alerts.svelte.js';
   let list = $derived(notices());
   let past = $derived(earlier());
   let fresh = $derived([...list.filter(isNew), ...past.filter(isNew)]);
@@ -28,6 +29,8 @@
   const status = (n) => n.ended
     ? (HOW[n.how] || 'Ended') + ' at ' + time(new Date(n.ended)) + (n.created ? ', after ' + dur(Date.parse(n.created), Date.parse(n.ended)) : '')
     : n.created ? 'On for ' + dur(Date.parse(n.created), clock.now.getTime()) : '';
+  // Said out loud (Settings → Announcements → Home alerts).
+  const spoken = (n) => !!said[keyOf(n)];
 </script>
 
 {#snippet stamp(n)}
@@ -42,7 +45,7 @@
       <div class="txt">
         <div class="title">{n.title || 'Notice'}</div>
         {#if open === n.id + n.created && n.message && n.message !== n.title}<div class="msg">{n.message}</div>{/if}
-        <div class="when">{status(n)}</div>
+        <div class="when">{status(n)}{#if spoken(n)} · <span class="said">Announced</span>{/if}</div>
       </div>
     </button>
   {:else}
@@ -52,7 +55,7 @@
       <div class="txt">
         <div class="title">{n.title || 'Notice'}</div>
         {#if n.message && n.message !== n.title}<div class="msg">{n.message}</div>{/if}
-        <div class="when">{status(n)}</div>
+        <div class="when">{status(n)}{#if spoken(n)} · <span class="said">Announced</span>{/if}</div>
       </div>
       <button class="dismiss" onclick={() => dismissNotice(n.id)}>Dismiss</button>
     </div>
@@ -114,4 +117,5 @@
   .past .msg { color: var(--secondary); }
   .past:active { opacity: .6; }
   .none { margin: 12px 0 4px; font-size: 18px; color: var(--secondary); }
+  .said { font-weight: 600; }
 </style>
