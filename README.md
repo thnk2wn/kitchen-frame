@@ -20,7 +20,7 @@ lists other frames that work.
 
 | Recipe with timers in its directions | Music | House |
 | --- | --- | --- |
-| ![Recipe page](docs/images/recipe-page-light.jpg) | ![Music](docs/images/music-light.jpg) | ![House](docs/images/house-light.jpg) |
+| ![Recipe page](docs/images/recipe-page-light.jpg) | ![Media: music](docs/images/music-light.jpg) | ![House](docs/images/house-light.jpg) |
 
 | Weather details (tap the weather) |
 | --- |
@@ -305,6 +305,8 @@ TV's apps (the ones watched lately first; one tap opens one), power, and an on-s
 (arrows, OK, back, home) when the TV has a `remote` entity on the same device and its integration
 is Apple TV, Android TV Remote or Roku. A TV playing shows in Now Playing too; **Settings → Now
 Playing → Music only** leaves TVs out. Nothing about the household's TVs is in the code.
+
+![The Media tab's TV view: what's playing, controls, apps and an on-screen remote](docs/images/tv-light.jpg)
 
 Setup, in [docs/music.md](docs/music.md):
 
