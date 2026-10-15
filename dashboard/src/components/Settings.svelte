@@ -11,6 +11,8 @@
   const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
   const IDLE = [[15, '15 min'], [30, '30 min'], [60, '1 hr'], [120, '2 hr'], [0, 'Never']];
   // Slideshow clock colours: white plus the iOS system colours that read well over photos.
+  // At night: red by default (easy on dark-adapted eyes, like StandBy), or the daytime colour.
+  const NIGHT_CLOCK = [['#ff453a', 'Red'], ['#ff9f0a', 'Orange'], ['#ffd60a', 'Yellow'], ['day', 'Same as day']];
   const CLOCK = [['#ffffff', 'White'], ['#ffd60a', 'Yellow'], ['#ff9f0a', 'Orange'], ['#ff375f', 'Pink'], ['#bf5af2', 'Purple'], ['#64d2ff', 'Blue'], ['#30d158', 'Green']];
   const close = () => (ui.settingsOpen = false);
   let reloading = $state(false);
@@ -114,6 +116,17 @@
       </div>
     </div>
 
+    {#if night.on}
+      <div class="row">
+        <span>Night clock color</span>
+        <div class="swatches">
+          {#each NIGHT_CLOCK as [c, name] (c)}
+            <button class="swatch" class:on={night.color === c} class:day={c === 'day'} style="--c:{c === 'day' ? ui.clockColor : c}" aria-label={name} onclick={() => setNight({ color: c })}></button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+
     {#if kiosk}
       <div class="row">
         <span>Brightness{#if night.on}<small>By day</small>{/if}</span>
@@ -194,6 +207,8 @@
   /* Selected: a ring just outside the swatch. */
   .swatch.on { outline: 2px solid var(--label); outline-offset: 3px; }
   .swatch:active { opacity: .7; }
+  /* "Same as day": the daytime colour as a smaller dot inside a dashed ring. */
+  .swatch.day { border: 2px dashed var(--secondary); padding: 6px; background-clip: content-box; }
   .bright { display: flex; align-items: center; gap: 12px; color: var(--secondary); }
   /* Native range input, restyled flat: grey track, white round thumb. */
   input[type='range'] { -webkit-appearance: none; appearance: none; width: 300px; height: 6px; border-radius: 3px; outline: none;

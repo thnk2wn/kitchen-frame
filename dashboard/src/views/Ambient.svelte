@@ -6,6 +6,7 @@
   import { src, takeSlide } from '../lib/slides.js';
   import { nowPlaying } from '../lib/ha.svelte.js';
   import { notices, iconOf } from '../lib/notices.svelte.js';
+  import { night as nightMode } from '../lib/night.svelte.js';
 
   // StandBy-style idle screen: the iCloud album as a slideshow behind the clock, in the text colour
   // chosen in Settings. At night photos and text are dimmed (or photos are off, per Settings).
@@ -17,6 +18,8 @@
   let wx = $derived(weather.data);
   let playing = $derived(nowPlaying());
   let night = $derived(ui.theme === 'dark');
+  // Night hours (Settings → Night) have their own text colour.
+  let color = $derived(nightMode.active && nightMode.color !== 'day' ? nightMode.color : ui.clockColor);
   // Paused while an agent message covers the screen.
   let covered = $derived(messages.items.length > 0 && !ui.demo);
   let showPhotos = $derived(photos.items.length > 0 && photosVisible() && !covered);
@@ -44,7 +47,7 @@
   });
 </script>
 
-<button class="standby" class:night class:photos={showPhotos} style="--clock:{ui.clockColor}" onclick={exitIdle} aria-label="Show dashboard">
+<button class="standby" class:night class:photos={showPhotos} style="--clock:{color}" onclick={exitIdle} aria-label="Show dashboard">
   {#if showPhotos}
     <div class="slides" aria-hidden="true">
       {#each layers as layer (layer.key)}

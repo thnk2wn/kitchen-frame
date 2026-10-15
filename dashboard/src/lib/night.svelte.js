@@ -1,6 +1,7 @@
 // Night: between chosen hours (Settings → Night, 10:30 PM to 6:30 AM by default) the clock screen
 // comes on two minutes after the last touch, motion in the room doesn't bring the dashboard back,
-// the clock screen shows no photos, and the screen goes to its lowest brightness while it's up.
+// the clock screen shows no photos, its text takes the night colour (red by default, like StandBy;
+// 'day' keeps the daytime colour), and the screen goes to its lowest brightness while it's up.
 // A touch brings the dashboard back at the daytime brightness; a timer alert or the doorbell does
 // too. The same hours are the quiet hours when agent messages aren't read aloud.
 //
@@ -22,12 +23,13 @@ export const night = $state({
   on: saved.on !== false,
   from: saved.from || '22:30',
   to: saved.to || '06:30',
+  color: saved.color || '#ff453a', // night clock colour, or 'day' for the daytime one
   active: false, // inside the hours now
 });
 
 export function setNight(changes) {
   Object.assign(night, changes);
-  try { localStorage.setItem(KEY, JSON.stringify({ on: night.on, from: night.from, to: night.to })); } catch {}
+  try { localStorage.setItem(KEY, JSON.stringify({ on: night.on, from: night.from, to: night.to, color: night.color })); } catch {}
   tick();
 }
 
