@@ -21,7 +21,10 @@ Thoughts to try in a branch and measure on the frame, not plans:
 - **A newer browser engine.** The frame's WebView is 106 (late 2022). Checked 2026-10-15: it isn't
   updatable. The firmware accepts only `com.android.webview`, a system app signed with the
   maker's key, and `/system` is under dm-verity (enforcing), so swapping it means modifying
-  verified system files. Alternatives that leave `/system` alone: try the dashboard in a newer
+  verified system files. **But:** upstream PR #139 found another FRAME156 whose `/system` is plain
+  ext4 despite `veritymode=enforcing`, and swapped in LineageOS's WebView 138 through `su` (keeping
+  the stock tree for undo, restore untested). Check ours (`mount | grep ' /system '`, any
+  `/dev/block/dm-*`) before ruling it out. Alternatives that leave `/system` alone: try the dashboard in a newer
   browser installed alongside (Firefox, or the last Chrome for Android 8) to see if it feels faster,
   and if it does, embed GeckoView (Firefox's engine, supports Android 8) in the kiosk app.
 - **Native clock screen.** Draw the clock and slideshow, the screen shown most of the day, with
@@ -70,9 +73,6 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
 
 ## Operations and security
 
-- **A status page** for the frame and the backend (check-ins, a day's timeline of awake / clock /
-  night, the event log, calendar, Paprika and Reminders health): its own small Worker behind
-  Cloudflare Access, reading the same KV.
 - **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).
 - **A PIN for Settings:** unlocking has one (Settings → Home). Settings changes are logged and the
   last 10 versions kept, so a PIN there waits until a change slips by unnoticed.
