@@ -412,3 +412,19 @@ test('notices: the frame reports ended notices and reads back the last 24 hours,
   assert.equal(got.items[0].tone, 'warn');      // unknown values fall back
   assert.equal(got.items[0].how, 'cleared');
 });
+
+test('frame: the kiosk checks in and backs up its settings; secrets and odd keys are not kept', async () => {
+  const store = new Map();
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const fenv = { ...env, CALENDAR: kv };
+  const call = (path, method = 'GET', body) => worker.fetch(new Request('https://frame.test' + path, { method, headers: { Authorization: 'Bearer k' }, ...(body ? { body: JSON.stringify(body) } : {}) }), fenv, {});
+  assert.equal((await worker.fetch(new Request('https://frame.test/api/frame/status'), fenv, {})).status, 401);
+  assert.deepEqual(await (await call('/api/frame/settings')).json(), { settings: {}, savedAt: null });
+  await call('/api/frame/status', 'POST', { version: 'abc123', screen: 'clock', settings: { 'frame-theme': 'dark', 'not-ours': 'x', 'frame-night': '{"on":true}', 'frame-n': 5 } });
+  const st = await (await call('/api/frame/status')).json();
+  assert.deepEqual([st.version, st.screen], ['abc123', 'clock']);
+  assert.ok(st.receivedAt);
+  assert.deepEqual((await (await call('/api/frame/settings')).json()).settings, { 'frame-theme': 'dark', 'frame-night': '{"on":true}' });
+  await call('/api/frame/status', 'POST', { version: 'abc124' }); // a check-in without settings keeps the backup
+  assert.equal((await (await call('/api/frame/settings')).json()).settings['frame-theme'], 'dark');
+});

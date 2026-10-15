@@ -86,6 +86,10 @@ boots into the kiosk, Frameo and the updaters not installed or running.
 - Change the URL: `adb shell am start -n com.huntsyea.frame/.MainActivity -d '<url>'` (remembered across reboots).
 - Escape hatch on the frame: hold two fingers still for 2 s → Reload dashboard / Android settings.
 - Logs: `adb logcat -s FrameKiosk` shows loads, retries and SSL/network errors.
+- Status without the cable: `dashboard/scripts/frame-status.sh` prints the frame's last check-in
+  (every 10 minutes): dashboard and kiosk versions, WebView, when it loaded, what it's showing, and
+  whether it's running the deployed dashboard yet. The same check-in backs up its Settings choices
+  to the Worker; after a reset, run the setup link and the rest come back by themselves.
 - Remote debugging (chrome://inspect) only while launched with `--ez debug true`; any normal launch turns it off.
 - Brightness: Settings → Brightness calls `window.FrameKiosk.setBrightness(0.05–1)`; the kiosk saves it and applies it at start. `setBrightness(-1)` hands control back to Android's own setting.
 - Demo mode (Settings): sample calendar and lists, no photos; ticks and additions stay on the frame and never reach Todoist.

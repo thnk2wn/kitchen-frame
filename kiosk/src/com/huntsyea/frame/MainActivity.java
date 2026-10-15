@@ -204,6 +204,12 @@ public class MainActivity extends Activity {
       runOnUiThread(() -> applyBrightness(level));
     }
 
+    /** The kiosk app's version, for the page's check-in (dashboard/src/lib/checkin.js). */
+    @JavascriptInterface
+    public String getVersion() {
+      try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return ""; }
+    }
+
     @JavascriptInterface
     public float getBrightness() {
       return getSharedPreferences(PREFS, MODE_PRIVATE).getFloat("brightness", -1f);
