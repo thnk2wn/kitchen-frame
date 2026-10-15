@@ -2,7 +2,17 @@
   import Icon from './Icon.svelte';
   import { ui, calendar, photos, setSetting, calendarNames } from '../lib/state.svelte.js';
   import { calColorVars } from '../lib/format.js';
-  import { say, setSay, speakers, speaker, speak } from '../lib/announce.svelte.js';
+  import { say as realSay, setSay as realSetSay, speakers, speaker, speak } from '../lib/announce.svelte.js';
+  // Demo mode shows Announcements set up, on invented speakers, without touching the real settings
+  // (and nothing is said in demo mode).
+  const DEMO_SPEAKERS = [{ entity_id: 'demo.kitchen', label: 'Kitchen' }, { entity_id: 'demo.living', label: 'Living Room' }, { entity_id: 'demo.office', label: 'Office' }];
+  const demoSay = $state({ on: true, speaker: 'demo.kitchen', volume: 0.4, alertVolume: 0.7, messages: true,
+    reminders: { cals: { Family: true, 'Tennessee Football': true }, lead: 30, own: true },
+    alerts: { red: true, night: true, repeat: false, orange: false } });
+  let say = $derived(ui.demo ? demoSay : realSay);
+  const setSay = (c) => (ui.demo ? Object.assign(demoSay, c) : realSetSay(c));
+  let speakerList = $derived(ui.demo ? DEMO_SPEAKERS : speakers());
+  let current = $derived(ui.demo ? DEMO_SPEAKERS.find((p) => p.entity_id === demoSay.speaker) : speaker());
   // Sections, as tabs at the top; the last one chosen is remembered.
   const TABS = [['display', 'Display'], ['announce', 'Announcements'], ['home', 'Home'], ['about', 'About']];
   const asked = new URLSearchParams(location.search).get('settings');
@@ -11,7 +21,7 @@
   let testing = $state(false);
   async function test(alert) {
     testing = true;
-    try { await speak(alert ? 'This is a test alert from the kitchen frame.' : 'This is a test announcement from the kitchen frame.', { alert }); } catch {}
+    try { await speak(alert ? 'This is a test alert from the kitchen frame.' : 'This is a test announcement from the kitchen frame.', { alert, kind: 'test' }); } catch {}
     setTimeout(() => (testing = false), 4000);
   }
   import { ha, haConfigured, nowPrefs, setNowTv } from '../lib/ha.svelte.js';
@@ -44,12 +54,29 @@
   async function reload() {
     reloading = true;
     try { await api('/api/calendar?refresh'); } catch {}
+    try { sessionStorage.setItem('frame-reload-reason', 'manual'); } catch {}
     location.reload();
   }
   // Timer alerts: "Announce" notify entities (Echos through Alexa Devices), kitchen ones first, up to 3.
   import { timerSpeakerId, setTimerSpeaker } from '../lib/timers.svelte.js';
   import { bell, ring } from '../lib/doorbell.svelte.js';
-  import { presence, presenceArea } from '../lib/presence.svelte.js';
+  import { presence, presenceArea, ignored, setIgnored } from '../lib/presence.svelte.js';
+  import { recent } from '../lib/log.svelte.js';
+  import { pin, pinAvailable, confirmPin, enterPin, savePin, removePin } from '../lib/pin.svelte.js';
+  // The unlock PIN: set it twice; changing or removing it needs the current one first.
+  async function newPin() {
+    let first = await enterPin('New unlock PIN', 'Four digits');
+    while (first) {
+      const again = await enterPin('Enter it again');
+      if (!again) return;
+      if (again === first) return savePin(first);
+      first = await enterPin('New unlock PIN', 'They didn’t match. Start again');
+    }
+  }
+  async function changePin() { if (await confirmPin('Current PIN')) newPin(); }
+  async function dropPin() { if (await confirmPin('Current PIN to remove it')) removePin(); }
+  let showLog = $state(false);
+  const logLine = (e) => Object.entries(e).filter(([k]) => !['t', 'event', 'level'].includes(k)).map(([k, v]) => k + ': ' + v).join(' · ');
   let announcers = $derived(ha.notify.filter((n) => /_announce$/.test(n.entity_id))
     .sort((a, b) => (/kitchen/i.test(b.entity_id) - /kitchen/i.test(a.entity_id)) || a.name.localeCompare(b.name)).slice(0, 3));
 </script>
@@ -151,7 +178,7 @@
 
 
     {:else if tab === 'announce'}
-    {#if !haConfigured()}
+    {#if !haConfigured() && !ui.demo}
       <p class="hint pad">Announcements need Home Assistant (see the README).</p>
     {:else}
       <div class="row">
@@ -164,8 +191,8 @@
       {#if say.on}
       <div class="row">
         <span>Speaker<small>Messages, event reminders and alerts</small></span>
-        <select class="pick" value={speaker()?.entity_id || ''} onchange={(e) => setSay({ speaker: e.currentTarget.value })} aria-label="Speaker for announcements">
-          {#each speakers() as p (p.entity_id)}<option value={p.entity_id}>{p.label || p.friendly_name}</option>{/each}
+        <select class="pick" value={current?.entity_id || ''} onchange={(e) => setSay({ speaker: e.currentTarget.value })} aria-label="Speaker for announcements">
+          {#each speakerList as p (p.entity_id)}<option value={p.entity_id}>{p.label || p.friendly_name}</option>{/each}
         </select>
       </div>
       <div class="row">
@@ -185,7 +212,7 @@
         </div>
       </div>
       <div class="row">
-        <span>Test<small>Says a short sentence on {speaker()?.label || 'the speaker'}</small></span>
+        <span>Test<small>Says a short sentence on {current?.label || 'the speaker'}</small></span>
         <div class="tests">
           <button class="reload" disabled={testing} onclick={() => test(false)}><Icon name="volume" size={20} />Normal</button>
           <button class="reload" disabled={testing} onclick={() => test(true)}><Icon name="alert" size={20} />Alert</button>
@@ -282,7 +309,31 @@
         <button class="reload" onclick={() => { close(); ring({ ...bell.doorbells[0], test: true }); }}><Icon name="bell" size={20} />Test</button>
       </div>
     {/if}
-    {#if !ha.players.some((p) => p.tv) && !bell.doorbells.length}<p class="hint pad">Nothing here yet: TVs and doorbells from Home Assistant show their settings here.</p>{/if}
+    {#if haConfigured() && !ui.demo && pinAvailable()}
+      <div class="row">
+        <span>Unlock PIN<small>{pin.set ? 'Asked before unlocking a door from House; tries are logged' : 'Off: unlocking takes two taps'}</small></span>
+        <div class="tests">
+          {#if pin.set}
+            <button class="reload" onclick={changePin}>Change</button>
+            <button class="reload" onclick={dropPin}>Remove</button>
+          {:else}
+            <button class="reload" onclick={newPin}><Icon name="lock" size={20} />Set PIN</button>
+          {/if}
+        </div>
+      </div>
+    {/if}
+    {#if presence.sensors.length}
+      <div class="row">
+        <span>Presence sensors<small>Motion here keeps the dashboard up; tap to leave one out</small></span>
+        <div class="chips">
+          {#each presence.sensors as id (id)}
+            {@const on = !ignored(id)}
+            <button class="chip plain" class:on onclick={() => setIgnored(id, on)} aria-pressed={on}>{presence.names[id] || id}</button>
+          {/each}
+        </div>
+      </div>
+    {/if}
+    {#if !ha.players.some((p) => p.tv) && !bell.doorbells.length && !presence.sensors.length && !(haConfigured() && !ui.demo)}<p class="hint pad">Nothing here yet: TVs and doorbells from Home Assistant show their settings here.</p>{/if}
     {:else}
     <div class="row">
       <span>Demo mode<small>Sample data, for showing people</small></span>
@@ -291,6 +342,17 @@
         <button class:on={!ui.demo} onclick={() => setSetting('demo', false)}>Off</button>
       </div>
     </div>
+    <div class="row">
+      <span>Recent events<small>What the frame noticed, newest first</small></span>
+      <button class="reload" onclick={() => (showLog = !showLog)}>{showLog ? 'Hide' : 'Show ' + recent.length}</button>
+    </div>
+    {#if showLog}
+      <ol class="events">
+        {#each recent as e, i (i)}
+          <li class={e.level}><span class="num">{new Date(e.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><b>{e.event}</b><small>{logLine(e)}</small></li>
+        {:else}<li>Nothing yet.</li>{/each}
+      </ol>
+    {/if}
     <div class="row last">
       <span>{ui.demo ? 'Showing demo data' : (calendar.data ? 'Calendar updated ' + time(new Date(calendar.data.updated)) : 'Calendar not loaded') + ' · ' + photos.items.length + ' photos'} · version {version}</span>
       <button class="reload" disabled={reloading} onclick={reload}><Icon name="reload" size={20} />{reloading ? 'Reloading…' : 'Reload'}</button>
@@ -313,12 +375,20 @@
   .tabs button { flex: 1; min-width: 0; }
   .hint.pad { margin: 18px 0; }
   .tests { display: flex; gap: 10px; }
+  .events { list-style: none; margin: 0 0 8px; padding: 0; max-height: 260px; overflow-y: auto; font-size: 15px; }
+  .events li { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--sep); }
+  .events li > span { flex: none; width: 68px; color: var(--secondary); }
+  .events li b { flex: none; font-weight: 600; }
+  .events li small { min-width: 0; color: var(--secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .events li.warn b { color: var(--orange-text, #b25000); }
+  .events li.error b { color: var(--red-text); }
   h3.sub { margin: 18px 0 2px; font-size: 15px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--secondary); }
   .chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
   /* A calendar in its colour: outlined while off, filled while it's announced. */
   .chip { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 20px; border: 2px solid var(--c); font-size: 17px; font-weight: 600; color: var(--label); }
   .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
   .chip.on { background: var(--c-tint); }
+  .chip.plain { --c: var(--blue); --c-tint: var(--fill); }
   .chip:not(.on) { color: var(--secondary); border-color: var(--track); }
   .pct { width: 48px; text-align: right; font-size: 17px; color: var(--secondary); }
   /* Announcement volumes: a shorter slider, so the percentage fits beside it. */

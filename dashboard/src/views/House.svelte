@@ -4,6 +4,8 @@
   import CameraView from '../components/CameraView.svelte';
   import { ha, haUrl } from '../lib/ha.svelte.js';
   import { ui } from '../lib/state.svelte.js';
+  import { pin, allowUnlock } from '../lib/pin.svelte.js';
+  import { emojiHtml } from '../lib/emoji.js';
   import { house, houseDemo, setHouseDemo, startHouse, companionsOf, toggle, run, coverToggle, lock, unlock, nudge, setpoint, miniMarkdown } from '../lib/house.svelte.js';
 
   // Camera snapshots load once when the tab opens and again with the refresh button by the cameras'
@@ -64,13 +66,15 @@
     return a.from === 'on' ? 'Turning off…' : 'Turning on…';
   }
 
-  // Unlocking takes two taps: the first arms it for 4 seconds.
+  // Unlocking asks for the unlock PIN when one is set (Settings → Home), and otherwise takes two
+  // taps: the first arms it for 4 seconds. Locking is always one tap.
   let armed = $state(null);
   let armTimer;
-  function tapLock(id) {
+  async function tapLock(id, name) {
     if (unavailable(id)) return;
     if (st(id).state === 'unlocked') return lock(id);
-    if (armed === id) { armed = null; clearTimeout(armTimer); return unlock(id); }
+    if (pin.set && !houseDemo.on) return (await allowUnlock(name)) ? unlock(id, 'pin') : undefined;
+    if (armed === id) { armed = null; clearTimeout(armTimer); return unlock(id, 'two taps'); }
     armed = id;
     clearTimeout(armTimer);
     armTimer = setTimeout(() => (armed = null), 4000);
@@ -129,7 +133,7 @@
   {:else if house.status !== 'ready'}
     <p class="note">Loading…</p>
   {:else}
-    {#if house.header}<div class="header">{@html miniMarkdown(house.header)}</div>{/if}
+    {#if house.header}<div class="header">{@html emojiHtml(miniMarkdown(house.header))}</div>{/if}
     {#if errorMsg}<p class="toast">{errorMsg}</p>{/if}
 
     <div class="groups" class:single={house.groups.length === 1}>
@@ -180,12 +184,12 @@
                   <span class="cap"><span class="cname">{label(item).replace(/\s*live view$/i, '')}</span>{#if camAge(item.entity)}<span class="age"><Icon name="reload" size={13} /> {camAge(item.entity)}</span>{/if}</span>
                 </button>
               {:else if item.kind === 'text'}
-                <div class="tile sheet text">{@html miniMarkdown(house.text[item.key] || '')}</div>
+                <div class="tile sheet text">{@html emojiHtml(miniMarkdown(house.text[item.key] || ''))}</div>
               {:else}
                 {@const tappable = ['toggle', 'lock', 'cover', 'run'].includes(item.kind) && !unavailable(item.entity)}
                 <button class="tile sheet dev" class:on={item.kind !== 'value' && on(item.entity)} class:warn={item.kind === 'lock' && st(item.entity)?.state === 'unlocked'}
                   class:armed={armed === item.entity} disabled={!tappable}
-                  onclick={() => item.kind === 'toggle' ? act(toggle(item.entity)) : item.kind === 'lock' ? act(tapLock(item.entity)) : item.kind === 'cover' ? act(coverToggle(item.entity)) : item.kind === 'run' ? act(run(item.entity)) : null}>
+                  onclick={() => item.kind === 'toggle' ? act(toggle(item.entity)) : item.kind === 'lock' ? act(tapLock(item.entity, label(item))) : item.kind === 'cover' ? act(coverToggle(item.entity)) : item.kind === 'run' ? act(run(item.entity)) : null}>
                   <span class="ic"><Icon name={iconFor(item)} size={22} /></span>
                   <span class="txt">
                     <span class="name">{label(item)}</span>
@@ -278,4 +282,6 @@
   .text { grid-column: 1 / -1; padding: 12px 14px; }
   .text :global(p) { margin: 0 0 4px; font-size: 16px; color: var(--secondary); }
   .text :global(p.h) { font-size: 18px; font-weight: 600; color: var(--label); }
+  /* Emoji the frame's 2017 font lacks, drawn as pictures (lib/emoji.js), sized like the text. */
+  .header :global(.emoji), .text :global(.emoji) { display: inline-block; width: 1.1em; height: 1.1em; margin: 0 .05em; vertical-align: -0.18em; }
 </style>

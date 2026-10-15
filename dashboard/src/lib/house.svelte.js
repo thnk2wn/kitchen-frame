@@ -8,6 +8,7 @@
 import { ha, send, subscribeTo, unsubscribeFrom, callService, onHAConnect, haDashboard, applyEntityDiff } from './ha.svelte.js';
 import { parseDashboard } from './dashboard.js';
 import { demoHouse } from './demo.js';
+import { log } from './log.svelte.js';
 export { miniMarkdown } from './dashboard.js';
 
 export const house = $state({
@@ -161,8 +162,11 @@ export const run = (entity) => {
   return callService(domain, domain === 'button' ? 'press' : 'turn_on', {}, { entity_id: entity }); // buttons are pressed
 };
 export const coverToggle = (entity) => houseDemo.on ? local(entity, flip[house.states[entity]?.state] || 'open', { current_position: 100 }) : acting(entity, () => callService('cover', 'toggle', {}, { entity_id: entity }));
-export const lock = (entity) => houseDemo.on ? local(entity, 'locked') : acting(entity, () => callService('lock', 'lock', {}, { entity_id: entity }));
-export const unlock = (entity) => houseDemo.on ? local(entity, 'unlocked') : acting(entity, () => callService('lock', 'unlock', {}, { entity_id: entity }));
+// Locks and unlocks are logged (who: the frame; Home Assistant's logbook also shows its user).
+// A failed call is logged by callService.
+const lockName = (entity) => house.states[entity]?.attributes?.friendly_name || entity;
+export const lock = (entity) => houseDemo.on ? local(entity, 'locked') : (log('house.lock', { lock: lockName(entity) }), acting(entity, () => callService('lock', 'lock', {}, { entity_id: entity })));
+export const unlock = (entity, how) => houseDemo.on ? local(entity, 'unlocked') : (log('house.unlock', { lock: lockName(entity), how }, 'warn'), acting(entity, () => callService('lock', 'unlock', {}, { entity_id: entity })));
 
 // Thermostats: one setpoint (heat or cool) or a range (heat_cool / auto). which = 'low' | 'high' | null.
 // Taps build on the value on screen (pending or reported), so three taps make three steps. In a range,

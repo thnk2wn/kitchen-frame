@@ -19,6 +19,7 @@
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
   import NowPlaying from './components/NowPlaying.svelte';
+  import PinPad from './components/PinPad.svelte';
   import { shown } from './lib/pending.svelte.js';
   import { unread } from './lib/notices.svelte.js';
   let fresh = $derived(unread()); // new notices since the sheet was last opened (the bell's badge)
@@ -119,6 +120,7 @@
   <UndoToast />
   <NoticeSheet />
   <TimerAlert />
+  <PinPad />
   <DoorbellAlert />
 </div>
 
