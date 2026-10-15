@@ -74,7 +74,19 @@
       const device_id = await echoFor(name);
       if (!device_id) { error = 'Start Spotify on ' + name + ' once from the Spotify app, then the frame can control it.'; return; }
       await callService('alexa_devices', 'send_text_command', { device_id, text_command: words });
+      nudge();
     } catch (e) { error = e.message; }
+  }
+  // Home Assistant's Spotify player asks Spotify for news on a timer (every 30 s), so a change made
+  // here, above all one started by asking an Echo, can take that long to show with its cover. After
+  // a tap, ask it to check now, a few times while Spotify catches up.
+  let nudges = [];
+  function nudge() {
+    if (ui.demo || !spotify) return;
+    nudges.forEach(clearTimeout);
+    nudges = [1500, 3500, 6000, 10000].map((ms) => setTimeout(() => {
+      if (spotify) callService('homeassistant', 'update_entity', {}, { entity_id: spotify.entity_id }).catch(() => {});
+    }, ms));
   }
   async function playPause() {
     if (spotify && !active()) return startOn(target, 'play Spotify');
@@ -221,7 +233,7 @@
     if (ui.demo) return demoRun(service, data);
     error = null;
     expectFor(on, service, data);
-    try { await callService(domain, service, data, { entity_id: on.entity_id }); }
+    try { await callService(domain, service, data, { entity_id: on.entity_id }); if (on === spotify && service !== 'volume_set') nudge(); }
     catch (e) { error = e.message; }
   }
 
