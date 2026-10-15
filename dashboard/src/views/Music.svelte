@@ -89,7 +89,7 @@
     }, ms));
   }
   async function playPause() {
-    if (spotify && !active()) return startOn(target, 'play Spotify');
+    if (spotify && !active()) { beginStart(null); return startOn(target, 'play Spotify'); }
     return run('media_player', 'media_play_pause');
   }
   // A playlist: straight to Spotify when a session is active (moving it to the chosen speaker
@@ -133,11 +133,16 @@
   let startTimer;
   $effect(() => {
     if (starting && fromList && (nowList.uri ? nowList.uri === starting.id : fromList === starting.title)) starting = null;
+    // Play with no playlist ("play Spotify" on an Echo): done once something is playing.
+    if (starting && !starting.id && player && player.state === 'playing' && player.media_title) starting = null;
   });
-  async function playList(item) {
-    starting = { id: item.media_content_id, title: item.title };
+  function beginStart(item) {
+    starting = item ? { id: item.media_content_id, title: item.title, thumbnail: item.thumbnail } : { id: null };
     clearTimeout(startTimer);
     startTimer = setTimeout(() => (starting = null), 30000);
+  }
+  async function playList(item) {
+    beginStart(item);
     markPlayed(item.title);
     if (!active()) return startOn(target, 'play ' + item.title + ' playlist on Spotify');
     if (spotify.source !== target) await run('media_player', 'select_source', { source: target });
@@ -277,8 +282,12 @@
     <div class="sheet empty">{ha.status === 'connected' ? 'No speakers found in Home Assistant.' : 'Connecting to Home Assistant…'}</div>
   {:else}
     <div class="top">
-      <div class="art sheet">
-        {#if player.entity_picture}
+      <div class="art sheet" class:starting>
+        {#if starting && starting.thumbnail}
+          <img src={starting.thumbnail} alt="" />
+        {:else if starting}
+          <span class="noart"><Icon name="music" size={96} /></span>
+        {:else if player.entity_picture}
           <img src={haUrl(player.entity_picture)} alt="" />
         {:else}
           <span class="noart" class:demo={ui.demo}><Icon name="music" size={96} /></span>
@@ -287,7 +296,11 @@
 
       <section class="sheet now" class:tinted={!!tint} style={tint ? '--tint:' + tint : ''}>
         <div class="where"><Icon name="speaker" size={20} />{spotify ? (target || 'Spotify') : player.label}</div>
-        {#if player.media_title}
+        {#if starting}
+          <!-- While a tap starts music: what was asked for, until Spotify reports it playing. -->
+          <h1 class="pending">{starting.title || 'Starting…'}</h1>
+          <p class="artist starting-on"><span class="spin small" aria-hidden="true"></span>Starting on {target || 'the speaker'}…</p>
+        {:else if player.media_title}
           <h1>{player.media_title}</h1>
           <p class="artist">{player.media_artist || ''}</p>
           {#if source}<p class="from">{source.lead}{#if source.name}{' '}<b>{source.name}</b>{/if}</p>{/if}
@@ -298,7 +311,7 @@
         {/if}
 
         <div class="mid" bind:clientHeight={midH}>
-          {#if rows > 0}
+          {#if rows > 0 && !starting}
             <div class="next-h">Up next</div>
             <div class="next" style="--rows:{rows}">
               <!-- Only the rows that fit: songs in hidden rows would still draw over the visible ones. -->
@@ -314,7 +327,7 @@
           {/if}
         </div>
 
-        {#if duration}
+        {#if duration && !starting}
           <div class="progress">
             <div class="bar"><span style="transform:scaleX({Math.min(1, (position || 0) / duration)})"></span></div>
             <div class="times num"><span>{mmss(position || 0)}</span><span>-{mmss(Math.max(0, duration - (position || 0)))}</span></div>
@@ -472,4 +485,9 @@
   .here { flex: none; margin-left: auto; height: 52px; padding: 0 22px; border-radius: 26px; font-size: 18px; font-weight: 600; color: var(--blue-text); }
   /* No speaker to set a volume on (Spotify idle on a speaker Home Assistant doesn't have). */
   .vol.none { opacity: .4; }
+  /* Starting: the tapped playlist's cover and name, dimmed, until Spotify reports it playing. */
+  .art.starting img, .art.starting .noart { opacity: .5; }
+  h1.pending { opacity: .55; }
+  .starting-on { display: flex; align-items: center; gap: 10px; }
+  .spin.small { position: static; flex: none; width: 20px; height: 20px; margin: 0; border-width: 3px; border-color: var(--track); border-top-color: var(--label); }
 </style>
