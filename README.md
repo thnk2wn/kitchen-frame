@@ -56,7 +56,7 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 | --- | --- | --- |
 | **[House tab](#house-tab-home-assistant-devices)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling (kept the thermostat's minimum gap apart), HA-rendered markdown, camera snapshots with a Refresh button, and a camera full screen on tap (live video, sharper through ring-mqtt where the frame can play it). |
 | **[Doorbell pop-up](#doorbell)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
-| **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves. Blueprints for temperature limits and thermostat changes. |
+| **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves; a bell counts new ones and keeps the last 24 hours. Blueprints for temperature limits and thermostat changes. |
 | **[Presence](#clock-screen-and-presence)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
 | **[Media](#media-music-and-tv)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist (last played on any device, or A–Z) and what's playing from (a playlist, album, artist or autoplay), Up next, a card tinted with the cover's colour, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. |
 
@@ -369,8 +369,17 @@ Settings → Doorbell → Test shows the pop-up without anyone at the door.
 <img src="docs/images/notices-light.jpg" alt="Two notices under the clock on Home: a red garage freezer alert and a blue thermostat change" width="404" align="right">
 
 Short, glanceable notices that clear themselves: a banner in Home's left column (red, orange or
-blue), a line on the clock screen and a chip in the top bar on other tabs. Tap one for its message
-and a Dismiss button, which removes it in Home Assistant for every screen.
+blue) and a line on the clock screen. The bell in the top bar counts what's new since you last
+looked, in the most urgent one's colour. It opens the notices sheet: **New**, then **Earlier**, the
+last 24 hours including notices that have ended (greyed, with "Cleared at 7:42 AM, after 14 min").
+Each row starts with the time it came in. Dismiss (or Dismiss all) removes a notice in Home
+Assistant for every screen.
+
+Home Assistant keeps no history of its notifications, so the frame reports each one to the Worker
+as it ends and the Worker keeps it in KV. Blue info notices still on after a day are dismissed as
+"Expired"; red and orange ones stay until dismissed or cleared. Optional Worker vars change this:
+`NOTICES_KEEP_HOURS` (24), `NOTICES_KEEP_MAX` (50 at most) and `NOTICES_INFO_HOURS` (24, or 0 for
+never). A notice that starts and ends while the frame is off isn't recorded.
 
 The frame shows any HA persistent notification whose `notification_id` starts with `frame_`, so
 everything device-specific stays in your Home Assistant automations, not in this repo:

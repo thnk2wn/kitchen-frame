@@ -11,6 +11,8 @@
 //   GET  /api/messages               pending messages for the frame
 //   GET  /api/messages/live          WebSocket: messages pushed the moment they change
 //   POST /api/messages/:id/dismiss   the frame's X button
+//   GET  /api/notices                Home Assistant notices that have ended, for "Earlier" (notices.js)
+//   POST /api/notices                the frame reports one as it ends
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
@@ -44,6 +46,7 @@ import { getWeather } from './weather.js';
 import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js';
 import { listPhotos, photoResponse } from './photos.js';
 import { room } from './messages.js';
+import { listNotices, addNotice } from './notices.js';
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage } from './recipes.js';
@@ -141,6 +144,11 @@ export default {
       }
       if (url.pathname.startsWith('/api/photos/')) return photoResponse(env, url.pathname.slice('/api/photos/'.length), ctx);
       if (url.pathname === '/api/messages' && req.method === 'GET') return room(env).fetch('https://room/list');
+      if (url.pathname === '/api/notices' && req.method === 'GET') return json(await listNotices(env));
+      if (url.pathname === '/api/notices' && req.method === 'POST') {
+        const { status, body } = await addNotice(env, await req.json().catch(() => ({})));
+        return json(body, status);
+      }
       if (url.pathname === '/api/messages/live') return room(env).fetch(new Request('https://room/live', req));
       if (url.pathname === '/api/recipes/explore') {
         // TheMealDB barely changes: let the frame's own HTTP cache answer repeat visits for a day

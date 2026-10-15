@@ -17,7 +17,7 @@
       </button>
     {/each}
     {#if list.length > shown.length}
-      <button class="notice more" onclick={() => (ui.noticesOpen = true)}><span>+{list.length - shown.length} more</span></button>
+      <button class="notice more" onclick={() => (ui.noticesOpen = true)}><span>+{list.length - shown.length} more {list.length - shown.length === 1 ? 'notice' : 'notices'}</span></button>
     {/if}
   </div>
 {/if}

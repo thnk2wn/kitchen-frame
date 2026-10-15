@@ -20,7 +20,8 @@
   import NoticeSheet from './components/NoticeSheet.svelte';
   import NowPlaying from './components/NowPlaying.svelte';
   import { shown } from './lib/pending.svelte.js';
-  import { notices, iconOf } from './lib/notices.svelte.js';
+  import { unread } from './lib/notices.svelte.js';
+  let fresh = $derived(unread()); // new notices since the sheet was last opened (the bell's badge)
   import { timers } from './lib/timers.svelte.js';
   import { connectHA, haConfigured, haDashboard, nowPlaying } from './lib/ha.svelte.js';
   import House from './views/House.svelte';
@@ -78,11 +79,11 @@
     {#if mini}<div class="np-slot"><NowPlaying player={playing} /></div>{/if}
     <div class="edge right">
       <Timers />
-      <!-- Home shows notices as banners; other tabs get this chip. -->
-      {#if ui.tab !== 'home' && notices().length}
-        {@const n = notices()[0]}
-        <button class="notice-chip {n.tone}" onclick={() => (ui.noticesOpen = true)}><Icon name={iconOf(n.tone)} size={20} />{notices().length > 1 ? notices().length : ''}</button>
-      {/if}
+      <!-- The bell, on every tab: a badge counts what's new since the notices were last opened, in
+           the most urgent one's colour. -->
+      <button class="gear bell" onclick={() => (ui.noticesOpen = true)} aria-label={fresh.length ? fresh.length + ' new notices' : 'Notices'}>
+        <Icon name="bell" size={26} />{#if fresh.length}<b class="badge {fresh[0].tone}">{fresh.length}</b>{/if}
+      </button>
       <!-- The time gives way when a timer and the music both need the room, and drops AM/PM beside the music. -->
       {#if ui.tab !== 'home' && !(timers.list.some((t) => !t.done) && mini)}<span class="num now">{mini ? clockTime(clock.now) : time(clock.now)}</span>{/if}
       <!-- While a timer runs its chip takes this space; Home still shows the weather. -->
@@ -131,9 +132,10 @@
   .right { justify-content: flex-end; }
   .now { margin-right: 14px; white-space: nowrap; }
   .wx { color: var(--secondary); }
-  .notice-chip { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 14px; border-radius: 22px; background: var(--orange); color: #fff; font-size: 18px; font-weight: 700; }
-  .notice-chip.alert { background: var(--red); }
-  .notice-chip.info { background: var(--blue); }
+  .bell { position: relative; }
+  .badge { position: absolute; top: 2px; right: 0; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center; background: var(--orange); color: #fff; font-size: 14px; font-weight: 800; line-height: 1; }
+  .badge.alert { background: var(--red); }
+  .badge.info { background: var(--blue); }
   .wxbtn { display: flex; align-items: center; gap: inherit; font: inherit; color: inherit; }
   .wxbtn:active { opacity: .6; }
   .wx.sun { color: var(--yellow); }

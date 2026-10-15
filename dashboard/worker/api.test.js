@@ -389,3 +389,26 @@ test('calendar details: notes stored only for calendars allowed to open them', a
   assert.equal(off.details, undefined);
   assert.equal(off.notes, undefined);
 });
+
+test('notices: the frame reports ended notices and reads back the last 24 hours, newest first', async () => {
+  const store = new Map();
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const nenv = { ...env, CALENDAR: kv, NOTICES_KEEP_MAX: '3' };
+  const call = (method, body) => worker.fetch(new Request('https://frame.test/api/notices', { method, headers: { Authorization: 'Bearer k' }, ...(body ? { body: JSON.stringify(body) } : {}) }), nenv, {});
+  const now = Date.now(), ago = (h) => new Date(now - h * 3600000).toISOString();
+  const add = (id, endedHoursAgo, extra = {}) => call('POST', { id, title: id, tone: 'alert', created: ago(endedHoursAgo + 1), ended: ago(endedHoursAgo), how: 'dismissed', ...extra });
+
+  assert.equal((await worker.fetch(new Request('https://frame.test/api/notices'), nenv, {})).status, 401);
+  assert.equal((await call('POST', { title: 'no id' })).status, 400);
+  await add('old', 30);            // outside 24 hours
+  await add('a', 3);
+  await add('b', 1);
+  await add('b', 1, { tone: 'nonsense', how: 'whatever' }); // the same one again: kept once, the latest report
+  await add('c', 2);
+  await add('d', 4);               // the fourth inside the window: over NOTICES_KEEP_MAX
+  const got = await (await call('GET')).json();
+  assert.deepEqual(got.items.map((n) => n.id), ['b', 'c', 'a']);
+  assert.deepEqual([got.keepHours, got.keepMax, got.infoHours], [24, 3, 24]);
+  assert.equal(got.items[0].tone, 'warn');      // unknown values fall back
+  assert.equal(got.items[0].how, 'cleared');
+});
