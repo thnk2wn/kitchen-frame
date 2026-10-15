@@ -35,7 +35,7 @@ import java.util.Calendar;
  * Set or change the dashboard URL over ADB (remembered across reboots):
  *   adb shell am start -n com.huntsyea.frame/.MainActivity -d 'https://example.workers.dev/?key=...'
  * Remote debugging (chrome://inspect) only while launched with:  --ez debug true
- * Escape hatch: hold two fingers still on the screen for 2 seconds.
+ * Escape hatch: hold two (or more) fingers still on the screen for 2 seconds.
  *
  * This frame has no battery-backed clock: every power-up starts in 2008, and Android's own time
  * sync takes a minute and a half, so the first HTTPS loads fail with a certificate error. On such
@@ -53,7 +53,7 @@ public class MainActivity extends Activity {
   static final long RETRY_MS = 10000;
   static final long WATCHDOG_MS = 30000;
   static final long ESCAPE_HOLD_MS = 2000;
-  static final float ESCAPE_SLOP_PX = 60;
+  static final float ESCAPE_SLOP_PX = 120; // a firm press spreads and shifts the finger's contact point
 
   private final Handler handler = new Handler(Looper.getMainLooper());
   private WebView web;
@@ -275,25 +275,27 @@ public class MainActivity extends Activity {
   public boolean dispatchTouchEvent(MotionEvent e) {
     switch (e.getActionMasked()) {
       case MotionEvent.ACTION_POINTER_DOWN:
-        if (e.getPointerCount() == 2) {
+        // The second finger arms it; a third (a palm, a ghost touch) doesn't cancel it.
+        if (!escapeArmed && e.getPointerCount() >= 2) {
           for (int i = 0; i < 2; i++) { downX[i] = e.getX(i); downY[i] = e.getY(i); }
           escapeArmed = true;
           handler.postDelayed(escape, ESCAPE_HOLD_MS);
-        } else {
-          cancelEscape();
         }
         break;
       case MotionEvent.ACTION_MOVE:
         if (escapeArmed && e.getPointerCount() >= 2) {
           for (int i = 0; i < 2; i++) {
-            if (Math.hypot(e.getX(i) - downX[i], e.getY(i) - downY[i]) > ESCAPE_SLOP_PX) { cancelEscape(); break; }
+            if (Math.hypot(e.getX(i) - downX[i], e.getY(i) - downY[i]) > ESCAPE_SLOP_PX) { cancelEscape("moved"); break; }
           }
         }
         break;
       case MotionEvent.ACTION_POINTER_UP:
+        // Still held while two fingers stay down (the one lifting is counted in getPointerCount).
+        if (e.getPointerCount() - 1 < 2) cancelEscape("lifted");
+        break;
       case MotionEvent.ACTION_UP:
       case MotionEvent.ACTION_CANCEL:
-        cancelEscape();
+        cancelEscape(e.getActionMasked() == MotionEvent.ACTION_UP ? "lifted" : "cancelled");
         break;
       default:
         break;
@@ -301,7 +303,8 @@ public class MainActivity extends Activity {
     return super.dispatchTouchEvent(e);
   }
 
-  private void cancelEscape() {
+  private void cancelEscape(String why) {
+    if (escapeArmed) Log.i(TAG, "escape hold " + why + " before 2 s");
     escapeArmed = false;
     handler.removeCallbacks(escape);
   }
