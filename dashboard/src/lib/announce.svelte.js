@@ -16,13 +16,13 @@ const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'
 function initial() {
   let old = null;
   try { old = localStorage.getItem('frame-announce'); } catch {}
-  return { speaker: old && old !== 'off' ? old : null, volume: 0.4, alertVolume: 0.7, messages: old !== 'off' };
+  return { on: false, speaker: old && old !== 'off' ? old : null, volume: 0.4, alertVolume: 0.7, messages: old !== 'off' };
 }
 export const say = $state({ ...initial(), ...(read() || {}) });
 
 export function setSay(changes) {
   Object.assign(say, changes);
-  try { localStorage.setItem(KEY, JSON.stringify({ speaker: say.speaker, volume: say.volume, alertVolume: say.alertVolume, messages: say.messages })); } catch {}
+  try { localStorage.setItem(KEY, JSON.stringify({ on: say.on, speaker: say.speaker, volume: say.volume, alertVolume: say.alertVolume, messages: say.messages })); } catch {}
 }
 
 // Speakers that can talk: Home Assistant's media players, not TVs or a Spotify account.
@@ -36,10 +36,11 @@ export function speaker() {
 
 const hasScript = () => ha.scripts && ha.scripts.includes('script.frame_announce');
 
-// Say something. alert: a red alert, at the louder alert volume.
+// Say something. alert: a red alert, at the louder alert volume. Nothing is said while
+// Announcements is off (it starts off: opt in from Settings).
 export function speak(text, { alert = false } = {}) {
   const s = speaker();
-  if (ui.demo || !s || ha.status !== 'connected') return Promise.resolve(false);
+  if (ui.demo || !say.on || !s || ha.status !== 'connected') return Promise.resolve(false);
   const message = String(text).slice(0, 400);
   if (!hasScript()) return ttsSpeak(message, s.entity_id).then(() => true);
   return callService('script', 'frame_announce', { message, speaker: s.entity_id, volume: alert ? say.alertVolume : say.volume }).then(() => true);

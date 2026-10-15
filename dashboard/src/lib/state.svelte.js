@@ -30,7 +30,7 @@ const TAB_IDS = ['home', 'calendar', 'groceries', 'todo', 'recipes', 'music', 'h
 export const ui = $state({
   tab: TAB_IDS.includes(q.get('tab')) ? q.get('tab') : 'home', idle: false,
   // { id, title } for Recipes to open on arrival (a meal tapped on Home, or ?open=<recipe id>).
-  openRecipe: q.get('open') ? { id: q.get('open'), title: '' } : null, theme: 'light', settingsOpen: false,
+  openRecipe: q.get('open') ? { id: q.get('open'), title: '' } : null, theme: 'light', settingsOpen: q.has('settings'), // ?settings=<tab> opens Settings (screenshots)
   // Index into weather.data.days while its detail sheet is open (?weather=<n> opens it, for screenshots).
   noticesOpen: false,                        // the Home Assistant notices sheet (lib/notices.svelte.js)
   // The event whose details are showing ({ uid, start }); ?event=<uid> opens one, for screenshots.

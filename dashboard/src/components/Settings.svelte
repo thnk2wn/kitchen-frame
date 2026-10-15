@@ -4,7 +4,8 @@
   import { say, setSay, speakers, speaker, speak } from '../lib/announce.svelte.js';
   // Sections, as tabs at the top; the last one chosen is remembered.
   const TABS = [['display', 'Display'], ['announce', 'Announcements'], ['home', 'Home'], ['about', 'About']];
-  let tab = $state((() => { try { return localStorage.getItem('frame-settings-tab') || 'display'; } catch { return 'display'; } })());
+  const asked = new URLSearchParams(location.search).get('settings');
+  let tab = $state(TABS.some(([v]) => v === asked) ? asked : (() => { try { return localStorage.getItem('frame-settings-tab') || 'display'; } catch { return 'display'; } })());
   $effect(() => { try { localStorage.setItem('frame-settings-tab', tab); } catch {} });
   let testing = $state(false);
   async function test(alert) {
@@ -87,7 +88,7 @@
 
     <div class="row">
       <span>Clock screen after<small>{presenceArea() && presence.sensors.length ? 'Once no one’s in the ' + presenceArea() : 'Without a touch'}</small></span>
-      <div class="seg">
+      <div class="seg five">
         {#each IDLE as [v, label] (v)}
           <button class:on={ui.idleMinutes === v} onclick={() => setSetting('idleMinutes', v)}>{label}</button>
         {/each}
@@ -153,14 +154,22 @@
       <p class="hint pad">Announcements need Home Assistant (see the README).</p>
     {:else}
       <div class="row">
-        <span>Speaker<small>Says messages, and soon reminders and alerts</small></span>
+        <span>Announcements<small>Things said out loud on a speaker</small></span>
+        <div class="seg">
+          <button class:on={say.on} onclick={() => setSay({ on: true })}>On</button>
+          <button class:on={!say.on} onclick={() => setSay({ on: false })}>Off</button>
+        </div>
+      </div>
+      {#if say.on}
+      <div class="row">
+        <span>Speaker<small>Messages now; event reminders and red alerts next</small></span>
         <select class="pick" value={speaker()?.entity_id || ''} onchange={(e) => setSay({ speaker: e.currentTarget.value })} aria-label="Speaker for announcements">
           {#each speakers() as p (p.entity_id)}<option value={p.entity_id}>{p.label || p.friendly_name}</option>{/each}
         </select>
       </div>
       <div class="row">
         <span>Volume<small>Set for each announcement, then put back</small></span>
-        <div class="bright">
+        <div class="bright vol">
           <Icon name="volume" size={20} />
           <input type="range" min="10" max="100" step="5" value={Math.round(say.volume * 100)} oninput={(e) => setSay({ volume: e.currentTarget.value / 100 })} aria-label="Announcement volume" style="--pct:{((say.volume * 100 - 10) / 90) * 100}%" />
           <span class="pct num">{Math.round(say.volume * 100)}%</span>
@@ -168,7 +177,7 @@
       </div>
       <div class="row">
         <span>Alert volume<small>Red alerts, such as a leak</small></span>
-        <div class="bright">
+        <div class="bright vol">
           <Icon name="alert" size={20} />
           <input type="range" min="10" max="100" step="5" value={Math.round(say.alertVolume * 100)} oninput={(e) => setSay({ alertVolume: e.currentTarget.value / 100 })} aria-label="Alert volume" style="--pct:{((say.alertVolume * 100 - 10) / 90) * 100}%" />
           <span class="pct num">{Math.round(say.alertVolume * 100)}%</span>
@@ -188,6 +197,7 @@
           <button class:on={!say.messages} onclick={() => setSay({ messages: false })}>Off</button>
         </div>
       </div>
+      {/if}
     {#if haConfigured() && announcers.length}
       <div class="row">
         <span>Timer alerts<small>Also said on a speaker</small></span>
@@ -246,10 +256,14 @@
   .hint.pad { margin: 18px 0; }
   .tests { display: flex; gap: 10px; }
   .pct { width: 48px; text-align: right; font-size: 17px; color: var(--secondary); }
+  /* Announcement volumes: a shorter slider, so the percentage fits beside it. */
+  .bright.vol input[type='range'] { width: 200px; }
+  /* Five choices (Clock screen after): narrower buttons so Never fits. */
+  .seg.five button { min-width: 60px; padding: 0 10px; }
   .hint { margin: -6px 0 8px; font-size: 15px; color: var(--secondary); }
   .seg { display: flex; padding: 3px; border-radius: 11px; background: var(--track); }
-  .nightset { display: flex; align-items: center; gap: 8px; }
-  .nightset select { height: 44px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--fill); font: inherit; font-size: 17px; color: var(--label); }
+  .nightset { display: flex; align-items: center; gap: 6px; }
+  .nightset select { height: 44px; padding: 0 4px; border: 0; border-radius: 9px; background: var(--fill); font: inherit; font-size: 17px; color: var(--label); }
   .nightset .to { font-size: 16px; color: var(--secondary); }
   .nightset .seg button { min-width: 56px; padding: 0 10px; }
   .seg button { min-width: 84px; height: 40px; padding: 0 14px; border-radius: 9px; font-size: 17px; font-weight: 500; text-align: center; }
@@ -259,7 +273,7 @@
   /* A setting's name never wraps; its controls take the rest of the row. */
   .row > span:first-child { flex: none; white-space: nowrap; }
   /* Its description may wrap, so a row with wide controls (Night) still fits. */
-  .row > span:first-child small { max-width: 210px; white-space: normal; }
+  .row > span:first-child small { max-width: 180px; white-space: normal; }
   .row.last > span:first-child { flex: 1 1 auto; white-space: normal; }
   .pick { height: 44px; max-width: 260px; padding: 0 12px; border: 0; border-radius: 11px; background: var(--fill); font: inherit; font-size: 18px; color: var(--label); }
   .swatches { display: flex; gap: 10px; }

@@ -417,7 +417,7 @@ For messages that should take over the screen (and be read aloud), use
 
 ## Announcements
 
-**Settings → Announcements** sets what the frame says out loud, on one speaker from Home Assistant
+**Settings → Announcements** (off until you turn it on) sets what the frame says out loud, on one speaker from Home Assistant
 (an Echo, a Nest speaker, anything with text-to-speech): the speaker, an announcement volume and a
 louder **alert volume** for red alerts, a **Test** for each, and whether agent messages are read
 aloud. Nothing is said at night (Settings → Display → Night). Timer alerts keep their own speaker
