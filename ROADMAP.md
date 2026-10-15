@@ -18,9 +18,12 @@ The dashboard was built and tested in a browser at the frame's size. On a real f
 
 Thoughts to try in a branch and measure on the frame, not plans:
 
-- **Newer WebView first.** The kiosk runs on Android's System WebView; on Android 8.1 that's a
-  separate, updatable app. A current one could be faster and would lift the Chrome 106 build target.
-  Cheapest to try.
+- **A newer browser engine.** The frame's WebView is 106 (late 2022). Checked 2026-10-15: it isn't
+  updatable. The firmware accepts only `com.android.webview`, a system app signed with the
+  maker's key, and `/system` is under dm-verity (enforcing), so swapping it means modifying
+  verified system files. Alternatives that leave `/system` alone: try the dashboard in a newer
+  browser installed alongside (Firefox, or the last Chrome for Android 8) to see if it feels faster,
+  and if it does, embed GeckoView (Firefox's engine, supports Android 8) in the kiosk app.
 - **Native clock screen.** Draw the clock and slideshow, the screen shown most of the day, with
   Android views in the kiosk app, and hand over to the web dashboard on a touch. Others report native
   views feeling much smoother than a WebView on these frames. Go further (Recipes scrolling, say)
