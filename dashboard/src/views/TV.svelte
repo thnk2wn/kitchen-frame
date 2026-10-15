@@ -4,7 +4,7 @@
   // (lib/ha.svelte.js); nothing here is specific to one household.
   import Icon from '../components/Icon.svelte';
   import MediaSwitch from '../components/MediaSwitch.svelte';
-  import { ha, haUrl, callService } from '../lib/ha.svelte.js';
+  import { ha, haUrl, callService, tvAudio } from '../lib/ha.svelte.js';
   import { ui } from '../lib/state.svelte.js';
 
   // Remote buttons by integration: the command names each one's remote.send_command takes. A TV whose
@@ -61,11 +61,14 @@
     catch (e) { error = e.message || String(e); setTimeout(() => (error = null), 5000); }
   }
   const key = (k) => keys && !off && run('remote', 'send_command', { command: keys[k] }, { entity_id: tv.remote });
-  // Volume in steps (an Apple TV changes the TV's volume over HDMI but doesn't report the level),
-  // and mute where the TV's integration offers it.
+  // Volume in steps and mute, on the TV's soundbar when TV_AUDIO names one (lib/ha.svelte.js),
+  // otherwise on the TV where its integration offers them. The soundbar shows its level.
   const FEAT = { VOLUME_MUTE: 8, VOLUME_STEP: 1024 };
-  let canStep = $derived(!!tv && ((tv.supported_features || 0) & FEAT.VOLUME_STEP) !== 0);
-  let canMute = $derived(!!tv && ((tv.supported_features || 0) & FEAT.VOLUME_MUTE) !== 0);
+  let audio = $derived((!ui.demo && tv && tvAudio[tv.entity_id] && ha.players.find((p) => p.entity_id === tvAudio[tv.entity_id])) || tv);
+  let canStep = $derived(!!audio && ((audio.supported_features || 0) & FEAT.VOLUME_STEP) !== 0);
+  let canMute = $derived(!!audio && ((audio.supported_features || 0) & FEAT.VOLUME_MUTE) !== 0);
+  let level = $derived(audio && audio !== tv && audio.volume_level != null ? Math.round(audio.volume_level * 100) : null);
+  const vol = (service, data = {}) => run('media_player', service, data, { entity_id: audio.entity_id });
   // An app tapped while the TV is off turns it on first, then opens the app.
   async function openApp(a) {
     if (off && !ui.demo) { await run('media_player', 'turn_on'); await new Promise((r) => setTimeout(r, 4000)); }
@@ -117,10 +120,11 @@
           <button class="ctl" disabled={off} onclick={() => skip(10)} aria-label="Forward 10 seconds"><Icon name="fastForward" size={32} /></button>
           {#if canStep || canMute}
             <span class="vol" role="group" aria-label="Volume">
-              {#if canStep}<button class="vbtn" disabled={off} onclick={() => run('media_player', 'volume_down')} aria-label="Volume down"><Icon name="minus" size={22} /></button>{/if}
-              {#if canMute}<button class="vbtn" class:on={tv.is_volume_muted} disabled={off} onclick={() => run('media_player', 'volume_mute', { is_volume_muted: !tv.is_volume_muted })} aria-label={tv.is_volume_muted ? 'Unmute' : 'Mute'}><Icon name={tv.is_volume_muted ? 'volumeOff' : 'volume'} size={22} /></button>
+              {#if canStep}<button class="vbtn" disabled={off} onclick={() => vol('volume_down')} aria-label="Volume down"><Icon name="minus" size={22} /></button>{/if}
+              {#if canMute}<button class="vbtn" class:on={audio.is_volume_muted} disabled={off} onclick={() => vol('volume_mute', { is_volume_muted: !audio.is_volume_muted })} aria-label={audio.is_volume_muted ? 'Unmute' : 'Mute'}><Icon name={audio.is_volume_muted ? 'volumeOff' : 'volume'} size={22} /></button>
               {:else}<span class="vlbl"><Icon name="volume" size={22} /></span>{/if}
-              {#if canStep}<button class="vbtn" disabled={off} onclick={() => run('media_player', 'volume_up')} aria-label="Volume up"><Icon name="plus" size={22} /></button>{/if}
+              {#if canStep}<button class="vbtn" disabled={off} onclick={() => vol('volume_up')} aria-label="Volume up"><Icon name="plus" size={22} /></button>{/if}
+              {#if level != null}<span class="lvl num">{level}%</span>{/if}
             </span>
           {/if}
         </div>
@@ -197,6 +201,7 @@
   .vol { display: flex; align-items: center; gap: 4px; margin-left: 12px; padding: 4px; border-radius: 30px; background: var(--fill); }
   .vbtn, .vlbl { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--label); }
   .vlbl { color: var(--secondary); }
+  .lvl { min-width: 48px; padding-right: 10px; font-size: 17px; font-weight: 600; color: var(--secondary); text-align: center; }
   .vbtn.on { background: var(--thumb); }
   .vbtn:disabled { opacity: .35; }
   .vbtn:active { opacity: .6; }

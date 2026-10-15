@@ -14,7 +14,7 @@ export const ha = $state({
 // removed from the address bar so the token doesn't linger in it. (Or set them over ADB.)
 {
   const q = new URLSearchParams(location.search);
-  const keys = { ha_url: 'frame-ha-url', ha_token: 'frame-ha-token', ha_dashboard: 'frame-ha-dashboard' };
+  const keys = { ha_url: 'frame-ha-url', ha_token: 'frame-ha-token', ha_dashboard: 'frame-ha-dashboard', tv_audio: 'frame-tv-audio' };
   let found = false;
   for (const [param, key] of Object.entries(keys)) {
     if (q.has(param)) { found = true; const v = q.get(param); v ? localStorage.setItem(key, v) : localStorage.removeItem(key); q.delete(param); }
@@ -27,6 +27,17 @@ const entities = new Map(); // entity_id -> { state, attributes }
 // remote entity on the same device when there is one (an on-screen remote sends its buttons).
 const TV_PLATFORMS = ['apple_tv', 'androidtv', 'androidtv_remote', 'roku', 'webostv', 'samsungtv', 'braviatv', 'vizio', 'philips_js', 'panasonic_viera', 'directv', 'fire_tv'];
 let tvInfo = new Map(); // entity_id -> { platform, remote }
+
+// The speaker that plays a TV's sound, for the TV view's volume buttons: TV_AUDIO in .frame.vars,
+// "media_player.tv=media_player.soundbar,…". A TV behind a soundbar often can't step its volume
+// itself: an Apple TV never knows the level, so Home Assistant reads it as 0 and volume down does
+// nothing. A soundbar with its own integration (an Alexa-built-in Bose, a Sonos) reports its level.
+export const tvAudio = (() => {
+  try {
+    return Object.fromEntries(String(localStorage.getItem('frame-tv-audio') || '').split(',')
+      .map((pair) => pair.split('=').map((s) => s.trim())).filter(([tv, speaker]) => tv && speaker));
+  } catch { return {}; }
+})();
 
 // Whether Now Playing (Home's card and the top bar) shows TVs too, or only music. Settings sets it.
 export const nowPrefs = $state({ tv: (() => { try { return localStorage.getItem('frame-now-tv') !== 'off'; } catch { return true; } })() });

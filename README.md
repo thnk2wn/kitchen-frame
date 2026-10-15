@@ -304,7 +304,12 @@ playing in any app (title, episode, artwork, progress), play/pause and 10 s back
 TV's apps (the ones watched lately first; one tap opens one), power, and an on-screen remote
 (arrows, OK, back, home) when the TV has a `remote` entity on the same device and its integration
 is Apple TV, Android TV Remote or Roku. A TV playing shows in Now Playing too; **Settings → Now
-Playing → Music only** leaves TVs out. Nothing about the household's TVs is in the code.
+Playing → Music only** leaves TVs out. Volume steps and mute go to the TV, or to the speaker that
+plays its sound when `TV_AUDIO` in `.frame.vars` names one (`media_player.tv=media_player.soundbar`,
+comma-separated for several TVs). That's needed behind a soundbar: an Apple TV can't read the
+soundbar's level, so Home Assistant takes it as 0 and volume down does nothing, while a soundbar with
+its own integration (Alexa built in, Sonos) steps both ways and shows its level. Nothing about the
+household's TVs is in the code.
 
 ![The Media tab's TV view: what's playing, controls, apps and an on-screen remote](docs/images/tv-light.jpg)
 
