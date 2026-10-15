@@ -6,10 +6,11 @@ import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
 import { ha, announce } from './ha.svelte.js';
 import { timers } from './timers.svelte.js';
 import { presence, presenceArea, onArrive } from './presence.svelte.js';
+import { night, NIGHT_IDLE_MS, quietNow } from './night.svelte.js';
 
 const MIN = 60 * 1000;
-const QUIET_FROM = 22, QUIET_TO = 7; // quiet hours: messages are shown but not read aloud
-const quiet = () => { const h = new Date().getHours(); return h >= QUIET_FROM || h < QUIET_TO; };
+// Quiet hours (messages shown but not read aloud): the night hours from Settings (lib/night.svelte.js).
+const quiet = () => quietNow();
 
 // One request per feed at a time: a poll, a wake-up refresh and a tap share the request in flight.
 const inflight = new Map();
@@ -204,7 +205,7 @@ export function loadPhotos() {
 }
 
 // The clock screen shows photos by day, and at night only if Settings allows it.
-export const photosVisible = () => ui.theme !== 'dark' || ui.nightPhotos;
+export const photosVisible = () => !night.active && (ui.theme !== 'dark' || ui.nightPhotos);
 
 // Messages arrive over a WebSocket the moment they're posted or dismissed (worker/messages.js).
 // A "ping" every 30 s keeps the connection open through routers and proves it's alive; the server
@@ -466,7 +467,8 @@ export function start() {
   // With a presence area, someone walking in brings the dashboard back without a tap.
   // Someone arriving wakes the clock screen, except just after it was started with the play button:
   // whoever pressed it is standing right there, and the motion sensor would end it at once.
-  onArrive(() => { if (ui.idle && Date.now() > manualUntil) exitIdle(); });
+  // At night (Settings → Night) motion doesn't: someone passing through doesn't need the dashboard lit.
+  onArrive(() => { if (ui.idle && !night.active && Date.now() > manualUntil) exitIdle(); });
   // Back on the clock screen if a new version reloaded the page from there.
   try { if (sessionStorage.getItem('frame-resume-idle')) { sessionStorage.removeItem('frame-resume-idle'); startSlideshow(); } } catch {}
   every(10 * MIN, checkForUpdate);
@@ -498,8 +500,11 @@ function reloadIfUpdated() {
 // presence.svelte.js), without a sensor in the room seeing anyone either. Never while a recipe is open or a
 // timer is running: hands are busy then and the screen is in use.
 function idleCheck() {
-  if (ui.idle || !ui.idleMinutes) return;
+  if (ui.idle) return;
   if (ui.recipeOpen || timers.list.some((t) => !t.done)) return;
+  // At night: two minutes after the last touch, whatever the motion sensors say.
+  if (night.active) { if (Date.now() - lastTouch >= NIGHT_IDLE_MS) { ui.idle = true; ui.tab = 'home'; ui.settingsOpen = false; } return; }
+  if (!ui.idleMinutes) return;
   const quietSince = Math.max(lastTouch, presenceArea() ? presence.lastSeen : 0);
   if (Date.now() - quietSince < ui.idleMinutes * MIN) return;
   ui.idle = true; ui.tab = 'home'; ui.settingsOpen = false; loadPhotos();

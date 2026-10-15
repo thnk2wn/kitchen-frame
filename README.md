@@ -338,6 +338,12 @@ After a while untouched (Settings → Clock screen after: 30 minutes by default)
 clock over the photo slideshow, and any tap brings the dashboard back. It never switches while a
 recipe is open or a timer is running.
 
+**Night** (Settings → Night, 10:30 PM to 6:30 AM by default, or off): the clock screen comes on two
+minutes after the last touch, without photos and at the screen's lowest brightness, and motion in
+the room doesn't bring the dashboard back. A tap does, at the daytime brightness, as do a timer alert
+and the doorbell. The daytime brightness (Settings → Brightness) comes back each morning, and agent
+messages aren't read aloud during these hours.
+
 With motion sensors in a Home Assistant area, set `PRESENCE_AREA` (for example `kitchen`) in
 `dashboard/.frame.vars`: the clock screen then waits until no sensor has seen anyone for that long,
 and the dashboard comes back by itself when one does. [docs/presence.md](docs/presence.md) covers

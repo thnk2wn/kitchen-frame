@@ -45,7 +45,8 @@ The dashboard was built and tested in a browser at the frame's size. On a real f
 
 ## Screen and slideshow
 
-- **Screen off at night**, through the kiosk app, rather than only dimming.
+- **Screen fully off at night**, through the kiosk app (backlight off), as an alternative to night
+  mode's lowest brightness, for a frame in a bedroom.
 - **Videos in the slideshow** (short clips from the shared album; needs a look at what the frame's
   CPU can decode).
 

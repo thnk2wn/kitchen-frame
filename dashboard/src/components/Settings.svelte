@@ -2,6 +2,7 @@
   import Icon from './Icon.svelte';
   import { ui, calendar, photos, setSetting, announceTarget } from '../lib/state.svelte.js';
   import { ha, haConfigured, nowPrefs, setNowTv } from '../lib/ha.svelte.js';
+  import { night, setNight, dayBrightness, setDayBrightness } from '../lib/night.svelte.js';
   // Speaker offered for reading agent messages aloud: the chosen one, else the fallback (first speaker).
   let announceSpeaker = $derived(ha.players.find((p) => p.entity_id === ui.announceOn) || announceTarget() || ha.players[0]);
   import { api } from '../lib/api.js';
@@ -18,9 +19,14 @@
 
   // Brightness goes through the kiosk app (window.FrameKiosk); not available in a normal browser.
   const kiosk = typeof window !== 'undefined' ? window.FrameKiosk : null;
-  const saved = kiosk ? kiosk.getBrightness() : -1;
+  // The daytime level: night mode (lib/night.svelte.js) dims below it and gives it back each morning.
+  const saved = kiosk ? dayBrightness() : -1;
   let brightness = $state(saved < 0 ? 100 : Math.round(saved * 100));
-  const setBrightness = () => kiosk && kiosk.setBrightness(brightness / 100);
+  const setBrightness = () => kiosk && setDayBrightness(brightness / 100);
+  // Night hours, every half hour: evenings from 8 PM, mornings to 9 AM.
+  const half = (from, to) => { const out = []; for (let m = from; m <= to; m += 30) out.push(String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')); return out; };
+  const EVENINGS = half(20 * 60, 25 * 60), MORNINGS = half(4 * 60, 9 * 60);
+  const nice = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return (h % 12 || 12) + (m ? ':' + String(m).padStart(2, '0') : '') + (h < 12 ? ' AM' : ' PM'); };
   // Pull the calendar fresh from its feeds, then restart the page.
   async function reload() {
     reloading = true;
@@ -91,9 +97,28 @@
       </div>
     </div>
 
+    <div class="row">
+      <span>Night<small>{night.on ? 'Clock screen 2 minutes after a touch, at the lowest brightness; motion doesn’t wake it; messages aren’t read aloud' : 'Off: the clock screen and brightness are the same all day'}</small></span>
+      <div class="nightset">
+        {#if night.on}
+          <select value={night.from} onchange={(e) => setNight({ from: e.currentTarget.value })} aria-label="Night starts">
+            {#each EVENINGS as t (t)}<option value={t}>{nice(t)}</option>{/each}
+          </select>
+          <span class="to">to</span>
+          <select value={night.to} onchange={(e) => setNight({ to: e.currentTarget.value })} aria-label="Night ends">
+            {#each MORNINGS as t (t)}<option value={t}>{nice(t)}</option>{/each}
+          </select>
+        {/if}
+        <div class="seg">
+          <button class:on={night.on} onclick={() => setNight({ on: true })}>On</button>
+          <button class:on={!night.on} onclick={() => setNight({ on: false })}>Off</button>
+        </div>
+      </div>
+    </div>
+
     {#if kiosk}
       <div class="row">
-        <span>Brightness</span>
+        <span>Brightness<small>{night.on ? 'By day; night goes lower' : ''}</small></span>
         <div class="bright">
           <Icon name="sun" size={18} />
           <input type="range" min="5" max="100" step="5" bind:value={brightness} oninput={setBrightness} aria-label="Brightness" style="--pct:{((brightness - 5) / 95) * 100}%" />
@@ -157,6 +182,9 @@
   .row.last { color: var(--secondary); font-size: 17px; }
   .hint { margin: -6px 0 8px; font-size: 15px; color: var(--secondary); }
   .seg { display: flex; padding: 3px; border-radius: 11px; background: var(--track); }
+  .nightset { display: flex; align-items: center; gap: 8px; }
+  .nightset select { height: 40px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--fill); font: inherit; font-size: 17px; color: var(--label); }
+  .nightset .to { font-size: 16px; color: var(--secondary); }
   .seg button { min-width: 84px; height: 40px; padding: 0 14px; border-radius: 9px; font-size: 17px; font-weight: 500; text-align: center; }
   .seg button.on { background: var(--thumb); font-weight: 600; }
   .seg button:not(.on):active { opacity: .5; }
