@@ -148,8 +148,9 @@
 
 <style>
   .scrim { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; background: rgba(0, 0, 0, .45); display: grid; place-items: center; }
-  .panel { width: 640px; padding: 22px 28px 10px; }
-  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  /* Taller than the screen now: it scrolls, with its heading and Done kept at the top. */
+  .panel { width: 640px; max-height: calc(100% - 32px); overflow-y: auto; overscroll-behavior: contain; padding: 22px 28px 10px; }
+  header { position: sticky; top: -22px; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: -22px 0 6px; padding: 22px 0 8px; background: var(--sheet); }
   h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
   .done { font-size: 20px; font-weight: 600; color: var(--blue-text); padding: 8px 0 8px 16px; }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 64px; padding: 8px 0; border-top: 1px solid var(--sep); font-size: 20px; }

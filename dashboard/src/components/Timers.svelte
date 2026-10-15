@@ -19,9 +19,17 @@
   function start(min) { naming = startTimer(min + ' min', min * 60); }
   function nameIt(n) { renameTimer(naming, n); naming = null; open = false; }
   function toggle() { open = !open; focus = false; naming = null; }
+  // A tap anywhere outside closes the menus (the start menu, a timer's details).
+  let root = $state();
+  $effect(() => {
+    if (!open && !focus) return;
+    const away = (e) => { if (root && !root.contains(e.target)) { open = false; focus = false; naming = null; } };
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  });
 </script>
 
-<div class="timers">
+<div class="timers" bind:this={root}>
   {#if next}
     <div class="wrapchip">
       <button class="chip num" class:soon={remaining(next) <= 60} onclick={() => { focus = !focus; open = false; }}>
