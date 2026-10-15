@@ -60,7 +60,7 @@
     <p class="hint">Auto follows sunrise and sunset.</p>
 
     <div class="row">
-      <span>Clock color<small>Clock screen text, day and night</small></span>
+      <span>Clock screen color<small>The clock shown when the frame is idle</small></span>
       <div class="swatches">
         {#each CLOCK as [c, name] (c)}
           <button class="swatch" class:on={ui.clockColor === c} style="--c:{c}" aria-label={name} onclick={() => setSetting('clockColor', c)}></button>
@@ -69,9 +69,7 @@
     </div>
 
     <div class="row">
-      <span>Clock screen after<small>{presenceArea() && presence.sensors.length
-        ? 'Once nobody has been seen in the ' + presenceArea() + ' (' + presence.sensors.length + ' sensors) this long'
-        : 'Without a touch'}; never with a recipe open or a timer running</small></span>
+      <span>Clock screen after<small>{presenceArea() && presence.sensors.length ? 'Once no one’s in the ' + presenceArea() : 'Without a touch'}</small></span>
       <div class="seg">
         {#each IDLE as [v, label] (v)}
           <button class:on={ui.idleMinutes === v} onclick={() => setSetting('idleMinutes', v)}>{label}</button>
@@ -90,7 +88,7 @@
     {/if}
 
     <div class="row">
-      <span>Photos at night</span>
+      <span>Photos after sunset</span>
       <div class="seg">
         <button class:on={ui.nightPhotos} onclick={() => setSetting('nightPhotos', true)}>Dimmed</button>
         <button class:on={!ui.nightPhotos} onclick={() => setSetting('nightPhotos', false)}>Off</button>
@@ -98,7 +96,7 @@
     </div>
 
     <div class="row">
-      <span>Night<small>{night.on ? 'Clock screen 2 minutes after a touch, at the lowest brightness; motion doesn’t wake it; messages aren’t read aloud' : 'Off: the clock screen and brightness are the same all day'}</small></span>
+      <span>Night<small>{night.on ? 'A dim clock; motion doesn’t wake it' : 'Same as day'}</small></span>
       <div class="nightset">
         {#if night.on}
           <select value={night.from} onchange={(e) => setNight({ from: e.currentTarget.value })} aria-label="Night starts">
@@ -118,7 +116,7 @@
 
     {#if kiosk}
       <div class="row">
-        <span>Brightness<small>{night.on ? 'By day; night goes lower' : ''}</small></span>
+        <span>Brightness{#if night.on}<small>By day</small>{/if}</span>
         <div class="bright">
           <Icon name="sun" size={18} />
           <input type="range" min="5" max="100" step="5" bind:value={brightness} oninput={setBrightness} aria-label="Brightness" style="--pct:{((brightness - 5) / 95) * 100}%" />
@@ -129,7 +127,7 @@
 
     {#if haConfigured() && announceSpeaker}
       <div class="row">
-        <span>Read messages aloud<small>Through Home Assistant, not 10 PM–7 AM</small></span>
+        <span>Read messages aloud<small>{night.on ? 'Not at night' : 'Not 10 PM–7 AM'}</small></span>
         <div class="seg">
           <button class:on={ui.announceOn === announceSpeaker.entity_id} onclick={() => setSetting('announceOn', announceSpeaker.entity_id)}>{announceSpeaker.label}</button>
           <button class:on={ui.announceOn === 'off'} onclick={() => setSetting('announceOn', 'off')}>Off</button>
@@ -139,13 +137,11 @@
 
     {#if haConfigured() && announcers.length}
       <div class="row">
-        <span>Timer alerts<small>Also announced on this speaker when a timer ends</small></span>
-        <div class="seg">
-          {#each announcers as n (n.entity_id)}
-            <button class:on={timerSpeakerId() === n.entity_id} onclick={() => setTimerSpeaker(n.entity_id)}>{n.name.replace(/\s*announce$/i, '')}</button>
-          {/each}
-          <button class:on={!timerSpeakerId()} onclick={() => setTimerSpeaker('off')}>Off</button>
-        </div>
+        <span>Timer alerts<small>Also said on a speaker</small></span>
+        <select class="pick" value={timerSpeakerId() || 'off'} onchange={(e) => setTimerSpeaker(e.currentTarget.value)} aria-label="Speaker for timer alerts">
+          {#each announcers as n (n.entity_id)}<option value={n.entity_id}>{n.name.replace(/\s*announce$/i, '')}</option>{/each}
+          <option value="off">Off</option>
+        </select>
       </div>
     {/if}
 
@@ -157,7 +153,7 @@
     {/if}
 
     <div class="row">
-      <span>Demo mode<small>Sample calendar, lists and no photos, for showing people</small></span>
+      <span>Demo mode<small>Sample data, for showing people</small></span>
       <div class="seg">
         <button class:on={ui.demo} onclick={() => setSetting('demo', true)}>On</button>
         <button class:on={!ui.demo} onclick={() => setSetting('demo', false)}>Off</button>
@@ -183,12 +179,16 @@
   .hint { margin: -6px 0 8px; font-size: 15px; color: var(--secondary); }
   .seg { display: flex; padding: 3px; border-radius: 11px; background: var(--track); }
   .nightset { display: flex; align-items: center; gap: 8px; }
-  .nightset select { height: 40px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--fill); font: inherit; font-size: 17px; color: var(--label); }
+  .nightset select { height: 44px; padding: 0 10px; border: 0; border-radius: 9px; background: var(--fill); font: inherit; font-size: 17px; color: var(--label); }
   .nightset .to { font-size: 16px; color: var(--secondary); }
   .seg button { min-width: 84px; height: 40px; padding: 0 14px; border-radius: 9px; font-size: 17px; font-weight: 500; text-align: center; }
   .seg button.on { background: var(--thumb); font-weight: 600; }
   .seg button:not(.on):active { opacity: .5; }
   .row small { display: block; font-size: 15px; color: var(--secondary); margin-top: 2px; }
+  /* A setting's name never wraps; its controls take the rest of the row. */
+  .row > span:first-child { flex: none; white-space: nowrap; }
+  .row.last > span:first-child { flex: 1 1 auto; white-space: normal; }
+  .pick { height: 44px; max-width: 260px; padding: 0 12px; border: 0; border-radius: 11px; background: var(--fill); font: inherit; font-size: 18px; color: var(--label); }
   .swatches { display: flex; gap: 10px; }
   .swatch { width: 36px; height: 36px; border-radius: 50%; background: var(--c); border: 1px solid var(--sep); }
   /* Selected: a ring just outside the swatch. */
