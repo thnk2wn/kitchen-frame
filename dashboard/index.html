@@ -18,10 +18,24 @@
       <circle cx="76" cy="36" r="7" fill="#ffd60a"/>
       <path d="M40 98 H72" stroke="#e5e5ea" stroke-width="5" stroke-linecap="round"/>
     </svg>
-    <div style="font-size:30px;font-weight:600;letter-spacing:-.01em;color:#e5e5ea">Kitchen Frame</div>
+    <div id="frame-name" style="font-size:30px;font-weight:600;letter-spacing:-.01em;color:#e5e5ea">Kitchen Frame</div>
     <p id="boot" style="margin:0;max-width:900px;padding:0 40px;text-align:center;font-size:19px;color:#8e8e93">Starting…</p>
   </div></div>
   <script>
+    // The frame's name (FRAME_NAME in .frame.vars, sent once as ?frame_name=): saved, shown here.
+    (function () {
+      try {
+        var q = new URLSearchParams(location.search);
+        if (q.has('frame_name')) {
+          var v = q.get('frame_name');
+          v ? localStorage.setItem('frame-name', v) : localStorage.removeItem('frame-name');
+          q.delete('frame_name');
+          history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+        }
+        var n = localStorage.getItem('frame-name');
+        if (n) document.getElementById('frame-name').textContent = n;
+      } catch (e) {}
+    })();
     // Wall display self-healing: if the bundle failed to start, keep reloading until it does.
     // A script error is shown on screen instead, so the frame can be diagnosed without a cable.
     (function () {
