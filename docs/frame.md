@@ -16,7 +16,7 @@ and IP address are deliberately not recorded here.
 | Root | `su -c id` returns uid 0 with no prompt (still true on the 2026-05 firmware). Any app on the frame can get root: install nothing untrusted |
 | Home app | `net.frameo.frame` (Frameo) |
 | Network ADB | off (nothing listening on 5555) |
-| Clock | **No battery-backed clock** (`/dev/rtc0` missing). Every power-up starts at 2008-12-31 until Wi-Fi time sync, so the first HTTPS load fails with a certificate-date error. The kiosk retries until it loads (verified 2026-10-12 by setting the clock back). |
+| Clock | **No battery-backed clock** (`/dev/rtc0` missing). Every power-up starts at 2008-12-31 until Wi-Fi time sync, so the first HTTPS load fails with a certificate-date error, and Android's own sync takes about 100 s. Since kiosk 1.5 the kiosk sets the clock itself on that error (a plain-HTTP Date header, then `su -c date`) and loads within seconds; without root it retries until Android syncs (verified 2026-10-14 by setting the clock back). |
 
 ## Getting ADB working (what actually worked)
 

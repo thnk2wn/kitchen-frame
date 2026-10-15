@@ -12,6 +12,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
@@ -22,6 +23,11 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Calendar;
 
 /**
  * Full-screen kiosk for the family dashboard.
@@ -31,9 +37,12 @@ import android.webkit.WebViewClient;
  * Remote debugging (chrome://inspect) only while launched with:  --ez debug true
  * Escape hatch: hold two fingers still on the screen for 2 seconds.
  *
- * This frame has no battery-backed clock: every power-up starts in 2008 until Wi-Fi time sync,
- * so the first HTTPS load fails with a certificate error. Every failure, SSL included, schedules
- * a retry, and a watchdog reloads if the page has never finished loading.
+ * This frame has no battery-backed clock: every power-up starts in 2008, and Android's own time
+ * sync takes a minute and a half, so the first HTTPS loads fail with a certificate error. On such
+ * an error with the clock plainly wrong, the kiosk reads the time from a plain-HTTP Date header
+ * and sets the clock as root (su), then loads again. Without root it falls back to waiting for
+ * Android. Every failure, SSL included, schedules a retry, and a watchdog reloads if the page
+ * has never finished loading. Until the page loads, a line of status text says what it's waiting on.
  *
  * The page can set the screen brightness through window.FrameKiosk (see Bridge); the value is
  * kept here so it applies from the moment the app starts, before the page has loaded.
@@ -53,6 +62,9 @@ public class MainActivity extends Activity {
   private final float[] downY = new float[2];
   private boolean escapeArmed;
   private boolean loadedOnce;
+  private TextView status;
+  private volatile boolean settingClock;
+  private long clockTriedAt;
 
   // The frame often starts before Wi-Fi is up: keep retrying the dashboard until it loads.
   private final Runnable retry = new Runnable() {
@@ -109,6 +121,7 @@ public class MainActivity extends Activity {
         // The built-in error page also "finishes"; only count a real page with a title.
         if (view.getTitle() != null && !view.getTitle().isEmpty() && !view.getTitle().startsWith("Webpage")) {
           loadedOnce = true;
+          status.setVisibility(View.GONE);
           handler.removeCallbacks(retry);
           Log.i(TAG, "loaded " + view.getTitle());
         }
@@ -118,6 +131,7 @@ public class MainActivity extends Activity {
       public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
         if (request.isForMainFrame()) {
           Log.w(TAG, "load error " + error.getErrorCode() + " " + error.getDescription());
+          if (!loadedOnce) status.setText("Waiting for the network…");
           scheduleRetry();
         }
       }
@@ -127,12 +141,24 @@ public class MainActivity extends Activity {
         // Never bypass certificate checks; just try again (the clock is probably still syncing).
         Log.w(TAG, "ssl error " + error.getPrimaryError() + " (device time " + new java.util.Date() + ")");
         sslHandler.cancel();
+        if (clockWrong()) { if (!loadedOnce) status.setText("Setting the clock…"); fixClock(); }
         scheduleRetry();
       }
     });
     web.addJavascriptInterface(new Bridge(), "FrameKiosk");
     applyBrightness(getSharedPreferences(PREFS, MODE_PRIVATE).getFloat("brightness", -1f));
-    setContentView(web);
+    status = new TextView(this);
+    status.setTextColor(0xff8e8e93);
+    status.setTextSize(20);
+    status.setText("Starting…");
+    FrameLayout root = new FrameLayout(this);
+    root.setBackgroundColor(Color.BLACK);
+    root.addView(web);
+    FrameLayout.LayoutParams at = new FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM);
+    at.bottomMargin = 64;
+    root.addView(status, at);
+    setContentView(root);
 
     handleIntent(getIntent());
     if (url == null) url = getSharedPreferences(PREFS, MODE_PRIVATE).getString("url", null);
@@ -182,6 +208,55 @@ public class MainActivity extends Activity {
     public float getBrightness() {
       return getSharedPreferences(PREFS, MODE_PRIVATE).getFloat("brightness", -1f);
     }
+  }
+
+  /** The clock starts at 2008-12-31 on every power-up; anything before 2024 is that, not real. */
+  static boolean clockWrong() { return Calendar.getInstance().get(Calendar.YEAR) < 2024; }
+
+  /**
+   * Sets the clock from a Date header, read over plain HTTP so no certificate check depends on the
+   * time: the dashboard's own host first (it answers http with a redirect, which carries a Date),
+   * then Google's connectivity check. Seconds-accurate, which is all certificates need; Android's
+   * time sync still runs and refines it. At most one try every 20 seconds.
+   */
+  private void fixClock() {
+    long now = android.os.SystemClock.elapsedRealtime();
+    if (settingClock || (clockTriedAt != 0 && now - clockTriedAt < 20000)) return;
+    settingClock = true;
+    clockTriedAt = now;
+    final String host = url == null ? null : Uri.parse(url).getHost();
+    new Thread(() -> {
+      try {
+        long date = 0;
+        for (String u : new String[] {host == null ? null : "http://" + host + "/", "http://connectivitycheck.gstatic.com/generate_204"}) {
+          if (u == null) continue;
+          try {
+            HttpURLConnection c = (HttpURLConnection) new URL(u).openConnection();
+            c.setInstanceFollowRedirects(false);
+            c.setRequestMethod("HEAD");
+            c.setConnectTimeout(5000);
+            c.setReadTimeout(5000);
+            c.getResponseCode();
+            date = c.getDate();
+            c.disconnect();
+          } catch (Exception e) {
+            Log.w(TAG, "clock: no date from " + u + ": " + e);
+          }
+          if (date > 0) break;
+        }
+        if (date <= 0) return;
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("MMddHHmmyyyy.ss", java.util.Locale.US);
+        f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        Process p = Runtime.getRuntime().exec(new String[] {"su", "-c", "date -u " + f.format(new java.util.Date(date))});
+        int rc = p.waitFor();
+        Log.i(TAG, "clock: set from Date header, su exit " + rc + ", now " + new java.util.Date());
+        if (!clockWrong()) handler.post(() -> { handler.removeCallbacks(retry); if (!loadedOnce && url != null) web.loadUrl(url); });
+      } catch (Exception e) {
+        Log.w(TAG, "clock: couldn't set it: " + e);
+      } finally {
+        settingClock = false;
+      }
+    }).start();
   }
 
   private void scheduleRetry() {
