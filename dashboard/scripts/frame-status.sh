@@ -3,15 +3,16 @@
 # WebView, when the page loaded, what it's showing, and how long ago it checked in. It checks in
 # every 10 minutes, so "minutes ago" over about 12 means it's off, offline or not in the kiosk app.
 # Also whether the dashboard it runs is the one deployed now. Usage: scripts/frame-status.sh
+# With --log, also the frame's recent events (lib/log.svelte.js), oldest first; --log N for the last N.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 key=$(sed -n 's/^DASHBOARD_KEY="\(.*\)"/\1/p' .dev.vars)
 url=$(sed -n 's/^DASHBOARD_URL="\(.*\)"/\1/p' .frame.vars); url=${url%/}
 status=$(curl -fsS -H "Authorization: Bearer $key" "$url/api/frame/status")
 live=$(curl -fsS "$url/" | sed -n 's/.*assets\/index-\([A-Za-z0-9_-]\{1,8\}\).*/\1/p' | head -1)
-python3 -I - "$status" "$live" <<'PY'
+python3 -I - "$status" "$live" "${1:-}" "${2:-40}" <<'PY'
 import json, sys, datetime as dt
-s, live = json.loads(sys.argv[1]), sys.argv[2]
+s, live, mode, count = json.loads(sys.argv[1]), sys.argv[2], sys.argv[3], int(sys.argv[4] or 40)
 if not s: sys.exit('The frame has never checked in.')
 ago = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(s['receivedAt'].replace('Z', '+00:00'))).total_seconds() / 60
 print(f"Checked in   {ago:.0f} min ago")
@@ -19,4 +20,12 @@ print(f"Dashboard    {s.get('version')}" + ('  (the deployed one)' if s.get('ver
 print(f"Kiosk app    {s.get('kiosk') or 'before 1.6'}   WebView {s.get('webview')}")
 print(f"Loaded       {s.get('loadedAt')}")
 print(f"Showing      {s.get('screen')} · tab {s.get('tab')} · Home Assistant {s.get('ha')}")
+if mode == '--log':
+    events = (s.get('log') or [])[-count:]
+    print(f"\nLast {len(events)} events (sent with each check-in, so up to 10 minutes behind):")
+    for e in events:
+        t = dt.datetime.fromisoformat(e['t'].replace('Z', '+00:00')).astimezone().strftime('%a %-I:%M:%S %p')
+        rest = ', '.join(f"{k}: {v}" for k, v in e.items() if k not in ('t', 'event', 'level'))
+        mark = {'error': '!! ', 'warn': ' ! '}.get(e.get('level'), '   ')
+        print(f"{mark}{t}  {e['event']}" + (f"  ({rest})" if rest else ''))
 PY

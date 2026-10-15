@@ -2,9 +2,9 @@
 // next slide is always downloaded and decoded ahead of time: in the background while the
 // dashboard is up, and during each slide's 30 seconds on screen.
 import { photos } from './state.svelte.js';
-import { withKey } from './api.js';
+import { mediaUrl } from './api.js';
 
-export const src = (p) => withKey('/api/photos/' + p.id);
+export const src = (p) => mediaUrl('/api/photos/' + p.id);
 
 let queue = [];
 let known = null;

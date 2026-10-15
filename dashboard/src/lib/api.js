@@ -1,3 +1,4 @@
+import { log } from './log.svelte.js';
 // The frame opens the dashboard once with ?key=..., then remembers it.
 const q = new URLSearchParams(location.search);
 if (q.get('key')) {
@@ -7,23 +8,39 @@ if (q.get('key')) {
   history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
 }
 
+// Calls to the Worker. Failures and slow ones (over 8 s) go to the event log, the path without its
+// query string (the frame's own check-in excepted, so a failing log can't log itself).
 export async function api(path, init = {}) {
-  const res = await fetch(path, {
-    ...init,
-    headers: {
-      Authorization: 'Bearer ' + (localStorage.getItem('frame-key') || ''),
-      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-    },
-  });
+  const started = Date.now();
+  const where = String(path).split('?')[0];
+  const quiet = where.startsWith('/api/frame/');
+  let res;
+  try {
+    res = await fetch(path, {
+      ...init,
+      headers: {
+        Authorization: 'Bearer ' + (localStorage.getItem('frame-key') || ''),
+        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      },
+    });
+  } catch (e) {
+    if (!quiet) log('api.failed', { path: where, error: e && e.message, ms: Date.now() - started }, 'warn');
+    throw e;
+  }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || 'HTTP ' + res.status);
+  const ms = Date.now() - started;
+  if (!res.ok) {
+    if (!quiet) log('api.failed', { path: where, status: res.status, error: body.error, ms }, res.status >= 500 ? 'error' : 'warn');
+    throw new Error(body.error || 'HTTP ' + res.status);
+  }
+  if (ms > 8000 && !quiet) log('api.slow', { path: where, ms }, 'warn');
   return body;
 }
 
-// <img> can't send headers, so image routes take the key in the URL.
-export function withKey(path) {
-  return path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(localStorage.getItem('frame-key') || '');
-}
+// Images and the live messages socket can't send the key as a header. They used to carry it in the
+// URL; now the Worker sets an HttpOnly cookie on the first call made with the key, and they send
+// that (worker/index.js, authorized()), so the key stays out of URLs, logs and caches.
+export const mediaUrl = (path) => path;
 
 // Last good copy of each feed, so the frame boots with something on screen when offline.
 export function cached(key) {

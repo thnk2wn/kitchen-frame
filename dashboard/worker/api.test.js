@@ -428,3 +428,83 @@ test('frame: the kiosk checks in and backs up its settings; secrets and odd keys
   await call('/api/frame/status', 'POST', { version: 'abc124' }); // a check-in without settings keeps the backup
   assert.equal((await (await call('/api/frame/settings')).json()).settings['frame-theme'], 'dark');
 });
+
+test('frame: events from the check-in are logged and the last ones kept with the status', async () => {
+  const store = new Map();
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const fenv = { ...env, CALENDAR: kv };
+  const post = (body) => worker.fetch(new Request('https://frame.test/api/frame/status', { method: 'POST', headers: { Authorization: 'Bearer k' }, body: JSON.stringify(body) }), fenv, {});
+  const logged = [], orig = console.warn; console.warn = (x) => logged.push(x);
+  await post({ version: 'a', events: [{ t: '2026-10-15T12:00:00Z', event: 'ha.disconnected', level: 'warn' }, { nope: 1 }] });
+  console.warn = orig;
+  await post({ version: 'b' }); // no events: the log is kept
+  await post({ version: 'c', events: [{ t: '2026-10-15T12:05:00Z', event: 'ha.connected', downFor: '42 s', 'bad key': 'x', big: 'y'.repeat(500) }] });
+  const st = await (await worker.fetch(new Request('https://frame.test/api/frame/status', { headers: { Authorization: 'Bearer k' } }), fenv, {})).json();
+  assert.deepEqual(st.log.map((e) => e.event), ['ha.disconnected', 'ha.connected']);
+  assert.equal(st.log[1].big.length, 300);
+  assert.equal(st.log[1]['bad key'], undefined);
+  assert.equal(st.log[1].level, 'info');
+  assert.equal(logged[0].source, 'frame');
+  assert.equal(logged[0].message, 'frame ha.disconnected');
+});
+
+test('auth cookie: a request with the key gets it; images then load with it, without the key in the URL', async () => {
+  const call = (path, headers = {}) => worker.fetch(new Request('https://frame.test' + path, { headers }), { ...env, ALBUM_URL: '' }, {});
+  const first = await call('/api/photos', { Authorization: 'Bearer k' });
+  const set = first.headers.get('Set-Cookie');
+  assert.match(set, /^frame_auth=[\w-]+; Path=\/api; .*HttpOnly; Secure; SameSite=Strict/);
+  assert.ok(!set.includes('=k;'));                      // a fingerprint of the key, not the key
+  const cookie = set.split(';')[0];
+  assert.equal((await call('/api/photos', { Authorization: 'Bearer k', Cookie: cookie })).headers.get('Set-Cookie'), null); // already set
+  assert.notEqual((await call('/api/tiles/1/1/1', { Cookie: cookie })).status, 401);   // a media path: allowed
+  assert.equal((await call('/api/calendar', { Cookie: cookie })).status, 401);         // not a media path: the key is still needed
+  assert.equal((await call('/api/tiles/1/1/1', { Cookie: 'frame_auth=forged' })).status, 401);
+});
+
+test('ops summary: needs the key; counts and health, not content; keeps a day of check-ins', async () => {
+  const store = new Map([['calendar', JSON.stringify({ updated: '2026-10-15T12:00:00Z', names: ['Family'], errors: [], events: [{ cal: 0, title: 'Secret dinner' }, { cal: 0, title: 'x' }] })]]);
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const oenv = { ...env, CALENDAR: kv };
+  const call = (path, method = 'GET', body) => worker.fetch(new Request('https://frame.test' + path, { method, headers: { Authorization: 'Bearer k' }, ...(body ? { body: JSON.stringify(body) } : {}) }), oenv, {});
+  assert.equal((await worker.fetch(new Request('https://frame.test/api/ops/summary'), oenv, {})).status, 401);
+  await call('/api/frame/status', 'POST', { version: 'a', screen: 'clock', ha: 'connected' });
+  await call('/api/frame/status', 'POST', { version: 'a', screen: 'awake', ha: 'connected' });
+  const s = await (await call('/api/ops/summary')).json();
+  assert.deepEqual(s.frame.history.map((h) => h.screen), ['clock', 'awake']);
+  assert.deepEqual(s.calendar.events, { 0: 2 });
+  assert.ok(!JSON.stringify(s).includes('Secret dinner'));
+});
+
+test('no DASHBOARD_KEY set: the API is refused, unless local development allows it', async () => {
+  const { DASHBOARD_KEY, ...nokey } = env;
+  assert.equal((await worker.fetch(new Request('https://frame.test/api/weather'), nokey, {})).status, 401);
+  assert.notEqual((await worker.fetch(new Request('https://frame.test/api/frame/settings'), { ...nokey, ALLOW_NO_KEY: '1', CALENDAR: { get: async () => null } }, {})).status, 401);
+});
+
+import { settingsChanges } from './frame.js';
+test('settings changes: in words, nested JSON flattened, automatic ones and the PIN hash left out', () => {
+  assert.deepEqual(settingsChanges(
+    { 'frame-night': '{"on":true,"from":"22:00"}', 'frame-theme': 'auto', 'frame-notices-seen': '1', 'frame-unlock-pin': 'h1' },
+    { 'frame-night': '{"on":false,"from":"22:00"}', 'frame-theme': 'auto', 'frame-notices-seen': '2', 'frame-unlock-pin': 'h2', 'frame-tv': 'media_player.tv' }),
+  ['frame-night.on: true → false', 'frame-tv: set to "media_player.tv"', 'frame-unlock-pin: changed']);
+  assert.deepEqual(settingsChanges({ 'frame-unlock-pin': 'h' }, {}), ['frame-unlock-pin: removed']);
+});
+
+test('settings: a change a person made is logged and the version before it kept; automatic ones are not', async () => {
+  const store = new Map();
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const fenv = { ...env, CALENDAR: kv };
+  const call = (path, body) => worker.fetch(new Request('https://frame.test' + path, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer k' }, ...(body ? { body: JSON.stringify(body) } : {}) }), fenv, {});
+  const orig = console.log; console.log = () => {};
+  await call('/api/frame/status', { version: 'a', settings: { 'frame-theme': 'auto', 'frame-notices-seen': '1' } });
+  await call('/api/frame/status', { version: 'a', settings: { 'frame-theme': 'auto', 'frame-notices-seen': '2' } });
+  await call('/api/frame/status', { version: 'a', settings: { 'frame-theme': 'dark', 'frame-notices-seen': '2' } });
+  console.log = orig;
+  const st = await (await call('/api/frame/status')).json();
+  assert.deepEqual(st.log.map((e) => [e.event, e.changes]), [['settings.changed', 'frame-theme: "auto" → "dark"']]);
+  const versions = await (await call('/api/frame/settings?history')).json();
+  assert.equal(versions.length, 1);
+  assert.equal(versions[0].settings['frame-theme'], 'auto');
+  assert.deepEqual(versions[0].changes, ['frame-theme: "auto" → "dark"']);
+  assert.equal((await (await call('/api/frame/settings')).json()).settings['frame-theme'], 'dark');
+});

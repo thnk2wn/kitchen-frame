@@ -19,7 +19,7 @@
   import { tick } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import RecipePage from './RecipePage.svelte';
-  import { api, cached, remember, withKey } from '../lib/api.js';
+  import { api, cached, remember, mediaUrl } from '../lib/api.js';
   import { recipeTitle } from '../lib/format.js';
   import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui } from '../lib/state.svelte.js';
   import { dayKey, addDays } from '../lib/format.js';
@@ -120,7 +120,7 @@
   function toggleSearch() { searching = !searching; if (!searching) query = ''; }
   // v: the photo's version, so a photo replaced in Paprika isn't shown from the browser's cache.
   // w: 320 for the grid's cards (about 240 px wide), the full 640 for a recipe's page.
-  const ourThumb = (r, w = 0) => (r.hasImage ? withKey('/api/recipes/paprika/' + r.id.slice(4) + '/image?' + new URLSearchParams({ ...(r.img ? { v: r.img } : {}), ...(w ? { w } : {}) })) : null);
+  const ourThumb = (r, w = 0) => (r.hasImage ? mediaUrl('/api/recipes/paprika/' + r.id.slice(4) + '/image?' + new URLSearchParams({ ...(r.img ? { v: r.img } : {}), ...(w ? { w } : {}) })) : null);
   async function openOurs(card) {
     open = { id: card.id, title: card.title, image: ourThumb(card), ingredients: [], steps: [], loading: true };
     const want = open;
@@ -173,7 +173,7 @@
   loadRecipes();
   loadPaprika();
 
-  const savedThumb = (r) => (r.hasImage ? withKey('/api/recipes/' + r.id + '/image') : null);
+  const savedThumb = (r) => (r.hasImage ? mediaUrl('/api/recipes/' + r.id + '/image') : null);
 </script>
 
 <div class="wrap">

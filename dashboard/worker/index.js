@@ -15,6 +15,7 @@
 //   POST /api/notices                the frame reports one as it ends
 //   POST /api/frame/status           the kiosk checks in: version, screen, and its settings (frame.js)
 //   GET  /api/frame/status           its last check-in;  GET /api/frame/settings  the settings backup
+//   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
@@ -49,7 +50,8 @@ import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js'
 import { listPhotos, photoResponse } from './photos.js';
 import { room } from './messages.js';
 import { listNotices, addNotice } from './notices.js';
-import { saveStatus, getStatus, getSettings } from './frame.js';
+import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
+import { opsSummary } from './ops.js';
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage } from './recipes.js';
@@ -75,7 +77,19 @@ const STALE_MS = 75 * 60 * 1000;
 const PAPRIKA_CRON = '*/15 * * * *'; // must match wrangler.jsonc
 
 export default {
+  // Every response to the frame's key also carries the cookie images and the live messages socket
+  // authenticate with (see authorized()), set once and refreshed when missing.
   async fetch(req, env, ctx) {
+    return withAuthCookie(req, env, await handle(req, env, ctx));
+  },
+
+  async scheduled(controller, env) {
+    return scheduled(controller, env);
+  },
+};
+
+async function handle(req, env, ctx) {
+  {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) {
       const res = await env.ASSETS.fetch(req);
@@ -109,7 +123,7 @@ export default {
       const { status, body } = await saveRecipe(env, await req.json().catch(() => ({})));
       return json(body, status);
     }
-    if (!authorized(req, env)) return json({ error: 'unauthorized' }, 401);
+    if (!(await authorized(req, env))) return json({ error: 'unauthorized' }, 401);
 
     try {
       if (url.pathname === '/api/calendar') {
@@ -153,7 +167,8 @@ export default {
         return json(body, status);
       }
       if (url.pathname === '/api/frame/status') return json(await getStatus(env));
-      if (url.pathname === '/api/frame/settings') return json(await getSettings(env));
+      if (url.pathname === '/api/frame/settings') return json(url.searchParams.has('history') ? await getSettingsHistory(env) : await getSettings(env));
+      if (url.pathname === '/api/ops/summary') return json(await opsSummary(env, KEY));
       if (url.pathname === '/api/notices' && req.method === 'POST') {
         const { status, body } = await addNotice(env, await req.json().catch(() => ({})));
         return json(body, status);
@@ -224,9 +239,11 @@ export default {
       console.error(url.pathname, err);
       return json({ error: String(err.message || err) }, 502);
     }
-  },
+  }
+}
 
-  async scheduled(controller, env) {
+async function scheduled(controller, env) {
+  {
     // Paprika has its own cron so its requests and CPU don't share a run with the calendar's.
     if (controller.cron === PAPRIKA_CRON) {
       const r = await syncPaprika(env);
@@ -235,8 +252,8 @@ export default {
     }
     const data = await updateCalendar(env, await env.CALENDAR.get(KEY, 'json'));
     console.log('cron ' + controller.cron + ': ' + data.events.length + ' events, ' + data.errors.length + ' errors');
-  },
-};
+  }
+}
 
 // Fetches the feeds and stores the result when the events or errors changed, or hourly.
 async function updateCalendar(env, previous) {
@@ -272,9 +289,10 @@ async function refresh(env, previous) {
       return events;
     } catch (err) {
       // Keep this calendar's last good events so a blip doesn't blank the wall display.
-      errors.push({ cal, error: String(err.message || err) });
+      // Without the link itself: a feed's URL is its secret (fetch errors can quote it).
+      errors.push({ cal, error: String(err.message || err).replace(/(?:https?|webcal):\/\/\S+/gi, '<link>') });
       names[cal] = previous?.names?.[cal] ?? null;
-      console.error('calendar ' + cal + ' failed:', err);
+      console.error('calendar ' + cal + ' failed: ' + errors[errors.length - 1].error);
       return (previous?.events || []).filter((e) => e.cal === cal)
         .map((e) => ({ ...e, startMs: Date.parse(e.start), ...(details?.[cal] && previous.notes?.[e.uid] ? { notes: previous.notes[e.uid] } : {}) }));
     }
@@ -291,13 +309,52 @@ async function refresh(env, previous) {
     notes: Object.keys(notes).length ? notes : undefined, errors, events };
 }
 
-function authorized(req, env) {
-  if (!env.DASHBOARD_KEY) return true;
-  if (req.headers.get('Authorization') === 'Bearer ' + env.DASHBOARD_KEY) return true;
-  // <img> and WebSocket can't send headers, so they may carry the key in the URL instead (GET only).
+// The frame sends its key as a header. <img> and WebSocket can't, so those GETs authenticate with a
+// cookie instead: an HMAC of the key (not the key), HttpOnly, Secure, SameSite=Strict, set on any
+// response to a request that had the key. That keeps the key out of URLs, and so out of request
+// logs and caches. The key in the URL (?key=, how they used to do it) still works for now, logged
+// so it can be removed once nothing uses it.
+const AUTH_COOKIE = 'frame_auth';
+const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/tiles/') || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
+// Constant-time comparison, so a key or cookie can't be guessed a character at a time.
+function same(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+const hasKey = (req, env) => same(req.headers.get('Authorization') || '', 'Bearer ' + env.DASHBOARD_KEY);
+
+async function cookieValue(env) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey('raw', enc.encode(env.DASHBOARD_KEY), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode('kitchen-frame auth cookie v1')));
+  return btoa(String.fromCharCode(...sig)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+const cookieOf = (req) => (/(?:^|;\s*)frame_auth=([^;]+)/.exec(req.headers.get('Cookie') || '') || [])[1] || null;
+
+async function authorized(req, env) {
+  // No key set: refused, unless local development says otherwise (ALLOW_NO_KEY=1 in .dev.vars only),
+  // so a key lost in a rotation can't leave the API open.
+  if (!env.DASHBOARD_KEY) return env.ALLOW_NO_KEY === '1';
+  if (hasKey(req, env)) return true;
   const url = new URL(req.url);
-  const keyInUrl = url.pathname.startsWith('/api/photos/') || url.pathname.startsWith('/api/tiles/') || url.pathname === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(url.pathname);
-  return req.method === 'GET' && keyInUrl && url.searchParams.get('key') === env.DASHBOARD_KEY;
+  if (req.method !== 'GET' || !mediaPath(url.pathname)) return false;
+  if (same(cookieOf(req) || '', await cookieValue(env))) return true;
+  if (same(url.searchParams.get('key') || '', env.DASHBOARD_KEY)) {
+    console.warn({ source: 'worker', message: 'key in URL', path: url.pathname });
+    return true;
+  }
+  return false;
+}
+
+async function withAuthCookie(req, env, res) {
+  if (!env.DASHBOARD_KEY || !hasKey(req, env) || res.status === 101 || res.webSocket) return res;
+  const value = await cookieValue(env);
+  if (cookieOf(req) === value) return res;
+  const out = new Response(res.body, res);
+  out.headers.append('Set-Cookie', AUTH_COOKIE + '=' + value + '; Path=/api; Max-Age=31536000; HttpOnly; Secure; SameSite=Strict');
+  return out;
 }
 
 function json(body, status = 200, cache = 'no-store') {

@@ -7,7 +7,7 @@
   // A small street map with a pin for an event's location: the Worker looks the place up once
   // (OpenStreetMap's Nominatim) and passes OSM tiles through its cache. Nothing shows if the place
   // can't be found (a video call, a room name), so the sheet just has no map.
-  import { api, withKey } from '../lib/api.js';
+  import { api, mediaUrl } from '../lib/api.js';
 
   let { location, width = 340, height = 280, zoom = 15, found = $bindable(false) } = $props();
   const TILE = 256;
@@ -37,7 +37,7 @@
     for (let tx = Math.floor(left / TILE); tx * TILE < left + width; tx++) {
       for (let ty = Math.floor(top / TILE); ty * TILE < top + height; ty++) {
         if (ty < 0 || ty >= n) continue;
-        out.push({ key: tx + '/' + ty, src: withKey(`/api/tiles/${zoom}/${((tx % n) + n) % n}/${ty}`), x: tx * TILE - left, y: ty * TILE - top });
+        out.push({ key: tx + '/' + ty, src: mediaUrl(`/api/tiles/${zoom}/${((tx % n) + n) % n}/${ty}`), x: tx * TILE - left, y: ty * TILE - top });
       }
     }
     return out;

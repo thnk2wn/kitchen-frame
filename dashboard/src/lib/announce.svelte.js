@@ -8,6 +8,7 @@
 // the frame falls back to plain text-to-speech at the speaker's current volume.
 import { ha, announce as ttsSpeak, callService } from './ha.svelte.js';
 import { ui } from './state.svelte.js';
+import { log } from './log.svelte.js';
 
 const KEY = 'frame-announcements';
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } };
@@ -45,11 +46,16 @@ export function speaker() {
 const hasScript = () => ha.scripts && ha.scripts.includes('script.frame_announce');
 
 // Say something. alert: a red alert, at the louder alert volume. Nothing is said while
-// Announcements is off (it starts off: opt in from Settings).
-export function speak(text, { alert = false } = {}) {
+// Announcements is off (it starts off: opt in from Settings). kind: for the event log
+// (reminder, alert, notice, message, test).
+export function speak(text, { alert = false, kind = 'other' } = {}) {
   const s = speaker();
-  if (ui.demo || !say.on || !s || ha.status !== 'connected') return Promise.resolve(false);
   const message = String(text).slice(0, 400);
-  if (!hasScript()) return ttsSpeak(message, s.entity_id).then(() => true);
-  return callService('script', 'frame_announce', { message, speaker: s.entity_id, volume: alert ? say.alertVolume : say.volume }).then(() => true);
+  if (ui.demo || !say.on || !s || ha.status !== 'connected') {
+    if (!ui.demo) log('announce.skipped', { kind, text: message, why: !say.on ? 'off' : !s ? 'no speaker' : 'not connected' }, 'warn');
+    return Promise.resolve(false);
+  }
+  const done = (ok) => { log('announce', { kind, text: message, speaker: s.entity_id, alert: alert || undefined }); return ok; };
+  if (!hasScript()) return ttsSpeak(message, s.entity_id).then(() => done(true));
+  return callService('script', 'frame_announce', { message, speaker: s.entity_id, volume: alert ? say.alertVolume : say.volume }).then(() => done(true));
 }

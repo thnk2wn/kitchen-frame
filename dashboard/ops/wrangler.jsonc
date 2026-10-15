@@ -1,0 +1,12 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // The frame's status page (ops/worker.js): its own Worker, behind GitHub sign-in, reading the main
+  // Worker's summary over a service binding. Deploy: npx wrangler deploy --config ops/wrangler.jsonc
+  "name": "kitchen-frame-ops",
+  "main": "./worker.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "services": [{ "binding": "MAIN", "service": "kitchen-frame" }],
+  "rules": [{ "type": "Text", "globs": ["**/*.html"], "fallthrough": true }],
+  "observability": { "enabled": true }
+}

@@ -21,16 +21,32 @@ export const presenceArea = () => { try { return localStorage.getItem(KEY) || ''
 
 export const presence = $state({
   sensors: [],      // entity ids found in the area
-  on: [],           // the ones on right now
+  names: {},        // entity id -> name, for Settings
+  classes: {},      // entity id -> device class (motion, occupancy, presence)
+  on: [],           // the ones on right now (and not ignored)
   lastSeen: 0,      // when one last turned on (ms)
+  by: null,         // the sensor that did
 });
+
+// Sensors left out (Settings → Home → Presence sensors). Occupancy sensors start left out: they
+// hold "occupied" for a long while after the last motion (an ecobee room sensor for hours), so
+// they add nothing beside a motion sensor. ignored: true = left out by choice, false = kept.
+const IGNORE_KEY = 'frame-presence-ignore';
+export const presenceChoice = $state((() => { try { return JSON.parse(localStorage.getItem(IGNORE_KEY) || '{}'); } catch { return {}; } })());
+export const ignored = (id) => (id in presenceChoice ? presenceChoice[id] : presence.classes[id] === 'occupancy');
+export function setIgnored(id, value) {
+  presenceChoice[id] = value;
+  try { localStorage.setItem(IGNORE_KEY, JSON.stringify(presenceChoice)); } catch {}
+}
 const arrivals = new Set();
 // fn runs whenever a sensor turns on (someone just moved).
 export function onArrive(fn) { arrivals.add(fn); return () => arrivals.delete(fn); }
 
 const template = (area) => `{% set ids = area_entities(${JSON.stringify(area)}) | select('match', 'binary_sensor\\\\.') | list %}` +
   `{% set s = expand(ids) | selectattr('attributes.device_class', 'in', ['motion', 'occupancy', 'presence']) | list %}` +
-  `{{ {'sensors': s | map(attribute='entity_id') | list, 'on': s | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list} | tojson }}`;
+  `{{ {'sensors': s | map(attribute='entity_id') | list, 'on': s | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list,` +
+  ` 'names': dict(zip(s | map(attribute='entity_id') | list, s | map(attribute='name') | list)),` +
+  ` 'classes': dict(zip(s | map(attribute='entity_id') | list, s | map(attribute='attributes.device_class') | list))} | tojson }}`;
 
 onHAConnect(() => {
   const area = presenceArea();
@@ -42,11 +58,15 @@ onHAConnect(() => {
     // Only a sensor turning on counts as someone there: a sensor stuck on (an occupancy sensor that
     // holds, a dead battery) would otherwise keep the clock screen away forever. Motion sensors
     // re-trigger every few minutes while people are about, so a busy room keeps counting as busy.
-    const fresh = r.on.filter((id) => !presence.on.includes(id));
     presence.sensors = r.sensors || [];
-    presence.on = r.on;
+    presence.names = r.names || {};
+    presence.classes = r.classes || {};
+    const on = r.on.filter((id) => !ignored(id));
+    const fresh = on.filter((id) => !presence.on.includes(id));
+    presence.on = on;
     if (fresh.length) {
       presence.lastSeen = Date.now();
+      presence.by = fresh[0];
       for (const fn of arrivals) { try { fn(); } catch (e) { console.error(e); } }
     }
   }).catch((e) => console.error('presence', e));

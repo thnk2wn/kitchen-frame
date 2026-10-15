@@ -6,6 +6,7 @@
 // Nest, … all expose one), or the ones set with ?doorbell=event.a,binary_sensor.b; ?doorbell=off
 // turns the pop-up off. The camera is the one on the doorbell's device, or ?doorbell_camera=camera.x.
 // A snapshot companion (ring-mqtt's camera.<name>_snapshot) is used for the still when there is one.
+import { log } from './log.svelte.js';
 import { send, subscribeTo, unsubscribeFrom, callService, onHAConnect, onHAStates, applyEntityDiff } from './ha.svelte.js';
 import { companionsOf } from './house.svelte.js';
 
@@ -88,6 +89,7 @@ function rings(ev, entity) {
 
 export function ring(d) {
   bell.ringing = { ...d, at: Date.now() };
+  log('doorbell.ring', { doorbell: d.name || d.entity, test: d.test || undefined });
   // Ask for a fresh still right away (ring-mqtt snapshots take a few seconds to arrive).
   if (d.button) callService('button', 'press', {}, { entity_id: d.button }).catch(() => {});
   clearTimeout(closeTimer);

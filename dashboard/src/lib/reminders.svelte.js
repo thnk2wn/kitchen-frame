@@ -47,7 +47,7 @@ function check() {
     if (now < at || now >= start || now - at > LATE_MS || done[keyOf(e)]) continue;
     done[keyOf(e)] = now; // claim it before speaking, so the next check can't repeat it
     const k = keyOf(e);
-    speak(sentence(e, now)).then((ok) => { if (!ok) delete done[k]; }, () => delete done[k]).finally(save);
+    speak(sentence(e, now), { kind: 'reminder' }).then((ok) => { if (!ok) delete done[k]; }, () => delete done[k]).finally(save);
   }
 }
 function save() {

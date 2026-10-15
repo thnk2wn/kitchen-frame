@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Frame status</title>
+<style>
+  :root { --bg: #f2f2f7; --card: #fff; --label: #1c1c1e; --secondary: #6e6e73; --sep: #e5e5ea; --green: #248a3d; --orange: #c93400; --red: #d70015; --blue: #0071e3;
+    --awake: #34c759; --clock: #5e5ce6; --night: #1c1c3a; --gap: #e5e5ea; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #1c1c1e; --label: #f2f2f7; --secondary: #98989d; --sep: #38383a; --green: #30d158; --orange: #ff9f0a; --red: #ff453a; --blue: #0a84ff;
+    --clock: #7d7aff; --night: #3a3a6a; --gap: #2c2c2e; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--label); font: 15px/1.4 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; display: grid; gap: 14px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 24px; }
+  h2 { margin: 0 0 10px; font-size: 16px; }
+  .muted, small { color: var(--secondary); }
+  a { color: var(--blue); }
+  .card { background: var(--card); border-radius: 14px; padding: 14px 16px; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .status { font-size: 20px; font-weight: 700; }
+  .ok { color: var(--green); } .warn { color: var(--orange); } .bad { color: var(--red); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 8px 0 0; }
+  dt { color: var(--secondary); } dd { margin: 0; overflow-wrap: anywhere; }
+  .strip { display: flex; height: 26px; border-radius: 6px; overflow: hidden; background: var(--gap); }
+  .strip span { height: 100%; }
+  .axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--secondary); margin-top: 4px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--secondary); margin-top: 8px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .filters button { border: 1px solid var(--sep); background: none; color: var(--label); border-radius: 14px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .filters button.on { background: var(--label); color: var(--card); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 5px 6px; border-top: 1px solid var(--sep); vertical-align: top; }
+  td.t { white-space: nowrap; color: var(--secondary); width: 1%; }
+  td.e { white-space: nowrap; font-weight: 600; width: 1%; }
+  tr.warn td.e { color: var(--orange); } tr.error td.e { color: var(--red); }
+  .scroll { max-height: 520px; overflow: auto; }
+  ul { margin: 6px 0 0; padding-left: 18px; }
+  .group + .group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--sep); }
+  h3 { margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--secondary); }
+  dl.sub { margin: 4px 0 0 14px; padding-left: 10px; border-left: 2px solid var(--sep); }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Frame status</h1><span class="muted" id="who"></span></header>
+  <div class="grid">
+    <section class="card"><h2>Frame</h2><div id="frame">Loading…</div></section>
+    <section class="card"><h2>Backend</h2><div id="backend"></div></section>
+  </div>
+  <section class="card"><h2>Last 24 hours</h2><div id="timeline"></div></section>
+  <section class="card">
+    <h2>Events <small id="evcount"></small></h2>
+    <div class="filters" id="filters"></div>
+    <div class="scroll"><table id="events"></table></div>
+  </section>
+  <section class="card"><h2>Home Assistant notices (ended, last 24 hours)</h2><div id="notices"></div></section>
+</main>
+<script>
+  // Everything here is drawn with textContent / createElement: nothing from the data is ever
+  // treated as HTML, so an event's text can't inject anything into the page.
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); for (const k of kids) e.append(k); return e; };
+  const ago = (t) => { const m = Math.round((Date.now() - Date.parse(t)) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
+  const at = (t) => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  const dl = (rows) => { const d = el('dl'); for (const [k, v, cls] of rows) d.append(el('dt', { textContent: k }), el('dd', { textContent: v ?? '—', className: cls || '' })); return d; };
+  let filter = 'all';
+  let last = null;
+
+  function frame(d) {
+    const f = d.frame || {};
+    const box = $('frame'); box.replaceChildren();
+    if (!f.receivedAt) { box.append(el('div', { className: 'status bad', textContent: 'Never checked in' })); return; }
+    const mins = (Date.now() - Date.parse(f.receivedAt)) / 60000;
+    const online = mins < 13;
+    box.append(el('div', { className: 'status ' + (online ? 'ok' : 'bad'), textContent: online ? 'Online' : 'Not checking in' }),
+      dl([['Checked in', ago(f.receivedAt) + ' (' + at(f.receivedAt) + ')', online ? '' : 'bad'],
+        ['Showing', f.screen + ' · ' + (f.tab || '') + ' tab'],
+        ['Home Assistant', f.ha, f.ha === 'connected' ? 'ok' : 'bad'],
+        ['Dashboard', f.version], ['Kiosk app', f.kiosk || 'before 1.6'], ['WebView', f.webview],
+        ['Page loaded', f.loadedAt ? ago(f.loadedAt) + ' (' + at(f.loadedAt) + ')' : null]]));
+  }
+
+  // One small group per part of the backend, each with its own heading.
+  function group(title, rows, sub) {
+    const g = el('div', { className: 'group' }, el('h3', { textContent: title }));
+    if (rows.length) g.append(dl(rows));
+    if (sub && sub.length) { const d = dl(sub); d.className = 'sub'; g.append(d); }
+    return g;
+  }
+  function backend(d) {
+    const box = $('backend'); box.replaceChildren();
+    const c = d.calendar;
+    if (c) {
+      // Saved only when something changed or hourly (worker HEARTBEAT_MS), so under ~75 min is normal.
+      const old = Date.now() - Date.parse(c.updated) > 75 * 60000;
+      const each = (c.names || []).map((n, i) => [n || 'Calendar ' + (i + 1), (c.events[i] || 0) + ' events']);
+      for (const e of c.errors || []) each.push([((c.names || [])[e.cal] || 'calendar ' + e.cal), 'failing: ' + e.error, 'bad']);
+      box.append(group('Calendar', [['Updated', ago(c.updated), old ? 'warn' : '']], each));
+    }
+    const lists = Object.entries(d.lists || {}).map(([name, l]) => {
+      if (l.source !== 'reminders') return [name, 'Todoist'];
+      const state = l.error ? l.error : l.waiting ? 'waiting for the Mac' : l.stale ? 'Mac last seen ' + ago(l.stale) : 'Mac in touch';
+      return [name, 'Reminders: ' + l.items + ' items' + (l.pending ? ', ' + l.pending + ' changes queued' : '') + ' · ' + state, l.error || l.stale || l.waiting ? 'warn' : ''];
+    });
+    if (lists.length) box.append(group('Lists', lists));
+    const p = d.paprika || {};
+    if (p.configured) box.append(group('Paprika', p.error ? [['Sync', p.error, 'bad']]
+      : [['Recipes', String(p.recipes)], ['Synced', p.updated ? ago(p.updated) : 'never'], ...(p.remaining ? [['Still to fetch', String(p.remaining)]] : [])]));
+    box.append(group('Spotify', [['Status', d.spotify && d.spotify.configured ? 'connected' : 'not set up']]));
+  }
+
+  // The day as a strip: one block per check-in (10 minutes), coloured by what the frame showed;
+  // grey where it didn't check in. Home Assistant down is marked red.
+  function timeline(d) {
+    const box = $('timeline'); box.replaceChildren();
+    const hist = (d.frame && d.frame.history) || [];
+    const end = Date.now(), start = end - 24 * 3600000, span = end - start;
+    const strip = el('div', { className: 'strip' });
+    const colour = (h) => h.ha !== 'connected' ? 'var(--red)' : h.screen === 'night' ? 'var(--night)' : h.screen === 'clock' ? 'var(--clock)' : 'var(--awake)';
+    let cursor = start;
+    for (const h of hist) {
+      const t = Date.parse(h.t);
+      if (t < start) continue;
+      const from = Math.max(start, t - 10 * 60000);
+      if (from > cursor + 60000) strip.append(el('span', { style: `width:${((from - cursor) / span) * 100}%;background:var(--gap)`, title: 'no check-in' }));
+      strip.append(el('span', { style: `width:${((t - Math.max(from, cursor)) / span) * 100}%;background:${colour(h)}`, title: at(h.t) + ': ' + h.screen + (h.ha !== 'connected' ? ', HA ' + h.ha : '') }));
+      cursor = t;
+    }
+    box.append(strip);
+    const axis = el('div', { className: 'axis' });
+    for (let i = 0; i <= 4; i++) axis.append(el('span', { textContent: new Date(start + (span * i) / 4).toLocaleTimeString([], { hour: 'numeric' }) }));
+    const legend = el('div', { className: 'legend' });
+    for (const [c, l] of [['awake', 'Dashboard'], ['clock', 'Clock screen'], ['night', 'Night'], ['red', 'HA not connected'], ['gap', 'No check-in']]) legend.append(el('span', {}, el('i', { style: `background:var(--${c})` }), l));
+    box.append(axis, legend);
+  }
+
+  function events(d) {
+    const log = ((d.frame && d.frame.log) || []).slice().reverse();
+    const kinds = ['all', 'errors', 'warnings', ...new Set(log.map((e) => e.event.split('.')[0]))];
+    const bar = $('filters'); bar.replaceChildren();
+    for (const k of kinds) bar.append(el('button', { textContent: k, className: k === filter ? 'on' : '', onclick: () => { filter = k; events(last); } }));
+    const shown = log.filter((e) => filter === 'all' || (filter === 'errors' ? e.level === 'error' : filter === 'warnings' ? e.level !== 'info' : e.event.split('.')[0] === filter));
+    $('evcount').textContent = shown.length + ' of ' + log.length;
+    const table = $('events'); table.replaceChildren();
+    for (const e of shown) {
+      const rest = Object.entries(e).filter(([k]) => !['t', 'event', 'level'].includes(k)).map(([k, v]) => k + ': ' + v).join(' · ');
+      table.append(el('tr', { className: e.level }, el('td', { className: 't', textContent: at(e.t) }), el('td', { className: 'e', textContent: e.event }), el('td', { textContent: rest })));
+    }
+    if (!shown.length) table.append(el('tr', {}, el('td', { className: 'muted', textContent: 'Nothing here.' })));
+  }
+
+  function notices(d) {
+    const box = $('notices'); box.replaceChildren();
+    const list = d.notices || [];
+    if (!list.length) { box.append(el('div', { className: 'muted', textContent: 'None.' })); return; }
+    const ul = el('ul');
+    for (const n of list) ul.append(el('li', { textContent: at(n.created) + ' ' + n.title + ' (' + n.how + ' ' + ago(n.ended) + ')', className: n.tone === 'alert' ? 'bad' : '' }));
+    box.append(ul);
+  }
+
+  async function load() {
+    try {
+      const res = await fetch('/data', { cache: 'no-store' });
+      if (res.status === 401) { location.href = '/login'; return; }
+      const d = await res.json();
+      last = d;
+      $('who').replaceChildren(document.createTextNode('Signed in as ' + d.you + ' · '), el('a', { href: '/logout', textContent: 'Sign out' }));
+      frame(d); backend(d); timeline(d); events(d); notices(d);
+    } catch (e) { $('frame').textContent = 'Could not load: ' + e.message; }
+  }
+  load();
+  setInterval(() => { if (!document.hidden) load(); }, 60000);
+</script>
+</body>
+</html>

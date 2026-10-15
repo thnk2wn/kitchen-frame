@@ -2,6 +2,8 @@
 // The URL and token live in the frame's localStorage (set over ADB from dashboard/.frame.vars),
 // never in the deployed site or Cloudflare. HA's REST API refuses cross-origin calls; its
 // WebSocket API does not, so everything here goes over the socket.
+import { log } from './log.svelte.js';
+
 export const ha = $state({
   status: 'off',   // off (not set up) | connecting | connected | error
   error: null,
@@ -196,8 +198,18 @@ export function unsubscribeFrom(id) {
   return send({ type: 'unsubscribe_events', subscription: id }).catch(() => {});
 }
 
+// Every call to Home Assistant; failures and slow ones (over 5 s) go to the event log.
 export function callService(domain, service, data = {}, target = undefined) {
-  return send({ type: 'call_service', domain, service, service_data: data, ...(target ? { target } : {}) });
+  const started = Date.now();
+  const entity = target && target.entity_id;
+  return send({ type: 'call_service', domain, service, service_data: data, ...(target ? { target } : {}) }).then((r) => {
+    const ms = Date.now() - started;
+    if (ms > 5000) log('ha.call_slow', { action: domain + '.' + service, entity, ms }, 'warn');
+    return r;
+  }, (e) => {
+    log('ha.call_failed', { action: domain + '.' + service, entity, error: e && e.message, ms: Date.now() - started }, 'error');
+    throw e;
+  });
 }
 
 // The speaker currently playing something with a title, for the Home and slideshow "now playing".

@@ -1,6 +1,6 @@
 // Shared app state and the pollers that fill it. Each feed polls only while something on screen
 // needs it (see start()), one request at a time, and unchanged results don't touch the screen.
-import { api, cached, remember, changed, forget, withKey } from './api.js';
+import { api, cached, remember, changed, forget, mediaUrl } from './api.js';
 import { dayKey, recipeTitle, setCalendarColors } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
 import { ha } from './ha.svelte.js';
@@ -211,7 +211,7 @@ const PING_MS = 30 * 1000;
 let socketUp = false;
 let retryMs = 1000;
 function connectMessages() {
-  const ws = new WebSocket(location.origin.replace(/^http/, 'ws') + withKey('/api/messages/live'));
+  const ws = new WebSocket(location.origin.replace(/^http/, 'ws') + mediaUrl('/api/messages/live'));
   let alive = true, beat;
   ws.onopen = () => {
     socketUp = true;
@@ -260,7 +260,7 @@ function announceNew(items) {
     if (announced.has(m.id) || m.speak === false || Date.now() - Date.parse(m.at) > 10 * MIN) continue;
     const text = (m.from ? 'Message from ' + m.from + '. ' : '') + [m.title, m.body].filter(Boolean).join('. ');
     announced.add(m.id); // claim it now so the next poll doesn't repeat it
-    speak(text).then(saveAnnounced, () => announced.delete(m.id));
+    speak(text, { kind: 'message' }).then(saveAnnounced, () => announced.delete(m.id));
   }
 }
 function saveAnnounced() {
@@ -481,7 +481,7 @@ async function checkForUpdate() {
 function reloadIfUpdated() {
   const quiet = ui.idle || Date.now() - lastTouch > 10 * MIN;
   if (!quiet || document.querySelector('[role="alertdialog"]')) return;
-  try { if (ui.idle) sessionStorage.setItem('frame-resume-idle', '1'); } catch {}
+  try { if (ui.idle) sessionStorage.setItem('frame-resume-idle', '1'); sessionStorage.setItem('frame-reload-reason', 'update'); } catch {}
   location.reload();
 }
 

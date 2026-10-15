@@ -32,7 +32,7 @@ function check() {
     if (last && !repeat) continue;
     said[k] = now; // claimed before speaking, so the next check can't repeat it
     const text = (n.tone === 'alert' ? 'Alert: ' : '') + (n.title || n.message);
-    speak(text, { alert: n.tone === 'alert' }).then((ok) => { if (!ok && !last) delete said[k]; save(); }, () => { if (!last) delete said[k]; });
+    speak(text, { alert: n.tone === 'alert', kind: n.tone === 'alert' ? 'alert' : 'notice' }).then((ok) => { if (!ok && !last) delete said[k]; save(); }, () => { if (!last) delete said[k]; });
   }
   // Forget notices that have gone (after a day, so the sheet's "Announced" outlives them a while).
   const live = new Set(current.map(keyOf));

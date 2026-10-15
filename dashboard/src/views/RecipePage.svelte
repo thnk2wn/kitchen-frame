@@ -8,7 +8,7 @@
 <script>
   import Icon from '../components/Icon.svelte';
   import { recipeTitle } from '../lib/format.js';
-  import { withKey } from '../lib/api.js';
+  import { mediaUrl } from '../lib/api.js';
   import { recipes, saveRecipe, removeRecipe, addToGroceries } from '../lib/state.svelte.js';
   import { startTimer, splitDurations } from '../lib/timers.svelte.js';
   let { recipe, onback } = $props();
@@ -30,7 +30,7 @@
   // Ours (synced from Paprika): already in our library, so no Save or Remove.
   let isOurs = $derived(String(recipe.id || '').startsWith('pap:'));
   let image = $derived(isSavedView
-    ? (recipe.hasImage ? withKey('/api/recipes/' + recipe.id + '/image') : null)
+    ? (recipe.hasImage ? mediaUrl('/api/recipes/' + recipe.id + '/image') : null)
     : recipe.image);
 
   // Tap an ingredient you already have to cross it off; the rest go to Groceries.
