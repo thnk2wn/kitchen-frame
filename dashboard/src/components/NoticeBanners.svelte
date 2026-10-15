@@ -1,4 +1,5 @@
 <script>
+  import Txt from './Txt.svelte';
   // Home's notice banners (lib/notices.svelte.js): newest first, up to `max`, then "+N more".
   // Tap one for its message and Dismiss (components/NoticeSheet.svelte).
   import Icon from './Icon.svelte';
@@ -13,7 +14,7 @@
   <div class="notices">
     {#each shown as n (n.id)}
       <button class="notice {n.tone}" onclick={() => (ui.noticesOpen = true)}>
-        <Icon name={iconOf(n.tone)} size={20} /><span>{n.title || n.message}</span>
+        <Icon name={iconOf(n.tone)} size={20} /><span><Txt text={n.title || n.message} /></span>
       </button>
     {/each}
     {#if list.length > shown.length}

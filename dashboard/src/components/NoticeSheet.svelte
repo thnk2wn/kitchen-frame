@@ -1,4 +1,5 @@
 <script>
+  import Txt from './Txt.svelte';
   // The notices sheet, opened from the top bar's bell or a banner on Home:
   //   New      anything since the sheet was last opened
   //   Earlier  the rest of the last 24 hours, newest first
@@ -43,8 +44,8 @@
       {@render stamp(n)}
       <span class="ic {n.tone}"><Icon name={iconOf(n.tone)} size={18} /></span>
       <div class="txt">
-        <div class="title">{n.title || 'Notice'}</div>
-        {#if open === n.id + n.created && n.message && n.message !== n.title}<div class="msg">{n.message}</div>{/if}
+        <div class="title"><Txt text={n.title || 'Notice'} /></div>
+        {#if open === n.id + n.created && n.message && n.message !== n.title}<div class="msg"><Txt text={n.message} /></div>{/if}
         <div class="when">{status(n)}{#if spoken(n)} · <span class="said">Announced</span>{/if}</div>
       </div>
     </button>
@@ -53,8 +54,8 @@
       {@render stamp(n)}
       <span class="ic {n.tone}"><Icon name={iconOf(n.tone)} size={22} /></span>
       <div class="txt">
-        <div class="title">{n.title || 'Notice'}</div>
-        {#if n.message && n.message !== n.title}<div class="msg">{n.message}</div>{/if}
+        <div class="title"><Txt text={n.title || 'Notice'} /></div>
+        {#if n.message && n.message !== n.title}<div class="msg"><Txt text={n.message} /></div>{/if}
         <div class="when">{status(n)}{#if spoken(n)} · <span class="said">Announced</span>{/if}</div>
       </div>
       <button class="dismiss" onclick={() => dismissNotice(n.id)}>Dismiss</button>

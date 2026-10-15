@@ -1,4 +1,5 @@
 <script>
+  import Txt from './Txt.svelte';
   import Icon from './Icon.svelte';
   import { messages, dismissMessage } from '../lib/state.svelte.js';
   import { time } from '../lib/format.js';
@@ -18,8 +19,8 @@
       <span class="meta"><Icon name="message" size={22} />{m.from || 'Message'} · {when(m.at)}{#if count > 1} · 1 of {count}{/if}</span>
       <button class="x" onclick={() => dismissMessage(m)} aria-label="Dismiss message"><Icon name="close" size={34} /></button>
     </header>
-    {#if m.title}<h1>{m.title}</h1>{/if}
-    {#if m.body}<p class="body">{m.body}</p>{/if}
+    {#if m.title}<h1><Txt text={m.title} /></h1>{/if}
+    {#if m.body}<p class="body"><Txt text={m.body} /></p>{/if}
   </section>
 </div>
 

@@ -44,3 +44,10 @@ export function emojiParts(text) {
   if (last < s.length) out.push(s.slice(last));
   return out;
 }
+
+// The same for HTML built from escaped text (the House tab's markdown cards): emoji this device can't
+// draw become <img>s. Safe to use on escaped HTML: the only thing added is a picture whose address is
+// made of hex code points.
+export function emojiHtml(html) {
+  return emojiParts(html).map((p) => (typeof p === 'string' ? p : '<img class="emoji" src="' + p.src + '" alt="" draggable="false">')).join('');
+}

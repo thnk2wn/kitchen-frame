@@ -1,4 +1,5 @@
 <script>
+  import Txt from '../components/Txt.svelte';
   // What's playing (or paused within the last 30 minutes), from App, which also feeds the top bar.
   let { playing = null } = $props();
   let slotH = $state(0);
@@ -102,7 +103,7 @@
       {#each todaysMeals as m (m.type + m.title)}
         <button class="meal" class:link={m.id} onclick={() => openMeal(m)}>
           <span class="mic"><Icon name="utensils" size={16} /></span>
-          <span class="mtxt"><span class="mtype">{m.type}</span> {m.title}</span>
+          <span class="mtxt"><span class="mtype">{m.type}</span> <Txt text={m.title} /></span>
         </button>
       {/each}
       {#if !calendar.data && calendar.offline}
