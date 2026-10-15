@@ -18,7 +18,7 @@ lists other frames that work.
 | --- | --- | --- |
 | ![Week view](docs/images/calendar-dark.jpg) | ![Tasks](docs/images/tasks-light.jpg) | ![Recipes](docs/images/recipes-light.jpg) |
 
-| Recipe with timers in its directions | Music | House |
+| Recipe with timers in its directions | Media (music) | House |
 | --- | --- | --- |
 | ![Recipe page](docs/images/recipe-page-light.jpg) | ![Media: music](docs/images/music-light.jpg) | ![House](docs/images/house-light.jpg) |
 
