@@ -48,10 +48,13 @@ export const ui = $state({
   nightPhotos: pref('night-photos', 'on') === 'on', // slideshow after sunset (dimmed)
   demo: pref('demo', 'off') === 'on',          // sample data instead of real calendars, lists, photos
   clockColor: pref('clock-color', '#ffffff'),  // clock-screen text colour (dimmed at night)
+  cameraRefresh: Number(pref('camera-refresh', '1')), // House camera pictures: minutes between refreshes; 0 = off
 });
+export const cameraRefresh = () => ui.cameraRefresh;
 export function setSetting(key, value) {
   if (key === 'themePref') { ui.themePref = value; localStorage.setItem('frame-theme', value); applyTheme(); }
   if (key === 'idleMinutes') { ui.idleMinutes = value; localStorage.setItem('frame-idle', String(value)); rearmIdle(); }
+  if (key === 'cameraRefresh') { ui.cameraRefresh = value; localStorage.setItem('frame-camera-refresh', String(value)); }
   if (key === 'clockColor') { ui.clockColor = value; localStorage.setItem('frame-clock-color', value); }
   if (key === 'nightPhotos') { ui.nightPhotos = value; localStorage.setItem('frame-night-photos', value ? 'on' : 'off'); }
   if (key === 'demo') {

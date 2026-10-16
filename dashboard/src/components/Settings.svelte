@@ -310,6 +310,16 @@
         </div>
       </div>
     {/if}
+    {#if haConfigured() && !ui.demo}
+      <div class="row">
+        <span>Camera pictures<small>While the House tab is open. A camera is asked for a new picture at most every 5 min (it wakes a battery one)</small></span>
+        <div class="seg">
+          {#each [[1, 'Every minute'], [5, 'Every 5 min'], [0, 'Off']] as [v, label] (v)}
+            <button class:on={ui.cameraRefresh === v} onclick={() => setSetting('cameraRefresh', v)}>{label}</button>
+          {/each}
+        </div>
+      </div>
+    {/if}
     {#if bell.doorbells.length}
       <div class="row">
         <span>Doorbell<small>{bell.doorbells.map((d) => d.name).join(', ')} shows here when it rings</small></span>

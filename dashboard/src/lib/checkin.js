@@ -11,7 +11,7 @@ import { log, take, putBack, onError } from './log.svelte.js';
 
 // Settings worth keeping: choices made on the frame, not caches, history of what was said, running
 // timers or secrets (the dashboard key and Home Assistant token come back with the setup link).
-const KEEP = ['frame-announcements', 'frame-cal-view', 'frame-clock-color', 'frame-day-brightness', 'frame-doorbell',
+const KEEP = ['frame-announcements', 'frame-cal-view', 'frame-camera-refresh', 'frame-clock-color', 'frame-day-brightness', 'frame-doorbell',
   'frame-doorbell-camera', 'frame-ha-dashboard', 'frame-ha-url', 'frame-hidden-cals', 'frame-idle', 'frame-list',
   'frame-music-player', 'frame-music-speaker', 'frame-night', 'frame-night-photos', 'frame-notices-seen', 'frame-now-tv',
   'frame-playlist-order', 'frame-playlist-played', 'frame-presence-area', 'frame-presence-ignore', 'frame-recipes-mode', 'frame-settings-tab',

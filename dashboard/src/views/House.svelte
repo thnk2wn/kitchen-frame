@@ -1,9 +1,9 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import CameraView from '../components/CameraView.svelte';
   import { ha, haUrl } from '../lib/ha.svelte.js';
-  import { ui } from '../lib/state.svelte.js';
+  import { ui, cameraRefresh } from '../lib/state.svelte.js';
   import { pin, allowUnlock } from '../lib/pin.svelte.js';
   import { emojiHtml } from '../lib/emoji.js';
   import { house, houseDemo, setHouseDemo, startHouse, companionsOf, toggle, run, coverToggle, lock, unlock, nudge, setpoint, miniMarkdown } from '../lib/house.svelte.js';
@@ -91,12 +91,72 @@
   // was taken. A tap presses its "Take Snapshot" button. Otherwise a tap re-fetches the picture.
   const snapOf = (id) => { const [cam, button] = companionsOf(id); const s = st(cam); return s && s.state !== 'unavailable' && s.attributes.entity_picture ? { cam, button, ts: Number(s.attributes.timestamp) || 0 } : null; };
   let asked = $state({}); // entity_id -> time a snapshot was requested (cleared when a newer one arrives)
+  // Thumbnails change only when the tab opens, on Refresh and on a tap, not each time the camera's
+  // add-on takes a picture of its own accord: pinned holds the snapshot time each one shows, moved on
+  // when a snapshot asked for arrives. The address is kept while its picture is the same, as Home
+  // Assistant renews the access token in entity_picture every few minutes, which reloaded them all.
+  let pinned = $state({}); // entity_id -> snapshot time (s) shown
+  $effect(() => {
+    const next = {};
+    for (const g of house.groups) for (const i of g.items) {
+      if (i.kind !== 'camera') continue;
+      const snap = snapOf(i.entity);
+      if (!snap || !snap.ts) continue;
+      const have = pinned[i.entity];
+      if (have == null || (asked[i.entity] && snap.ts * 1000 > asked[i.entity] && snap.ts !== have)) next[i.entity] = snap.ts;
+    }
+    if (Object.keys(next).length) untrack(() => { pinned = { ...pinned, ...next }; });
+  });
+  const srcs = new Map(); // entity_id -> { bust, url }
   const camSrc = (id, t) => {
     const snap = snapOf(id);
     const pic = attr(snap ? snap.cam : id).entity_picture;
-    const bust = snap ? snap.ts : t;
-    return pic && bust ? haUrl(pic) + (pic.includes('?') ? '&' : '?') + 'width=480&_=' + bust : null;
+    const bust = snap ? pinned[id] : t;
+    if (!pic || !bust) return null;
+    const had = srcs.get(id);
+    if (had && had.bust === bust) return had.url;
+    const url = haUrl(pic) + (pic.includes('?') ? '&' : '?') + 'width=480&_=' + bust;
+    srcs.set(id, { bust, url });
+    return url;
   };
+  // Keeping them fresh while the tab is open and the screen awake (Settings → Home → Camera pictures):
+  // every minute (or 5) the newest picture the camera's add-on already took is shown, which costs
+  // nothing; at most every 5 minutes a camera whose picture is older than that is asked for a new
+  // one, which wakes a battery camera, so not more often.
+  $effect(() => {
+    const every = cameraRefresh();
+    if (!every || houseDemo.on) return;
+    const t = setInterval(() => untrack(() => {
+      if (ui.idle || document.hidden) return;
+      const next = {};
+      for (const g of house.groups) for (const i of g.items) {
+        if (i.kind !== 'camera') continue;
+        const snap = snapOf(i.entity);
+        if (snap && snap.ts && snap.ts !== pinned[i.entity]) next[i.entity] = snap.ts;
+        const age = Date.now() - (snap && snap.ts ? snap.ts * 1000 : shots[i.entity] || 0);
+        if (age > 5 * 60000) tapCamera(i.entity);
+      }
+      if (Object.keys(next).length) pinned = { ...pinned, ...next };
+    }), every * 60000);
+    return () => clearInterval(t);
+  });
+  // A new thumbnail loads in the background and replaces the old one once it's ready: no flash.
+  let shown = $state({}); // entity_id -> the address on screen
+  const loadingSrc = new Set();
+  function swapIn(id, url) {
+    if (!url || shown[id] === url || loadingSrc.has(url)) return;
+    if (!shown[id]) { shown = { ...shown, [id]: url }; return; } // the first one: show it as it loads
+    loadingSrc.add(url);
+    const img = new Image();
+    img.onload = img.onerror = () => { loadingSrc.delete(url); shown = { ...shown, [id]: url }; };
+    img.src = url;
+  }
+  $effect(() => {
+    for (const g of house.groups) for (const i of g.items) if (i.kind === 'camera') {
+      const url = camSrc(i.entity, shots[i.entity]);
+      untrack(() => swapIn(i.entity, url));
+    }
+  });
   let viewing = $state(null); // the camera open full screen
   const refreshAll = (items) => { for (const i of items) if (i.kind === 'camera') tapCamera(i.entity); };
   // A camera is asked for a new snapshot at most every SNAP_GAP_MS, whatever asks (a tap, Refresh, the
@@ -112,11 +172,16 @@
       act(run(snap.button));
     } else refresh(id);
   }
+  // When the picture shown was taken (ms), for the full-screen view's "Picture taken 10:31:42 PM".
+  // A snapshot camera's time is the camera's own (ring-mqtt's timestamp): when it was taken. Without
+  // one, all there is is when the frame loaded the picture, and it says "loaded".
+  const camTakenAt = (id) => { const snap = snapOf(id); return snap ? { t: snap.ts ? snap.ts * 1000 : 0, real: true } : { t: shots[id] || 0, real: false }; };
   const camAge = (id) => {
     const snap = snapOf(id);
     if (snap) {
       if (asked[id] && asked[id] > snap.ts * 1000) return 'updating…';
-      return snap.ts ? ago(snap.ts * 1000) : '';
+      const ts = pinned[id] || snap.ts;
+      return ts ? ago(ts * 1000) : '';
     }
     return shots[id] ? ago(shots[id]) : '';
   };
@@ -186,7 +251,7 @@
                   </div>
                 </div>
               {:else if item.kind === 'camera'}
-                {@const src = camSrc(item.entity, shots[item.entity])}
+                {@const src = shown[item.entity] || camSrc(item.entity, shots[item.entity])}
                 <button class="tile sheet camera" onclick={() => !houseDemo.on && (viewing = { entity: item.entity, name: label(item).replace(/\s*live view$/i, '') })} aria-label={'Open ' + label(item)}>
                   {#if src && !houseDemo.on}<img {src} alt="" decoding="async" />{:else}<span class="noimg" class:demo={houseDemo.on}><Icon name="camera" size={30} /></span>{/if}
                   <span class="cap"><span class="cname">{label(item).replace(/\s*live view$/i, '')}</span>{#if camAge(item.entity)}<span class="age"><Icon name="reload" size={13} /> {camAge(item.entity)}</span>{/if}</span>
@@ -215,7 +280,7 @@
 
 {#if viewing}
   <CameraView entity={st(companionsOf(viewing.entity)[2]) && st(companionsOf(viewing.entity)[2]).state !== 'unavailable' ? companionsOf(viewing.entity)[2] : viewing.entity} soundEntity={viewing.entity} name={viewing.name} picture={attr(snapOf(viewing.entity) ? snapOf(viewing.entity).cam : viewing.entity).entity_picture || ''}
-    age={camAge(viewing.entity)} onsnap={() => tapCamera(viewing.entity)} onclose={() => (viewing = null)} />
+    age={camAge(viewing.entity)} takenAt={camTakenAt(viewing.entity)} onsnap={() => tapCamera(viewing.entity)} onclose={() => (viewing = null)} />
 {/if}
 
 <style>

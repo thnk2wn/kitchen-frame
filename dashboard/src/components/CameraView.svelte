@@ -12,7 +12,14 @@
   // when there's no live video; age: how old the picture shown is, as text.
   // soundEntity: the same camera with sound but a smaller picture (Ring's own live view, when entity is
   // its sharper <name>_stream without audio): the Sound button switches to it, Sharper back.
-  let { entity, soundEntity = null, name, picture = '', onclose, onsnap = null, age = '' } = $props();
+  // takenAt: when the picture shown was taken (ms; 0 if unknown), shown as a clock time with seconds.
+  // takenAt: { t, real }: when the picture was taken by the camera (real), or only loaded here.
+  let { entity, soundEntity = null, name, picture = '', onclose, onsnap = null, age = '', takenAt = { t: 0, real: false } } = $props();
+  const taken = (p, now) => {
+    if (!p || !p.t) return '';
+    const s = Math.max(0, Math.round((now - p.t) / 1000));
+    return (p.real ? 'taken ' : 'loaded ') + new Date(p.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + ' (' + (s < 90 ? s + ' s' : Math.round(s / 60) + ' min') + ' ago)';
+  };
   let withSound = $state(false);
   let sharpFailed = $state(false); // the sharp stream didn't play here: stay on the camera's own view
   let source = $derived(withSound && soundEntity ? soundEntity : entity);
@@ -69,6 +76,13 @@
     const close = setTimeout(() => onclose(), OPEN_MS);
     return () => { gone = true; clearTimeout(close); clearTimeout(retry); if (stop) stop(); };
   });
+  // The "(25 s ago)" counts on while there's no live video (its own clock: tick reloads the picture).
+  let clockNow = $state(Date.now());
+  $effect(() => {
+    if (live) return;
+    const c = setInterval(() => (clockNow = Date.now()), 5000);
+    return () => clearInterval(c);
+  });
   // No live video: a new snapshot now and every SNAP_MS (a Ring camera keeps returning its last one
   // until asked for another), and the picture reloaded meanwhile to pick it up.
   $effect(() => {
@@ -95,8 +109,8 @@
     <div class="txt">
       <div class="title">{name}</div>
       <div class="sub">
-        {#if live}Live{withSound && !sharpFailed ? ' · with sound, lower quality' : ''}{:else if noLive}No live video from this camera right now · picture{age ? ' ' + age : ''}, a new one every 15 s
-        {:else if ha.status === 'connected'}<span class="spin"></span>Starting live video…{:else}Not connected to Home Assistant{/if}
+        {#if live}Live{withSound && !sharpFailed ? ' · with sound, lower quality' : ''}{:else if noLive}No live video right now · picture {takenAt.t ? taken(takenAt, clockNow) : age}{age === 'updating…' ? ', a new one on its way' : ''}
+        {:else if ha.status === 'connected'}<span class="spin"></span>Starting live video…{takenAt.t ? ' · picture ' + taken(takenAt, clockNow) : ''}{:else}Not connected to Home Assistant{/if}
       </div>
     </div>
     {#if canSwitch && (live || withSound)}
