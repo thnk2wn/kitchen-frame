@@ -1,4 +1,5 @@
 <script>
+  import { rotationLines } from '../lib/rotations.js';
   import Txt from '../components/Txt.svelte';
   // What's playing (or paused within the last 30 minutes), from App, which also feeds the top bar.
   let { playing = null } = $props();
@@ -10,7 +11,7 @@
   import NowPlaying from '../components/NowPlaying.svelte';
   import SortButton from '../components/SortButton.svelte';
   import NoticeBanners from '../components/NoticeBanners.svelte';
-  import { clock, calendar, weather, lists, mealItems, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
+  import { clock, calendar, weather, lists, mealItems, rotationRules, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
 
   let events = $derived(calendar.data ? calendar.data.events : []);
@@ -37,6 +38,8 @@
   });
   // Tonight's dinner (and any other meal planned today) from Paprika, above today's events.
   let todaysMeals = $derived(mealItems().filter((m) => m.date === dayKey(clock.now)));
+  // Who's up early, whose bedtime: today's, or tomorrow's once its time has passed (lib/rotations.js).
+  let duties = $derived(rotationLines(rotationRules(), clock.now));
   function openMeal(m) {
     if (!m.id) return;
     ui.openRecipe = { id: m.id, title: m.title };
@@ -100,6 +103,12 @@
     <!-- The list scrolls inside the widget on a busy day; the footer action always stays visible. -->
     <div class="scroll">
       <h2>Today</h2>
+      {#each duties as d (d.name)}
+        <div class="meal duty">
+          <span class="mic"><Icon name={d.icon} size={16} /></span>
+          <span class="mtxt"><span class="mtype">{d.name}{d.tomorrow ? ' tomorrow' : ''}</span> <Txt text={d.text} /></span>
+        </div>
+      {/each}
       {#each todaysMeals as m (m.type + m.title)}
         <button class="meal" class:link={m.id} onclick={() => openMeal(m)}>
           <span class="mic"><Icon name="utensils" size={16} /></span>
@@ -226,6 +235,8 @@
   .mic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--orange); color: #fff; }
   .mtxt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mtype { color: var(--orange-text); }
+  .duty .mic { background: var(--purple); }
+  .duty .mtype { color: var(--purple-text); }
   .list header { display: flex; align-items: baseline; justify-content: space-between; }
   .list h2 { color: var(--accent-text); }
   .list h2 { flex: 1; }

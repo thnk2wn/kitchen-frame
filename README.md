@@ -262,6 +262,26 @@ so `undo` can put it back. It's the one thing here that writes to Paprika. For s
 scripts, find the photo in a browser and give it to `use`. Run it with no arguments for its
 commands.
 
+### Rotations (optional)
+
+Who's up early with the kids, whose turn for bedtime: lines at the top of Home's Today card, beside
+the meal plan. Each shows today's turn until its `switchAt` time, then tomorrow's ("Up early
+tomorrow"). Nothing shows until you set them, and there's no Setting for them: they're a Worker
+secret, so the names stay out of the repo.
+
+```sh
+printf '%s' '[
+  {"name":"Up early","icon":"sunrise","switchAt":"10:00",
+   "days":{"mon":"Sam","tue":"Alex","wed":"Sam","thu":"Alex","fri":"Sam","sat":"Alex","sun":"Sam"}},
+  {"name":"Bedtime","icon":"moon","switchAt":"21:00",
+   "alternate":{"from":"2026-10-15","who":["Alex","Sam"],"what":["Mia","Leo"]}}
+]' | npx wrangler secret put ROTATIONS
+```
+
+`days` names someone per weekday (leave a day out to show nothing). `alternate` starts on `from`
+with `who[i]` on `what[i]`, and moves everyone on one each day, so two people swap nightly. The
+frame picks changes up within the hour. Demo mode shows invented ones.
+
 ## House tab (Home Assistant devices)
 
 With a Home Assistant URL, token and dashboard set on the frame, a **House** tab mirrors that HA

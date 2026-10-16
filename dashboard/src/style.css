@@ -20,6 +20,8 @@
   --red-text: #d70015;
   --blue-text: #0060df;
   --orange-text: #c93400;
+  --purple: #af52de;
+  --purple-text: #8944ab;
   --ring: #8e8e93;
   /* Named colours for calendars (CALENDAR_COLORS) and anything else that needs a fixed hue. */
   --pal-red: #ff3b30; --pal-red-tint: rgba(255, 59, 48, .12);
@@ -52,6 +54,8 @@
   --red-text: #ff6961;
   --blue-text: #409cff;
   --orange-text: #ffb340;
+  --purple: #bf5af2;
+  --purple-text: #da8fff;
   --ring: #7c7c80;
   --pal-red: #ff453a; --pal-red-tint: rgba(255, 69, 58, .22);
   --pal-orange: #ff9f0a; --pal-orange-tint: rgba(255, 159, 10, .3);

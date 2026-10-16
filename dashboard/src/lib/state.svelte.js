@@ -3,6 +3,7 @@
 import { api, cached, remember, changed, forget, mediaUrl } from './api.js';
 import { dayKey, recipeTitle, setCalendarColors } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
+import { DEMO_ROTATIONS } from './rotations.js';
 import { ha } from './ha.svelte.js';
 import { say, speaker, speak } from './announce.svelte.js';
 import { timers } from './timers.svelte.js';
@@ -87,6 +88,18 @@ export function loadMeals() {
       const data = await api('/api/meals');
       meals.configured = data.configured;
       if (changed('meals', data.meals)) meals.items = data.meals;
+    } catch {}
+  });
+}
+
+// Household rotations (GET /api/rotations; lib/rotations.js), shown on Home's Today card.
+export const rotations = $state({ rules: cached('rotations') || [] });
+export const rotationRules = () => (ui.demo ? DEMO_ROTATIONS : rotations.rules);
+export function loadRotations() {
+  return single('rotations', async () => {
+    try {
+      const data = await api('/api/rotations');
+      if (changed('rotations', data.rotations)) rotations.rules = data.rotations;
     } catch {}
   });
 }
@@ -439,6 +452,7 @@ export function start() {
   })();
   every(5 * MIN, loadCalendar);
   every(30 * MIN, loadMeals);
+  every(60 * MIN, loadRotations);
   every(15 * MIN, loadWeather);
   // Both lists show on Home; each also has its own tab (App loads a list when its tab opens).
   every(MIN, () => loadList('todo'), () => !ui.idle);

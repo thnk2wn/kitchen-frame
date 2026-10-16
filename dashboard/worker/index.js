@@ -19,6 +19,7 @@
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
+//   GET  /api/rotations              who's up early, whose bedtime (ROTATIONS; src/lib/rotations.js)
 //   GET  /api/geo?q=                 an event location's coordinates, for its map (see maps.js)
 //   GET  /api/tiles/:z/:x/:y         OpenStreetMap tiles, cached
 //   GET  /api/spotify/playlists      every Spotify playlist, and when each was last played (spotify.js)
@@ -181,6 +182,7 @@ async function handle(req, env, ctx) {
         return json(await explore(url.searchParams), 200, random ? 'no-store' : 'private, max-age=86400');
       }
       if (url.pathname === '/api/meals' && req.method === 'GET') return json(await listMeals(env));
+      if (url.pathname === '/api/rotations') return json({ rotations: rotations(env) });
       if (url.pathname === '/api/recipes/paprika' && req.method === 'GET') {
         if (url.searchParams.has('sync')) await syncPaprika(env);
         return json(await listPaprika(env));
@@ -240,6 +242,13 @@ async function handle(req, env, ctx) {
       return json({ error: String(err.message || err) }, 502);
     }
   }
+}
+
+// ROTATIONS: a JSON list (a secret, so household names stay out of the repo). Unset or unreadable: none.
+function rotations(env) {
+  if (!env.ROTATIONS) return [];
+  try { const r = JSON.parse(env.ROTATIONS); return Array.isArray(r) ? r : []; }
+  catch { console.warn({ source: 'worker', message: 'ROTATIONS is not valid JSON' }); return []; }
 }
 
 async function scheduled(controller, env) {
