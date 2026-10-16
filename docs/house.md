@@ -63,14 +63,13 @@ and **Sharper** back.
 
 **Try each camera on the frame before keeping it.** A picture wider than the frame's video decoder
 handles arrives but never decodes: the frame's event log shows `camera.not_playing` with bytes but
-0 frames. This frame's RK3326 decodes H.264 up to 1920 wide. Measured here: a Doorbell Pro 2 at
-1536×1536 plays; a Floodlight Cam Pro and a Stick Up Cam play through ring-mqtt streams that come
-through at 720p; a Spotlight Cam Pro doesn't play on either path, since Ring sends it at 2624×1472
-(its "2K" video quality setting) or 1968×1104 (its "1080p"), ring-mqtt passes the camera's size
-through, and Ring ignores the bandwidth and frame-size hints a viewer can put in its offer. Those
-cameras use refreshing pictures instead; the fix would be transcoding before the frame (see
-[ROADMAP.md](../ROADMAP.md)). Streams that don't play are best left disabled in HA (Settings →
-Devices & Services → Generic Camera) so the frame doesn't wait on them.
+0 frames. This frame's RK3326 decodes H.264 up to 1920 wide. Measured here: a Floodlight Cam Pro
+and a Stick Up Cam play through ring-mqtt streams that come through at 720p; a Doorbell Pro 2 at
+1536×1536 plays only now and then; a Spotlight Cam Pro doesn't play on either path, since Ring sends
+it at 2624×1472 (its "2K" video quality setting) or 1968×1104 (its "1080p"), ring-mqtt passes the
+camera's size through, and Ring ignores the bandwidth and frame-size hints a viewer can put in its
+offer. Those three go through the Mac below. Streams that don't play are best left disabled in HA
+(Settings → Devices & Services → Generic Camera) so the frame doesn't wait on them.
 
 ### Transcoding on a Mac
 
@@ -98,8 +97,8 @@ Camera in HA → the frame.** Everything stays local; streams run only while som
    `rtsp://frame:<go2rtc password>@<the mac>:8554/garage` (its `.lan` name from the router, or a fixed address) and enable it (`camera.garage_stream`).
    The frame prefers the stream and falls back to Ring's live view and then pictures as before.
 
-Measured here: Garage comes through at 1280×718, 15 fps, H.264 Main; the Mac chain delivers a first
-frame in about 7 s cold and 5 s warm, and the frame showed live video 9 s after opening the camera
+Measured here: Garage comes through at 1280×718, 15 fps, H.264 Main, and the Doorbell Pro 2 at
+1280×1280, 20 fps; the Mac chain delivers a first frame in about 6–8 s cold and 5 s warm, and the frame showed live video 9 s after opening the camera
 (it waits up to 30 s for Home Assistant's answer, showing the refreshing picture and a seconds count
 meanwhile). A 2.3 GHz i7 spends a fraction of a core per stream. ring-mqtt drops the Ring session
 the moment the last viewer leaves, so a request within a second of that gets a 404 and is retried.

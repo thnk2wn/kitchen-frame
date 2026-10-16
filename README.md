@@ -237,8 +237,8 @@ markdown cards, camera pictures and live video. Give the frame HA's **home-netwo
 **non-admin, local-only** HA user's token (its token is then useless outside the house). Unlocking a
 lock takes two taps or a PIN. Cameras: live video plays where the frame's decoder can handle the
 picture (this frame: up to 1920 wide): 720p streams through ring-mqtt for the cameras that offer
-them, the 2K cameras shrunk to 720p by go2rtc on the always-on Mac, and refreshing pictures with
-their time otherwise. Setup, what each device does,
+them, the larger ones shrunk to 1280 wide by go2rtc on the always-on Mac, and refreshing pictures
+with their time otherwise. Setup, what each device does,
 and the camera measurements are in [docs/house.md](docs/house.md).
 
 ### Media: music and TV
