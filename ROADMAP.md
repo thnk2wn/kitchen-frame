@@ -87,7 +87,7 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
   So those cameras fall back to pictures. The fix is shrinking the video before it reaches the frame:
   go2rtc with an `ffmpeg:…#video=h264#width=1280` stream, which wants hardware encoding. On the Pi 4
   that is marginal; an Intel N100/N150 box (QuickSync) running Home Assistant OS would do it at
-  near-zero CPU, and would speed up everything else (README → House tab has the measured sizes).
+  near-zero CPU, and would speed up everything else (docs/house.md has the measured sizes).
 - **More notice blueprints:** garage door left open, a bedtime check (doors unlocked, lights on).
 - **Pop-in for red alerts:** an alert notice briefly takes over the screen, like the doorbell,
   instead of only a banner.

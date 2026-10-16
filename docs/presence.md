@@ -109,3 +109,20 @@ later.
   but any movement within the chosen time keeps the dashboard up.
 - Without Home Assistant (or while it's unreachable) the frame falls back to taps only.
 - Waking happens when a sensor reports; most report within a second or two.
+
+## The clock screen, and Night
+
+After a while untouched (Settings → Display → Clock screen after: 30 minutes by default, up to two
+hours, or never) the frame shows a clock over the photo slideshow, and any tap brings the dashboard
+back. It never switches while a recipe is open or a timer is running. The clock's colour is chosen
+in Settings → Display, and the slideshow uses the iCloud shared album (classic links work; album
+videos show as a still). The event log records each switch and why (`screen.clock`,
+`screen.awake`).
+
+**Night** (Settings → Display → Night, 10:30 PM to 6:30 AM by default, or off): the clock screen
+comes on two minutes after the last touch, without photos, in red (Settings → Display → Night clock
+color: red, orange, yellow or the daytime colour) and at the screen's lowest brightness, and motion
+in the room doesn't bring the dashboard back. A tap does, at the daytime brightness, as do a timer
+alert and the doorbell. The daytime brightness (Settings → Display → Brightness) comes back each
+morning, and nothing is announced during these hours except red alerts, if they're set to speak at
+night.

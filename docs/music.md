@@ -27,7 +27,7 @@ to set it up. There are three parts; only the first is required.
 ## 1. Home Assistant's Spotify integration
 
 The frame talks to Home Assistant directly on the home network (see
-[House tab](../README.md#house-tab-home-assistant-devices) for the HA URL and token). HA's
+[house.md](house.md#setup) for the HA URL and token). HA's
 [Spotify integration](https://www.home-assistant.io/integrations/spotify/) provides the player;
 playback control needs **Spotify Premium**.
 
@@ -126,3 +126,32 @@ for a new permission, run steps 3 and 4 again.
 - Spotify's own apps aren't involved: Spotify's lyrics, for instance, aren't available to other apps.
 - Requests: the playlist list is fetched when the Music tab opens and every five minutes while it
   shows; "what's playing" once per song. Both are small.
+
+## The Media tab and TV
+
+The **Media** tab has **Music | TV** at the bottom when Home Assistant has a TV.
+
+**Music** is Spotify on the house's speakers, through Home Assistant: song, controls, volume,
+playlists and speakers, with a Now Playing card on Home and a small one in every other tab's top
+bar. Controls show the change at once instead of waiting seconds for Spotify to confirm, and a
+tapped playlist shows in the player straight away ("Starting on Kitchen…") until Spotify reports it
+playing; the frame also asks Home Assistant to check Spotify right after a tap rather than at its
+next 30-second poll. With nothing playing, the volume slider sets the chosen speaker's own volume.
+
+**TV** is any TV Home Assistant knows, found by its integration (Apple TV, Android TV, Roku, LG
+webOS, Samsung, Sony Bravia, Vizio, Philips, Panasonic, DirecTV) or a `tv` device class: what's
+playing in any app (title, episode, artwork, progress), play/pause and 10 s back and forward, the
+TV's apps (the ones watched lately first; one tap opens one), power, and an on-screen remote
+(arrows, OK, back, home) when the TV has a `remote` entity on the same device and its integration
+is Apple TV, Android TV Remote or Roku. A TV playing shows in Now Playing too; **Settings → Home →
+Now Playing → Music only** leaves TVs out.
+
+![The Media tab's TV view: what's playing, controls, apps and an on-screen remote](images/tv-light.jpg)
+
+**Volume behind a soundbar.** Volume steps and mute go to the TV, or to the speaker that plays its
+sound when `TV_AUDIO` in `.frame.vars` names one (`media_player.tv=media_player.soundbar`,
+comma-separated for several TVs). That's needed behind a soundbar: an Apple TV can't read the
+soundbar's level, so Home Assistant takes it as 0 and volume down does nothing, while a soundbar
+with its own integration (Alexa built in, Sonos) steps both ways and shows its level. A **Soundbar |
+TV speakers** switch under the controls sends volume back to the TV on nights its own speakers are
+on. Nothing about the household's TVs is in the code.

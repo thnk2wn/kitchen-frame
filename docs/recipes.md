@@ -92,3 +92,26 @@ curl -X POST https://photo-frame-dashboard.<your-subdomain>.workers.dev/api/reci
 | POST | `/api/lists/groceries` | frame | `{"items": [{"content", "description"}]}` adds several at once |
 
 Saved recipes are one KV value (`recipes`). Photos are stored as `recipe-image:<id>`.
+
+## The Paprika library
+
+Optional. With `PAPRIKA_EMAIL` and `PAPRIKA_PASSWORD` set (a Paprika Cloud Sync account), the
+Recipes tab gets the **Paprika** view: your library with its categories, favourites and Surprise
+me, and "Add to Groceries" as for any recipe. Search by name, or tap a letter on the A–Z strip down
+the right edge to jump through a long library. A recipe shows your Paprika notes beside it, plus its
+description and nutrition (tap to expand) when it has them.
+
+A cron reads the library every 15 minutes, fetching only new or changed recipes, a batch at a time,
+and stores them with resized photos. Paprika has no official API, so this uses the undocumented one
+its apps sync with (`dashboard/worker/paprika.js`); if that changes, the last copy keeps showing.
+The same sync reads Paprika's meal plan (2 days back to 3 weeks ahead): today's meals appear at the
+top of Home's Today list, and Recipes gets the **Meals** view of the next seven days.
+
+The Worker writes to Paprika only to save a recipe you asked it to (Save to Paprika, above). The
+other write is a script run by hand: photos come from a recipe's full-size photo in Paprika when it
+has one, otherwise Paprika's 280px thumbnail, and many web imports only ever gave Paprika a
+thumbnail, which looks soft on the frame (and in Paprika). `dashboard/scripts/paprika-photos.mjs`,
+run on a Mac, fixes that in Paprika itself: it finds the full photo on each recipe's source page,
+writes a before-and-after page to look over, then uploads the ones you keep the way the Paprika app
+does, saving each recipe first so `undo` can put it back. For sites that block scripts, find the
+photo in a browser and give it to `use`. Run it with no arguments for its commands.

@@ -88,3 +88,9 @@ fits; a very large one may need Paid.
 
 `npm test` (from `dashboard/`) includes the iCal parser, run against Google and iCloud fixtures in
 `worker/fixtures/`.
+
+## What it looks like
+
+<img src="images/event-light.jpg" alt="An event's details: calendar, day and time, stadium, TV and radio notes, and a map of the stadium" width="640">
+
+A Zoom, Teams or Meet link as a location shows as "Video call"; other links are dropped.

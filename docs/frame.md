@@ -149,3 +149,44 @@ How the Music tab works and how to set it up (Spotify, Home Assistant, Echos) is
 - The Music tab only appears when a token is present. Removing `frame-ha-token` hides it again.
 - The Worker's Spotify connection (every playlist, what's playing) is set up: `SPOTIFY_*` secrets,
   signed in 2026-10-14 with the playlists, recently played and currently playing permissions.
+
+## Troubleshooting from anywhere
+
+The frame checks in with the Worker every 10 minutes, with its versions, what it's showing and an
+event log: page loads, Home Assistant dropping or refusing an action, failed or slow calls to the
+Worker, the clock screen coming and going and why, cameras (each step of live video), locks and
+unlocks, what was announced, settings someone changed, and errors. A runaway loop is cut off
+(`ha.call_flood`, `log.flood`). `dashboard/scripts/frame-status.sh --log` prints it, `--now` asks
+the frame to check in first, and `--reload` has it reload the dashboard (to pick up a deploy); on
+the frame, Settings → About → Recent events; in Cloudflare (Worker → Observability) search
+`source = "frame"`. Settings are backed up with each check-in: after a reset the frame takes them
+back, and the last 10 versions are kept (`GET /api/frame/settings?history`).
+
+Settings → About shows the version: `v1.0.0` on a tag, `v1.0.0+3 (a1b2c3d)` three commits past it
+(`git describe` at build time), with the bundle hash and build time.
+
+## Status page (optional)
+
+`dashboard/ops/` is a private status page, its own Worker (`kitchen-frame-ops`) behind GitHub
+sign-in: whether the frame is online and what it's running, a 24-hour strip of dashboard / clock
+screen / night / Home Assistant down, the event log with filters, and the backend's health
+(calendar feeds, Paprika, the Reminders bridge, Spotify) and recent notices. It reads one summary
+from the main Worker (`GET /api/ops/summary`, counts and times rather than content) over a service
+binding, and can't change anything. Only one GitHub account (by its numeric ID) can sign in;
+anything else, and any request without a session, is refused, and so is everything if a secret is
+missing.
+
+1. Create a GitHub OAuth app (github.com → Settings → Developer settings → OAuth Apps → New): homepage
+   `https://kitchen-frame-ops.<your-subdomain>.workers.dev`, callback the same plus `/callback`.
+2. `cd dashboard && ./node_modules/.bin/wrangler deploy --config ops/wrangler.jsonc`
+3. Its secrets (`./node_modules/.bin/wrangler secret put NAME --config ops/wrangler.jsonc`):
+   `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (the app's), `ALLOWED_GITHUB_ID`
+   (`gh api user --jq .id`), `SESSION_SECRET` (`openssl rand -hex 32`; changing it signs everyone
+   out) and `DASHBOARD_KEY` (the main Worker's).
+
+## A different frame
+
+To set up a different frame, start from the upstream device guides in
+`reference/photo-frame-dashboard/docs/devices.md` (ADB, root, WebView 106, disabling the vendor app;
+some vendor apps accept root commands from the vendor's server), set its time zone (event times
+render in it), and measure it with `?diag`.

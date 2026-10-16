@@ -28,8 +28,8 @@ lists other frames that work.
 
 Screenshots use the built-in demo mode (Settings → About → Demo mode, or `?demo=on`), so all data shown is
 invented, apart from the weather. It's also handy for showing the frame to people without your own
-calendar and lists on it. `?tab=`, `?open=<recipe id>`, `?timer=Pasta:7` and `?weather=<day>` set up
-a particular screen.
+calendar and lists on it. `?tab=`, `?open=<recipe id>`, `?explore=<category>`, `?timer=Pasta:7`,
+`?weather=<day>` and `?settings=<tab>` set up a particular screen.
 
 ## Thanks
 
@@ -49,35 +49,39 @@ Go watch the video and star both repositories. See [CREDITS.md](CREDITS.md) for 
 ## What this fork adds
 
 **New** marks something the original didn't have; **Updated** marks a change to something it did.
+Each feature links to its page in [`docs/`](docs/), which has the setup and the details; the
+[Features](#features) section below has the short version of each.
 
 ### Home Assistant
 
 | Feature | | What it does |
 | --- | --- | --- |
-| **[House tab](#house-tab-home-assistant-devices)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling (kept the thermostat's minimum gap apart), HA-rendered markdown, camera snapshots with a Refresh button, and a camera full screen on tap (live video, sharper through ring-mqtt where the frame can play it). |
-| **[Doorbell pop-up](#doorbell)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
-| **[Notices](#notices-from-home-assistant)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves; a bell counts new ones and keeps the last 24 hours. Blueprints for temperature limits and thermostat changes. |
-| **[Announcements](#announcements)** | New | Said out loud on a speaker from HA (an Echo's Announce, or text-to-speech): event reminders for the calendars you pick ("In 30 minutes: Swim lesson"), red alerts such as a leak at a louder volume and at night, optionally orange ones, and agent messages. Sets the announcement volume first and puts the speaker's back after. Off until turned on. |
-| **[Presence](#clock-screen-and-presence)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
-| **[Media](#media-music-and-tv)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist (last played on any device, or A–Z) and what's playing from (a playlist, album, artist or autoplay), Up next, a card tinted with the cover's colour, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. |
+| **[House tab](docs/house.md)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling, HA-rendered markdown, camera pictures that refresh on a schedule, and a camera full screen on tap (live video where the frame can play it). An unlock PIN. |
+| **[Doorbell pop-up](docs/doorbell.md)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
+| **[Notices](docs/notices.md)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves; a bell counts new ones and keeps the last 24 hours. Blueprints for temperature limits and thermostat changes. |
+| **[Announcements](docs/announcements.md)** | New | Said out loud on a speaker from HA (an Echo's Announce, or text-to-speech): event reminders for the calendars you pick ("In 30 minutes: Swim lesson"), red alerts such as a leak at a louder volume and at night, optionally orange ones, and agent messages. Off until turned on. |
+| **[Presence](docs/presence.md)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
+| **[Media](docs/music.md)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist, what's playing from, Up next, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. |
 
 ### In the kitchen
 
 | Feature | | What it does |
 | --- | --- | --- |
-| **[Paprika recipes](#our-recipes-from-paprika)** | New | A read-only sync of your library: categories (A–Z, plus Uncategorized), search, an A–Z index, your notes and nutrition, and the full-size photo. Tap a direction to mark your place; earlier ones are checked off. A script fixes recipes whose imports only got a thumbnail, in Paprika itself. |
+| **[Paprika recipes](docs/recipes.md)** | New | Your library, synced: categories, search, an A–Z index, notes, nutrition and full-size photos. **Save to Paprika** from Explore (recipes already there are marked). A script fixes recipes whose imports only got a thumbnail, in Paprika itself. |
 | **Meal plan** | New | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
-| **[Timers](#timers)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
-| **[Lists](#weather-and-lists)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds), with priorities, due times, aisles and flags. Tap an item to edit it; ticking one gives a few seconds to undo. |
+| **[Rotations](docs/rotations.md)** | New | Who's up early with the kids, whose turn for bedtime, on Home's Today card. |
+| **[Timers](docs/timers.md)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
+| **[Lists](docs/lists.md)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds), with priorities, due times, aisles and flags. Tap an item to edit it; ticking one gives a few seconds to undo. |
 
 ### At a glance
 
 | Feature | | What it does |
 | --- | --- | --- |
-| **Weather** | Updated | The UV right now on Home (for sunscreen) and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, the day's peak UV, sun times. |
-| **[Calendar](#calendar)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details and notes on the calendars you choose, hide any calendar per frame, and `#private` to keep an event off the frame. |
-| **[Settings](#announcements)** | Updated | In tabs (Display, Announcements, Home, About), and backed up to the Worker: after a reset the frame takes its choices back by itself. The frame also checks in, so `scripts/frame-status.sh` shows what it's running. |
-| **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours). Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
+| **[Weather](docs/weather.md)** | Updated | The UV right now on Home (for sunscreen) and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, the day's peak UV, sun times, and a **radar** of the last hour and the next two. |
+| **[Calendar](docs/calendar.md)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details and notes on the calendars you choose, hide any calendar per frame, and `#private` to keep an event off the frame. |
+| **Settings** | Updated | In tabs (Display, Announcements, Home, About), backed up to the Worker (after a reset the frame takes its choices back), with the version and build time on About. |
+| **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours); a red night clock. Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
+| **[Status page](docs/frame.md#status-page-optional)** | New | A private page behind GitHub sign-in: is the frame online and what is it running, a day's timeline, its event log, and the health of everything behind the dashboard. |
 
 ## How it fits together
 
@@ -108,55 +112,51 @@ flowchart LR
 
   worker -- iCal links --> cal["Calendars<br/>(iCloud, Fastmail, Exchange, Google)"]
   worker -- API token --> todoist["Todoist"]
-  worker -- "read-only sync (cron)" --> paprika["Paprika<br/>recipes + meal plan"]
+  worker -- "sync (cron); saves" --> paprika["Paprika<br/>recipes + meal plan"]
   worker --> mealdb["TheMealDB"]
   worker --> weather["Open-Meteo<br/>+ NWS (US)"]
   worker -- public album link --> icloud["iCloud shared album"]
   worker -- "read-only (optional)" --> spotifyapi["Spotify<br/>playlists, what's playing"]
-  worker --> osm["OpenStreetMap<br/>event maps"]
+  worker --> osm["OpenStreetMap<br/>event maps, radar"]
   ha -- integrations --> spotify["Spotify, Alexa Devices,<br/>thermostats, locks, cameras…"]
   agents["AI agents, HA automations"] -- "agent token" --> worker
 ```
 
-- **The frame** holds only the dashboard key and its Home Assistant token (a non-admin HA user).
+- **The frame** holds only the dashboard key and its Home Assistant token (a non-admin HA user that
+  can only log in from the home network).
 - **The Worker** holds every other credential as Cloudflare secrets and caches what it fetches in
   KV, so the frame never talks to Todoist, Paprika, iCloud or calendar servers itself. A cron
   refreshes calendars every 10 minutes and syncs Paprika every 15.
 - **Home Assistant** is reached directly on the home network, never through Cloudflare. Doorbell
-  live video comes over WebRTC, set up through that same connection.
+  and camera live video comes over WebRTC, set up through that same connection.
 - **Secrets** go from `dashboard/.dev.vars` (gitignored) to Cloudflare with
   `dashboard/scripts/push-secrets.sh`; frame settings go to the frame with
   `dashboard/scripts/frame-url.sh`.
 
-## Status
+## Getting started
 
-Upstream runs on a Pastigio FRAME156 (Android 8.1, WebView 106, 1920×1080). Its device record,
-every change made to it and how to undo each one are in [docs/frame.md](docs/frame.md). This fork
-targets the same 15.6" frame.
+**Status:** this fork runs on a Pastigio FRAME156 (Android 8.1, WebView 106, 1920×1080). Its device
+record, every change made to it and how to undo each one are in [docs/frame.md](docs/frame.md).
 The developer wiki is in [openwiki/](openwiki/quickstart.md).
 
-## Layout
+**Layout:**
 
-- `dashboard/src/`: the web app (Svelte 5, no SvelteKit). Tabs: Home (clock, weather, today's
-  events, groceries, to-dos), Calendar (week and month), Lists (Groceries and Tasks, from Todoist),
-  Recipes (Paprika, TheMealDB and saved recipes), Music (Spotify through Home Assistant) and House
-  (Home Assistant). A doorbell
-  ring shows its camera over every screen. After a
-  set time untouched (Settings) it switches to an idle clock and photo screen. The frame loads it full screen in a kiosk WebView.
-- `dashboard/worker/`: the Cloudflare Worker that serves the app and its API: merged calendar,
-  weather (Open-Meteo), lists (Todoist, or Apple Reminders through the Mac bridge), the iCloud shared album (photos proxied and cached in KV),
-  recipes (Paprika's library and meal plan, TheMealDB, saved ones) and agent messages (a Durable
-  Object that pushes them to the frame over a WebSocket). Tokens and links for those services stay
-  on the server.
+- `dashboard/src/`: the web app (Svelte 5, no SvelteKit). Tabs: Home, Calendar, Lists, Recipes,
+  Media and House; the doorbell pop-up over every screen; the clock screen after a set time
+  untouched. The frame loads it full screen in a kiosk WebView.
+- `dashboard/worker/`: the Cloudflare Worker that serves the app and its API (calendar, weather,
+  lists, photos, recipes, notices, the frame's check-ins and agent messages). Tokens and links for
+  those services stay on the server.
+- `dashboard/ops/`: the optional status page, a second Worker.
 - `bridge/mac/`: the optional Mac app that keeps Apple Reminders lists in step with the frame
-  (Swift, EventKit; `install.sh` builds it and starts it at login). See `docs/lists.md`.
-- `docs/research.md`: what we learned from the upstream repo and the video, plus performance constraints.
-- `kiosk/`: the Android app the frame boots into (one full-screen WebView). `kiosk/build.sh` builds it
-  without Gradle; see `docs/frame.md` for the install and the changes made to our frame.
-- `reference/photo-frame-dashboard/`: upstream clone, gitignored. Re-create with
-  `git clone https://github.com/wesbos/photo-frame-dashboard reference/photo-frame-dashboard`.
+  (Swift, EventKit). See [docs/lists.md](docs/lists.md).
+- `kiosk/`: the Android app the frame boots into (one full-screen WebView). `kiosk/build.sh` builds
+  it without Gradle; see [docs/frame.md](docs/frame.md).
+- `homeassistant/`: the announce script and notice blueprints to import into Home Assistant.
+- `docs/research.md`: what we learned from the upstream repo and the video, plus performance
+  constraints. `reference/photo-frame-dashboard/` is the upstream clone, gitignored.
 
-## Run
+**Run:**
 
 ```sh
 cd dashboard
@@ -167,10 +167,9 @@ open "http://localhost:5173/?diag"   # perf overlay (fps, jank, DOM, image megap
 
 Local settings: `cp dashboard/.dev.vars.example dashboard/.dev.vars` and fill it in, then open
 `http://localhost:5173/?key=<DASHBOARD_KEY>` once (the page remembers the key). `npm test` runs the
-Worker and parser tests (calendar, Paprika, photos, messages, weather, maps, Spotify and the House
-dashboard parser).
+Worker and parser tests.
 
-Deploy from `dashboard/` (after `npx wrangler login`):
+**Deploy** from `dashboard/` (after `npx wrangler login`):
 
 ```sh
 # In a fork, first remove the CALENDAR KV namespace "id" from wrangler.jsonc: it's this deployment's.
@@ -179,363 +178,134 @@ scripts/push-secrets.sh        # uploads every setting in .dev.vars as a Worker 
 curl -H "Authorization: Bearer <key>" "https://kitchen-frame.<your-subdomain>.workers.dev/api/calendar?refresh"
 ```
 
-Point the kiosk at `https://kitchen-frame.<your-subdomain>.workers.dev/?key=<key>`, or build the
-full setup link with `scripts/frame-url.sh` (see [House tab](#house-tab-home-assistant-devices)).
-After a deploy the frame picks up the new version by itself within about 10–20 minutes, at a quiet
-moment (Settings shows the running version).
+Point the kiosk at the Worker's address with `?key=<key>`, or build the full setup link with
+`scripts/frame-url.sh` (see [docs/house.md](docs/house.md#setup)). After a deploy the frame picks
+up the new version by itself within about 10–20 minutes, at a quiet moment, or at once with
+`scripts/frame-status.sh --reload`.
 
-**Cost:** it runs on Cloudflare's **free** Workers plan. The frame makes roughly 1,500–2,000 Worker
-requests a day (calendar every 5 minutes, weather every 15, the meal plan every 30, lists every
-minute while they're showing, Spotify playlists every 5 minutes while Music is showing, photos only
-during the slideshow; messages are pushed, not polled).
-Free allows 100,000 requests and 1,000 KV writes a day; the calendar is only rewritten when it
-changes (or hourly), and Paprika recipes and photos are written once each. The Images binding
-(resizing photos once) is free up to 5,000 transformations a month.
+**Cost:** it runs on Cloudflare's **free** Workers plan: the frame makes roughly 1,500–2,000 Worker
+requests a day against a 100,000 allowance, KV writes stay well under the 1,000 a day (the calendar
+is only rewritten when it changes), and photo resizing is within the Images binding's free 5,000 a
+month. Nothing here costs money beyond the frame.
 
-## Calendar
+## Features
 
-The Worker merges any number of calendar feeds into one agenda: Google, iCloud, Fastmail,
-Outlook/Exchange, or a subscribed .ics link like a sports team's schedule. Put the links in
-`CALENDAR_URLS`; optionally name and colour each one (`CALENDAR_NAMES`, `CALENDAR_COLORS`), and hide
-any of them per frame from **Calendars** on Home or the Calendar tab. The frame shows titles, times
-and locations (a Zoom, Teams or Meet link as a location shows as "Video call"; other links are
-dropped), and `#private` in an event keeps it off the frame.
+### Calendar
 
-Choose which calendars open when an event is tapped (`CALENDAR_DETAILS`): the family calendar or a
-team's schedule, say, but not work. Those events show a › and open a sheet with the calendar, the
-day and time, the location with a small map, and the event's notes (TV channel and score, for a
-sports feed). Notes
-from other calendars are never stored, so the frame couldn't show them if it tried.
-
-<img src="docs/images/event-light.jpg" alt="An event's details: calendar, day and time, stadium, TV and radio notes, and a map of the stadium" width="640">
-
+The Worker merges any number of calendar feeds into one agenda (Google, iCloud, Fastmail,
+Outlook/Exchange, or a subscribed .ics link such as a team's schedule); name and colour each one,
+hide any of them per frame, and `#private` in an event keeps it off the frame. Choose which
+calendars open when an event is tapped (`CALENDAR_DETAILS`): those show the day and time, the
+location with a small map, and the event's notes; notes from other calendars are never stored.
 [docs/calendar.md](docs/calendar.md) has how to get each kind of link, every setting, privacy
 details, and how refreshing and failed feeds work.
 
-## Light and dark
+### Weather
 
-The theme follows the sun: light from sunrise to sunset (from the weather feed), dark otherwise,
-with 7 AM / 7 PM as the fallback before weather loads. On the idle clock screen the clock uses the
-colour chosen in Settings and dims at night, as do the photos (or they're off at night, per Settings). Pin a
-theme with `?theme=light` or `?theme=dark` (remembered on the frame); `?theme=auto` goes back to
-following the sun. Both themes are CSS variables, so switching costs one repaint and no memory.
+Open-Meteo needs no key, and in the US the same location brings the National Weather Service's
+written forecast and alerts. The day sheet has a rain **radar** (last hour, now, next two hours)
+from NWS and NOAA data in the US, RainViewer elsewhere. Setup and sources in
+[docs/weather.md](docs/weather.md).
 
-## Weather and lists
+### Lists
 
-- **Weather:** set `WEATHER_LAT` and `WEATHER_LON` (plus `WEATHER_UNIT="celsius"` if you want it)
-  as secrets (`npx wrangler secret put`, as this deployment does) or `vars` in
-  `dashboard/wrangler.jsonc`, and in `.dev.vars` locally. Open-Meteo needs no key. In the US the
-  same location also brings the National Weather Service's written forecast and alerts (no key
-  either); elsewhere the detail sheet just leaves them out. **Radar**, beside the days in that
-  sheet, loops the last hour, now and the next two hours of rain around the same location, about
-  the town and its neighbors (about 130 km across) over OpenStreetMap: in the US, NWS radar and NOAA's HRRR forecast through the Iowa
-  Environmental Mesonet; elsewhere RainViewer's past two hours (all free, no key). It loads only
-  while it's open. Drag along its timeline to pick a time.
-- **Todoist:** `npx wrangler secret put TODOIST_TOKEN` (Todoist → Settings → Integrations →
-  Developer → API token). By default the lists read the projects named **Groceries** and
-  **To-do**; `TODOIST_GROCERY_PROJECT` / `TODOIST_TODO_PROJECT` in `wrangler.jsonc` point them
-  elsewhere (this deployment uses "Groceries" and "Family"). Tapping an item completes
-  it in Todoist, and items can be added from the frame.
-- **Apple Reminders instead** (per list): Apple gives servers no way into Reminders, so a Mac at
-  home that stays on runs a small bridge app (`bridge/mac/`) that keeps chosen Reminders lists in
-  step with the frame within seconds, both ways. "Hey Siri, add milk to my Groceries list" from the
-  watch then shows on the frame, and ticking it on the frame ticks it on your phone.
-  [docs/lists.md](docs/lists.md) compares it with Todoist (including Siri with Todoist), walks
-  through setting up the Mac, and lists what happens when the Mac is off.
+Groceries and Tasks come from Todoist (an API token; the project names are settings) or, per list,
+from Apple Reminders through a Mac at home that runs a small bridge app, two-way within seconds, so
+"Hey Siri, add milk to my Groceries list" shows on the frame. [docs/lists.md](docs/lists.md)
+compares the two, walks through the Mac, and lists what happens when the Mac is off.
 
-## Our recipes from Paprika
+### Recipes
 
-Optional. With `PAPRIKA_EMAIL` and `PAPRIKA_PASSWORD` set (a Paprika Cloud Sync account), the
-Recipes tab gets a **Paprika** view: your Paprika library with its categories, favourites and
-Surprise me, and "Add to Groceries" as for any recipe. Search by name, or tap a letter on the A–Z
-strip down the right edge to jump through a long library. A recipe shows your Paprika notes beside
-it, plus its description and nutrition (tap to expand) when it has them. A cron reads the library every 15 minutes,
-fetching only new or changed recipes, a batch at a time, and stores them with resized photos. It
-writes to Paprika only to save a recipe you asked it to (below). Paprika has no official API, so this uses the undocumented one its apps
-sync with (see `dashboard/worker/paprika.js`); if that changes, the last copy keeps showing.
+Four views: **Meals** (the Paprika meal plan), **Paprika** (your library, synced every 15 minutes),
+**Explore** (TheMealDB) and **Saved**. With a Paprika account, **Save to Paprika** on an Explore
+recipe puts it in your library, photo included, under your matching category; recipes already there
+wear a badge in Explore and say **In Paprika** on their page, and the Worker won't save a duplicate.
+Recipes agents send go to Paprika too. Any recipe's ingredients can go to Groceries. Paprika has no
+official API, so the sync uses the undocumented one its apps use; a change there stops the sync, not
+the frame. [docs/recipes.md](docs/recipes.md).
 
-The same sync reads Paprika's meal plan (2 days back to 3 weeks ahead): today's meals appear at the
-top of Home's Today list, and Recipes gets a **Meals** view of the next seven days.
+### Rotations
 
-**Saving into Paprika.** With an account configured, **Save to Paprika** on an Explore recipe puts
-it in your library, photo included, under your matching category (or a **Kitchen Frame** one if
-you've made it), and recipes agents send go there too. The recipe page says **In Paprika** when the library already has it (same source link
-or title), and the Worker won't save a duplicate. Details in [docs/recipes.md](docs/recipes.md).
+Who's up early with the kids, whose turn for bedtime, as lines on Home's Today card; by weekday or
+alternating daily. Optional, and set as a Worker secret so names stay out of the repo.
+[docs/rotations.md](docs/rotations.md).
 
-Photos come from a recipe's full-size photo in Paprika when it has one, otherwise Paprika's 280px
-thumbnail. Many web imports only ever gave Paprika a thumbnail, which looks soft on the frame (and
-in Paprika). `dashboard/scripts/paprika-photos.mjs`, run by hand on a Mac, fixes that in Paprika
-itself: it finds the full photo on each recipe's source page, writes a before-and-after page to
-look over, then uploads the ones you keep the way the Paprika app does, saving each recipe first
-so `undo` can put it back. It's the one thing here that writes to Paprika. For sites that block
-scripts, find the photo in a browser and give it to `use`. Run it with no arguments for its
-commands.
+### House tab
 
-### Rotations (optional)
+Mirrors one Home Assistant dashboard, live: tap to toggle, thermostats with setpoint buttons, HA's
+markdown cards, camera pictures and live video. Give the frame HA's **home-network address** and a
+**non-admin, local-only** HA user's token (its token is then useless outside the house). Unlocking a
+lock takes two taps or a PIN. Cameras: live video plays where the frame's decoder can handle the
+picture (this frame: up to 1920 wide), with sharper 720p streams through ring-mqtt for the cameras
+that offer them, and refreshing pictures with their time for the rest. Setup, what each device does,
+and the camera measurements are in [docs/house.md](docs/house.md).
 
-Who's up early with the kids, whose turn for bedtime, on Home. A rotation with `switchAt` is today's
-at the top of Today until then, and after it tomorrow's, under Tomorrow in Upcoming. One without
-(bedtime) is today's, last in Today. Nothing shows until you set them, and there's no Setting for
-them: they're a Worker secret, so the names stay out of the repo.
+### Media: music and TV
 
-```sh
-printf '%s' '[
-  {"name":"Up early with kids","icon":"sunrise","switchAt":"10:00",
-   "days":{"mon":"Sam","tue":"Alex","wed":"Sam","thu":"Alex","fri":"Sam","sat":"Alex","sun":"Sam"}},
-  {"name":"Bedtime","icon":"moon",
-   "alternate":{"from":"2026-10-15","who":["Alex","Sam"],"what":["Mia","Leo"]}}
-]' | npx wrangler secret put ROTATIONS
-```
+**Music** is Spotify on the house's speakers through Home Assistant, with controls that answer at
+once and a Now Playing card everywhere. **TV** is any TV HA knows: what's playing, controls, apps and
+an on-screen remote; behind a soundbar, `TV_AUDIO` sends volume to the speaker that actually plays
+the sound. Setup (HA's Spotify integration, optionally Alexa Devices and the Worker's own Spotify
+connection for every playlist) in [docs/music.md](docs/music.md).
 
-`days` names someone per weekday (leave a day out to show nothing). `alternate` starts on `from`
-with `who[i]` on `what[i]`, and moves everyone on one each day, so two people swap nightly. The
-frame picks changes up within the hour. Demo mode shows invented ones.
+### Timers
 
-## House tab (Home Assistant devices)
+Tap a time, then a name; times in recipe directions are buttons; up to three run, with a chip on
+every screen, a chime, a full-screen alert and an Echo announcement. Names per frame with
+`TIMER_NAMES`. [docs/timers.md](docs/timers.md).
 
-With a Home Assistant URL, token and dashboard set on the frame, a **House** tab mirrors that HA
-dashboard: its headings become groups, tiles become devices you can tap (lights, fans, switches,
-locks, covers, scenes), thermostats get setpoint buttons, sensors show their values, markdown cards
-(including the view header) are rendered live by HA, and cameras show a snapshot (refreshed with
-the **Refresh** button by their heading, not on a timer, since asking a battery camera wakes it).
-Tap a camera for it full screen: live video over WebRTC, one retry, then a fresh snapshot every 15 s
-if it won't stream; it closes itself after two minutes. Edit the dashboard in HA and the frame follows.
-Unlocking takes two taps, or asks for a PIN once one is set in Settings → Home (forgotten:
-`scripts/frame-url.sh --clear-pin` over ADB). Thermostats in heat/cool keep their two setpoints apart by `THERMOSTAT_GAP`
-(°F, default 5, the ecobee's own minimum unless changed; set it in `.frame.vars`), moving the other one
-as the thermostat's app does. Use a non-admin HA user's token.
+### Clock screen, night and presence
 
-**Sharper Ring live video.** Through Home Assistant's Ring integration, Ring gives some browsers (this
-frame among them) a 480×272 picture. With [ring-mqtt](https://github.com/tsightler/ring-mqtt), add a
-**Generic Camera** in Home Assistant for each camera (Settings → Devices & Services → Add → Generic
-Camera) with its **Stream source** set to the `stream_Source` address shown on that camera's ring-mqtt
-**Info** sensor (`rtsp://…-ring-mqtt:8554/<id>_live`), and name its entity `camera.<name>_stream`, where
-`<name>` matches the camera's `camera.<name>_live_view` or `_snapshot`. The House tab and the doorbell
-pop-up then play the stream (720p on this frame) and fall back to Ring's live view without one, or
-when the stream doesn't play within 30 s. **Try each one on the frame before keeping it**: a
-picture wider than the frame's video decoder handles arrives but never decodes (the frame's event
-log shows `camera.not_playing` with bytes but 0 frames). This frame's RK3326 decodes H.264 up to
-1920 wide: a Doorbell Pro 2 at 1536×1536 plays, a Spotlight Cam Pro doesn't on either path, since
-Ring sends it at 2624×1472 (its "2K" setting) or 1968×1104 (its "1080p"), and ring-mqtt passes the
-camera's size through. Here backyard and upstairs play (their streams come through at 720p); the
-other streams are disabled (Settings → Devices & Services → Generic Camera) and those cameras use
-Ring's live view where it decodes, or refreshing pictures where it doesn't. The full-screen view's
-**Sound** button switches to Ring's live view (with sound) and **Sharper** back.
+After a while untouched the frame shows a clock over the photo slideshow (never during a recipe or
+a timer). **Night** gives a dim red clock that motion doesn't wake. With motion sensors in an HA
+area (`PRESENCE_AREA`), the clock waits until nobody has been seen for a while and the dashboard
+comes back when someone walks in; Settings → Home lists the sensors, and occupancy sensors start
+left out since they hold "occupied" too long. The theme follows the sun (`?theme=` pins it).
+[docs/presence.md](docs/presence.md).
 
-Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `THERMOSTAT_GAP`, `PRESENCE_AREA`, …) in the gitignored `dashboard/.frame.vars`,
-then `open "$(dashboard/scripts/frame-url.sh)"` (a browser) or pass the same URL to the kiosk with
-`adb shell am start … -d`. The page saves the settings and removes them from the address bar.
+### Doorbell
 
-For the frame, make `HA_URL` Home Assistant's address on the home network (`http://<HA's IP>:8123`;
-the kiosk lets the https page reach it), not a Nabu Casa or other remote address, and give HA a
-fixed IP (a router reservation, or a static address in HA outside the router's DHCP range). Then
-`HA_TOKEN` can belong to a non-admin HA user marked **Can only log in from the local network**, so
-the token is useless outside the house ([docs/frame.md → Security](docs/frame.md#security)).
+A ring covers the screen with that doorbell's camera for 90 seconds: snapshot first, live video when
+it streams. Every HA event entity with device class `doorbell` is watched, with its device's camera,
+so there's nothing to configure in the usual case (`DOORBELL` / `DOORBELL_CAMERA` override it).
+[docs/doorbell.md](docs/doorbell.md).
 
-## Media: music and TV
+### Notices
 
-The **Media** tab has **Music | TV** at the bottom when Home Assistant has a TV.
+Short banners from Home Assistant automations that clear themselves ("Garage freezer is 18°F"), red,
+orange or blue, with a bell that counts new ones and a sheet of the last 24 hours. Any HA persistent
+notification whose id starts with `frame_` shows, so the device-specific logic stays in your
+automations; `frame_alert_…` is red, `frame_info_…` blue. Blueprints for temperature limits and
+thermostat changes are in `homeassistant/blueprints/`. [docs/notices.md](docs/notices.md).
 
-**Music** is Spotify on the house's speakers, through Home Assistant: song, controls, volume,
-playlists and speakers, with a Now Playing card on Home and a small one in every other tab's top bar.
-Controls show the change at once instead of waiting seconds for Spotify to confirm, and a tapped
-playlist shows in the player straight away ("Starting on Kitchen…") until Spotify reports it
-playing; the frame also asks Home Assistant to check Spotify right after a tap rather than at its
-next 30-second poll. With nothing playing, the volume slider sets the chosen speaker's own volume.
+### Announcements
 
-**TV** is any TV Home Assistant knows, found by its integration (Apple TV, Android TV, Roku, LG
-webOS, Samsung, Sony Bravia, Vizio, Philips, Panasonic, DirecTV) or a `tv` device class: what's
-playing in any app (title, episode, artwork, progress), play/pause and 10 s back and forward, the
-TV's apps (the ones watched lately first; one tap opens one), power, and an on-screen remote
-(arrows, OK, back, home) when the TV has a `remote` entity on the same device and its integration
-is Apple TV, Android TV Remote or Roku. A TV playing shows in Now Playing too; **Settings → Home → Now
-Playing → Music only** leaves TVs out. Volume steps and mute go to the TV, or to the speaker that
-plays its sound when `TV_AUDIO` in `.frame.vars` names one (`media_player.tv=media_player.soundbar`,
-comma-separated for several TVs). That's needed behind a soundbar: an Apple TV can't read the
-soundbar's level, so Home Assistant takes it as 0 and volume down does nothing, while a soundbar with
-its own integration (Alexa built in, Sonos) steps both ways and shows its level. A **Soundbar | TV
-speakers** switch under the controls sends volume back to the TV on nights its own speakers are on. Nothing about the
-household's TVs is in the code.
+Settings → Announcements (off until you turn it on): the speaker, an announcement volume and a
+louder alert volume, **event reminders** per calendar ("In 30 minutes: Swim lesson"), red alerts
+said aloud (at night too, if you choose), optionally orange ones, and agent messages. It speaks
+through `script.frame_announce` from `homeassistant/scripts/`, which sets the volume and puts the
+speaker's own back afterwards. [docs/announcements.md](docs/announcements.md).
 
-![The Media tab's TV view: what's playing, controls, apps and an on-screen remote](docs/images/tv-light.jpg)
+### Messages from agents
 
-Setup, in [docs/music.md](docs/music.md):
-
-1. **HA's Spotify integration** (required; Spotify Premium): a Spotify developer app whose client ID
-   and secret go into Home Assistant.
-2. **Alexa Devices in HA** (optional): starts Spotify on an Echo when nothing has played for a while.
-3. **The Worker's own Spotify connection** (optional, the same developer app): every playlist (HA
-   lists only the first 48), sorted by what was last played on any device, and which one is playing.
-   Three settings in `.dev.vars` and a one-time sign-in with `node scripts/spotify-auth.mjs`.
-
-## Timers
-
-Start one from the timer button in the top bar: tap a time (it starts at once), then optionally a
-name. The names default to Pasta, Bread, Veggies, Oven and Protein; set your own per frame with
-`TIMER_NAMES` in `dashboard/.frame.vars` (or `?timer_names=` in a setup link). On a recipe page,
-times in the steps are buttons that start a timer named after the recipe. Up to three can run; the
-top bar on every screen shows one chip, the timer that ends next, with "+N" for the others (tap it
-to see them all, add a minute or cancel). Timers survive a reload.
-
-When a timer ends: the frame chimes (Web Audio, no sound files), a full-screen alert offers +1 min
-or Dismiss, and, with Home Assistant, a speaker announces it through a `notify` entity, such as an
-Echo's "Announce" from the Alexa Devices integration (Settings → Announcements → Timer alerts; by default the one
-with "kitchen" in its name). The frame has no microphone, so voice timers stay with your smart
-speakers. The kiosk app (1.4+) lets the page play sound without a tap first.
-
-## Clock screen and presence
-
-After a while untouched (Settings → Display → Clock screen after: 30 minutes by default) the frame shows a
-clock over the photo slideshow, and any tap brings the dashboard back. It never switches while a
-recipe is open or a timer is running.
-
-**Night** (Settings → Display → Night, 10:30 PM to 6:30 AM by default, or off): the clock screen comes on two
-minutes after the last touch, without photos, in red (Settings → Display → Night clock color: red, orange, yellow
-or the daytime colour) and at the screen's lowest brightness, and motion in
-the room doesn't bring the dashboard back. A tap does, at the daytime brightness, as do a timer alert
-and the doorbell. The daytime brightness (Settings → Display → Brightness) comes back each morning, and agent
-messages aren't read aloud during these hours.
-
-With motion sensors in a Home Assistant area, set `PRESENCE_AREA` (for example `kitchen`) in
-`dashboard/.frame.vars`: the clock screen then waits until no sensor has seen anyone for that long,
-and the dashboard comes back by itself when one does. [docs/presence.md](docs/presence.md) covers
-setup, which sensors count, how sensors that stick "on" are handled, how different kinds of sensor
-behave, and bringing in an Echo's presence detection through an Alexa routine. **Settings → Home →
-Presence sensors** lists the area's sensors; tap one to leave it out. Occupancy sensors start left
-out, since they hold "occupied" long after the last motion.
-
-## Doorbell
-
-With Home Assistant connected, a doorbell ring covers the screen (the clock screen too) with that
-doorbell's camera for 90 seconds, or until Dismiss. It shows the camera's latest snapshot at once and
-switches to live video when the camera streams over WebRTC (Ring does; Sound turns the audio on).
-With ring-mqtt's snapshot camera beside it, the frame also asks for a fresh snapshot on each ring.
-
-Nothing to configure in the usual case: every event entity with device class `doorbell` (Ring,
-Reolink, UniFi Protect, Nest and others provide one) is watched, and the camera is the one on the
-same device. To override, set `DOORBELL` (entity ids, comma-separated, or `off`) and
-`DOORBELL_CAMERA` in `dashboard/.frame.vars` (or `?doorbell=` / `?doorbell_camera=` in a setup link).
-Settings → Home → Doorbell → Test shows the pop-up without anyone at the door.
-
-## Notices from Home Assistant
-
-<img src="docs/images/notices-light.jpg" alt="Two notices under the clock on Home: a red garage freezer alert and a blue thermostat change" width="404" align="right">
-
-Short, glanceable notices that clear themselves: a banner in Home's left column (red, orange or
-blue) and a line on the clock screen. The bell in the top bar counts what's new since you last
-looked, in the most urgent one's colour. It opens the notices sheet: **New**, then **Earlier**, the
-last 24 hours including notices that have ended (greyed, with "Cleared at 7:42 AM, after 14 min").
-Each row starts with the time it came in. Dismiss (or Dismiss all) removes a notice in Home
-Assistant for every screen.
-
-Home Assistant keeps no history of its notifications, so the frame reports each one to the Worker
-as it ends and the Worker keeps it in KV. Blue info notices still on after a day are dismissed as
-"Expired"; red and orange ones stay until dismissed or cleared. Optional Worker vars change this:
-`NOTICES_KEEP_HOURS` (24), `NOTICES_KEEP_MAX` (50 at most) and `NOTICES_INFO_HOURS` (24, or 0 for
-never). A notice that starts and ends while the frame is off isn't recorded.
-
-The frame shows any HA persistent notification whose `notification_id` starts with `frame_`, so
-everything device-specific stays in your Home Assistant automations, not in this repo:
-
-- `persistent_notification.create` with `notification_id: frame_alert_freezer` (and a title and
-  message) shows it; `persistent_notification.dismiss` with the same id removes it.
-- `frame_alert_…` is red, `frame_info_…` blue, any other `frame_…` orange. Alerts sort first.
-- HA's own notifications (repairs, new devices) don't start with `frame_` and stay off the frame.
-
-Blueprints in [`homeassistant/blueprints/`](homeassistant/blueprints/) make common ones a form to
-fill in (Settings → Automations & Scenes → Blueprints → Import Blueprint, paste the file's GitHub URL):
-
-- **Temperature too high** (`frame-temperature-high.yaml`): a temperature sensor above a limit for a
-  while (a freezer, fridge or crawlspace), cleared once it's back below a second level. The time
-  window keeps short spikes such as a freezer's defrost cycle from raising it.
-- **Thermostat changed** (`frame-thermostat-changed.yaml`): someone changed a thermostat's mode or
-  setpoint outside Home Assistant (at the wall, in its app, by voice), shown for a while as
-  "Upstairs set to Auto, 70–75°". Changes made in HA (the frame, the HA app, automations) and
-  schedule switches on the hour or half hour don't count, and clear an earlier notice.
-
-For messages that should take over the screen (and be read aloud), use
-[Messages from agents](#messages-from-agents) instead.
-
-<br clear="right">
-
-## Announcements
-
-![Settings → Announcements: on, the Kitchen speaker, announcement and alert volumes, Test, and event reminders with Family and Tennessee Football picked](docs/images/settings-light.jpg)
-
-**Settings → Announcements** (off until you turn it on) sets what the frame says out loud, on one speaker from Home Assistant
-(an Echo, a Nest speaker, anything with text-to-speech): the speaker, an announcement volume and a
-louder **alert volume** for red alerts, a **Test** for each, **event reminders**, and whether agent
-messages are read aloud. Nothing is said at night (Settings → Display → Night). Timer alerts keep
-their own speaker on the same page.
-
-**Event reminders:** tap a calendar to have its events announced ("In 30 minutes: Swim lesson, at
-the Aquatic center"), all off to start. Each event is said once, at its own reminder when the feed
-has one between 0 and 2 hours before (the iCal `VALARM`; Google and Outlook links usually leave
-them out), otherwise at the lead time chosen (30 minutes by default). All-day events aren't said.
-An event's details show when it will be announced. The frame does the timing, so nothing is said
-while it's off; a reminder missed by up to 10 minutes (a reload) is still said if the event hasn't
-started.
-
-The frame speaks through a Home Assistant script, [`homeassistant/scripts/frame-announce.yaml`](homeassistant/scripts/frame-announce.yaml)
-(add it as `script.frame_announce`): an Echo's Announce when the speaker has one, otherwise
-text-to-speech, at the announcement volume, putting the speaker's own volume back afterwards.
-Other automations can use it too. Without the script the frame falls back to plain text-to-speech
-at the speaker's current volume.
-
-**Home alerts:** a red notice (a leak, the freezer) is said when it appears, "Alert: Water under the
-kitchen sink", at the alert volume and at night too (or kept quiet at night), once or every 10
-minutes until it clears or is dismissed. Orange notices can be said too, at the normal volume and
-never at night; blue ones never are. The notices sheet marks the ones said as "Announced".
-
-## Messages from agents
-
-AI agents can post full-screen messages to the frame: see [docs/messages.md](docs/messages.md).
-Settings → Announcements → Agent messages reads them aloud.
-
-## Recipes
-
-Four views: **Meals** (the Paprika meal plan), **Paprika** (your library), **Explore** (TheMealDB) and
-**Saved** (kept in the Worker; tap Save in Explore, or agents can send recipes). Any recipe's
-ingredients can go to Groceries: see [docs/recipes.md](docs/recipes.md).
+AI agents can post full-screen messages to the frame with their own token, and have them read
+aloud. [docs/messages.md](docs/messages.md).
 
 ## The frame
 
 The frame boots into our own kiosk app (`kiosk/`, package `com.huntsyea.frame`): build it with
 `kiosk/build.sh`, install with `adb install -r kiosk/build/frame.apk`, and set the dashboard URL
 once with `adb shell am start -n com.huntsyea.frame/.MainActivity -d '<url with ?key=>'`.
-[docs/frame.md](docs/frame.md) covers getting ADB working, every change made to the device with
-its undo command, and day-to-day operation. Music setup (Spotify, Home Assistant, Echos) is in
-[docs/music.md](docs/music.md).
 
-**Troubleshooting from anywhere:** the frame checks in with the Worker every 10 minutes, with its
-versions, what it's showing and an event log (page loads, Home Assistant dropping or refusing an
-action, failed calls to the Worker, the clock screen coming and going and why, what was announced,
-errors). `dashboard/scripts/frame-status.sh --log` prints it; Settings → About → Recent events shows
-it on the frame; in Cloudflare (Worker → Observability) search `source = "frame"`.
+The frame checks in with the Worker every 10 minutes with its versions, what it's showing and an
+event log (connection drops, failed actions, cameras, locks, announcements, errors), and its
+settings are backed up with it. `dashboard/scripts/frame-status.sh --log` shows the log from
+anywhere, `--now` asks the frame to check in first, and `--reload` has it reload the dashboard; the
+optional **status page** shows the same, plus the backend's health, behind GitHub sign-in.
 
-### Status page (optional)
-
-`dashboard/ops/` is a private status page, its own Worker (`kitchen-frame-ops`) behind GitHub
-sign-in: whether the frame is online and what it's running, a 24-hour strip of dashboard / clock
-screen / night / Home Assistant down, the event log with filters, and the backend's health
-(calendar feeds, Paprika, the Reminders bridge, Spotify) and recent notices. It reads one summary
-from the main Worker (`GET /api/ops/summary`, counts and times rather than content) over a service
-binding, and can't change anything. Only one GitHub account (by its numeric ID) can sign in;
-anything else, and any request without a session, is refused, and so is everything if a secret is
-missing.
-
-1. Create a GitHub OAuth app (github.com → Settings → Developer settings → OAuth Apps → New): homepage
-   `https://kitchen-frame-ops.<your-subdomain>.workers.dev`, callback the same plus `/callback`.
-2. `cd dashboard && ./node_modules/.bin/wrangler deploy --config ops/wrangler.jsonc`
-3. Its secrets (`./node_modules/.bin/wrangler secret put NAME --config ops/wrangler.jsonc`):
-   `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` (the app's), `ALLOWED_GITHUB_ID`
-   (`gh api user --jq .id`), `SESSION_SECRET` (`openssl rand -hex 32`; changing it signs everyone
-   out) and `DASHBOARD_KEY` (the main Worker's).
-
-To set up a different frame, start from the upstream device guides in
-`reference/photo-frame-dashboard/docs/devices.md` (ADB, root, WebView 106, disabling the vendor
-app; some vendor apps accept root commands from the vendor's server), set its time zone (event
-times render in it), and measure it with `?diag`.
+[docs/frame.md](docs/frame.md) has getting ADB working, every change made to the device with its
+undo command, security (what each secret opens, and what to do if the frame is lost), day-to-day
+operation, troubleshooting, the status page, and setting up a different frame.
 
 ## Contributing
 
@@ -546,8 +316,9 @@ problems privately as described in [SECURITY.md](SECURITY.md).
 
 Inspired by [Wes Bos](https://github.com/wesbos/photo-frame-dashboard)
 ([video](https://youtu.be/ZLycoUMltNI)) and forked from
-[Hunter Yeagley's kitchen-frame](https://github.com/huntsyea/kitchen-frame). Weather data by [Open-Meteo](https://open-meteo.com) and the [National Weather Service](https://www.weather.gov),
-recipes from [TheMealDB](https://www.themealdb.com), icons from [Lucide](https://lucide.dev).
-Full credits in [CREDITS.md](CREDITS.md).
+[Hunter Yeagley's kitchen-frame](https://github.com/huntsyea/kitchen-frame). Weather data by
+[Open-Meteo](https://open-meteo.com) and the [National Weather Service](https://www.weather.gov),
+recipes from [TheMealDB](https://www.themealdb.com), maps from [OpenStreetMap](https://www.openstreetmap.org/copyright),
+icons from [Lucide](https://lucide.dev). Full credits in [CREDITS.md](CREDITS.md).
 
 Released under the [MIT License](LICENSE).
