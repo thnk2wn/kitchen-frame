@@ -127,12 +127,12 @@ export async function saveRecipe(recipe) {
   return res;
 }
 // Is this recipe already in the Paprika library? By source link, else by title (normalised).
-const plain = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\b(the|a|an|with|and)\b/g, ' ').replace(/\s+/g, ' ').trim();
+export const plainTitle = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\b(the|a|an|with|and)\b/g, ' ').replace(/\s+/g, ' ').trim();
 export function inPaprika(recipe) {
   if (!recipe || ui.demo) return null;
   const list = paprika.recipes || [];
-  const t = plain(recipe.title);
-  return list.find((r) => (recipe.source && r.source && r.source === recipe.source) || (t && plain(r.title) === t)) || null;
+  const t = plainTitle(recipe.title);
+  return list.find((r) => (recipe.source && r.source && r.source === recipe.source) || (t && plainTitle(r.title) === t)) || null;
 }
 export async function removeRecipe(id) {
   recipes.saved = (recipes.saved || []).filter((r) => r.id !== id);

@@ -21,7 +21,7 @@
   import RecipePage from './RecipePage.svelte';
   import { api, cached, remember, mediaUrl } from '../lib/api.js';
   import { recipeTitle } from '../lib/format.js';
-  import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui } from '../lib/state.svelte.js';
+  import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui, plainTitle } from '../lib/state.svelte.js';
   import { dayKey, addDays } from '../lib/format.js';
 
   // Paprika (our library, synced by the Worker when it has an account), Explore (TheMealDB) and Saved
@@ -30,7 +30,9 @@
   const stored = localStorage.getItem('frame-recipes-mode');
   // The Paprika view appears when the Worker has a Paprika account.
   const oursOn = () => paprika.configured !== false;
-  const startMode = stored === 'saved' || stored === 'explore' || (stored === 'meals' && oursOn()) ? stored : oursOn() ? 'ours' : 'explore';
+  // ?explore=<category> opens Explore on that category once (screenshots, testing).
+  const wantExplore = new URLSearchParams(location.search).get('explore');
+  const startMode = wantExplore ? 'explore' : stored === 'saved' || stored === 'explore' || (stored === 'meals' && oursOn()) ? stored : oursOn() ? 'ours' : 'explore';
   let mode = $state(startMode);
   // Each pane is built the first time it's shown and then kept; switching only hides one (no
   // rebuilding cards or re-decoding photos).
@@ -137,7 +139,7 @@
   }
 
   const last = cached('recipes-cards'); // { cat, cards }: the last category shows instantly on boot
-  const first = CATS.some(([id]) => id === last?.cat) ? last.cat : 'Chicken';
+  const first = CATS.some(([id]) => id === wantExplore) ? wantExplore : CATS.some(([id]) => id === last?.cat) ? last.cat : 'Chicken';
   let cat = $state(first);
   let cards = $state(lists.get(first) || last?.cards || null);
   let error = $state(null);
@@ -159,6 +161,10 @@
       if (cat === c) cards = list;
     } catch (e) { if (cat === c) error = e.message; }
   }
+
+  // Explore cards wear a badge when the Paprika library already has the recipe (by title), so new
+  // ones stand out while scanning. One pass over the library per change, not per card.
+  let libraryTitles = $derived(new Set(ui.demo ? [] : (paprika.recipes || []).map((r) => plainTitle(r.title))));
 
   // Open straight away with what the card knows (its photo is already loaded), then fill in.
   async function openRecipe(card, path) {
@@ -290,6 +296,7 @@
             {#each cards as r (r.id)}
               <button class="card sheet" onclick={() => openRecipe(r, 'id=' + encodeURIComponent(r.id))}>
                 <span class="ph"><img src={r.thumb} alt="" loading="lazy" decoding="async" use:fade /></span>
+                {#if libraryTitles.has(plainTitle(r.title))}<span class="have" title="In Paprika"><Icon name="check" size={16} />Paprika</span>{/if}
                 <span class="label"><span class="title">{recipeTitle(r.title)}</span></span>
               </button>
             {/each}
@@ -391,6 +398,8 @@
   .more { grid-column: 1 / -1; height: 1px; }
   .ph { position: absolute; inset: 0; }
   .ph img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .25s; }
+  /* "Already in Paprika", top right of an Explore card. */
+  .have { position: absolute; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px; border-radius: 14px; background: rgba(28, 28, 30, .78); color: #fff; font-size: 13px; font-weight: 700; }
   .ph :global(img.in) { opacity: 1; }
   .noimg { height: 100%; display: grid; place-items: center; padding-bottom: 40px; color: var(--tertiary); }
   .label { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 2px; padding: 44px 14px 12px; color: #fff; background: linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, .62)); }
