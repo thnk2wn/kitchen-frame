@@ -1,6 +1,6 @@
 <script>
   import Icon from './Icon.svelte';
-  import { ui, calendar, photos, setSetting, calendarNames } from '../lib/state.svelte.js';
+  import { ui, calendar, photos, paprika, loadPaprika, setSetting, calendarNames } from '../lib/state.svelte.js';
   import { calColorVars } from '../lib/format.js';
   import { say as realSay, setSay as realSetSay, speakers, speaker, speak } from '../lib/announce.svelte.js';
   // Demo mode shows Announcements set up, on invented speakers, without touching the real settings
@@ -18,6 +18,8 @@
   const asked = new URLSearchParams(location.search).get('settings');
   let tab = $state(TABS.some(([v]) => v === asked) ? asked : (() => { try { return localStorage.getItem('frame-settings-tab') || 'display'; } catch { return 'display'; } })());
   $effect(() => { try { localStorage.setItem('frame-settings-tab', tab); } catch {} });
+  // About shows when recipes last synced: Paprika's data otherwise loads only with the Recipes tab.
+  $effect(() => { if (tab === 'about' && !ui.demo) loadPaprika(); });
   let testing = $state(false);
   async function test(alert) {
     testing = true;
@@ -38,6 +40,8 @@
   const close = () => (ui.settingsOpen = false);
   let reloading = $state(false);
   // The running version: the hash in the page's script name (a new deploy changes it).
+  // A time today ("10:15 PM"), or with its day ("Wed 3:12 PM").
+  const when = (t) => { const d = new Date(t); return d.toDateString() === new Date().toDateString() ? time(d) : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }); };
   const version = ((/assets\/index-([\w-]+)\.js/.exec(document.documentElement.innerHTML) || [])[1] || 'dev').slice(0, 6);
   // And when it was built (vite.config.js), e.g. "Oct 15, 10:24 PM".
   /* global __BUILT_AT__ */
@@ -357,7 +361,11 @@
       </ol>
     {/if}
     <div class="row last">
-      <span>{ui.demo ? 'Showing demo data' : (calendar.data ? 'Calendar updated ' + time(new Date(calendar.data.updated)) : 'Calendar not loaded') + ' · ' + photos.items.length + ' photos'} · version {version}{built ? ', built ' + built : ''}</span>
+      <span>{ui.demo ? 'Showing demo data' : [calendar.data ? 'Calendar updated ' + when(calendar.data.updated) : 'Calendar not loaded',
+        paprika.configured && paprika.updated ? 'Recipes synced ' + when(paprika.updated) : '', photos.items.length + ' photos'].filter(Boolean).join(' · ')}</span>
+    </div>
+    <div class="row last">
+      <span>Version {version}{built ? ' · built ' + built : ''}</span>
       <button class="reload" disabled={reloading} onclick={reload}><Icon name="reload" size={20} />{reloading ? 'Reloading…' : 'Reload'}</button>
     </div>
     {/if}
@@ -367,7 +375,8 @@
 <style>
   .scrim { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 20; background: rgba(0, 0, 0, .45); display: grid; place-items: center; }
   /* Taller than the screen now: it scrolls, with its heading and Done kept at the top. */
-  .panel { width: 640px; max-height: calc(100% - 32px); overflow-y: auto; overscroll-behavior: contain; padding: 22px 28px 10px; }
+  /* One size for every tab, so switching tabs doesn't make the sheet jump; a longer tab scrolls. */
+  .panel { width: 640px; height: min(600px, calc(100% - 32px)); box-sizing: border-box; overflow-y: auto; overscroll-behavior: contain; padding: 22px 28px 10px; }
   header { position: sticky; top: -22px; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: -22px 0 6px; padding: 22px 0 8px; background: var(--sheet); }
   h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
   .done { font-size: 20px; font-weight: 600; color: var(--blue-text); padding: 8px 0 8px 16px; }

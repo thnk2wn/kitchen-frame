@@ -106,12 +106,12 @@ export function loadRotations() {
 
 // Our own recipes, synced read-only from Paprika by the Worker (GET /api/recipes/paprika).
 // configured: null until the first answer, then whether the Worker has a Paprika account.
-export const paprika = $state({ configured: cached('paprika')?.configured ?? null, recipes: cached('paprika')?.recipes || null, error: null });
+export const paprika = $state({ configured: cached('paprika')?.configured ?? null, recipes: cached('paprika')?.recipes || null, updated: cached('paprika')?.updated || null, error: null });
 export function loadPaprika() {
   return single('paprika', async () => {
     try {
       const data = await api('/api/recipes/paprika');
-      if (changed('paprika', data)) { paprika.configured = data.configured; paprika.recipes = data.recipes; }
+      if (changed('paprika', data)) { paprika.configured = data.configured; paprika.recipes = data.recipes; paprika.updated = data.updated || null; }
       paprika.error = null;
     } catch (err) { paprika.error = err.message; }
   });
