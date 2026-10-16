@@ -3,6 +3,7 @@
   // Weather Service's written forecast for the day and night (US only), active alerts, the day's
   // hours, and rain, wind, UV and sun times. Tap another day along the top to switch.
   import Icon from './Icon.svelte';
+  import Radar from './Radar.svelte';
   import { ui, clock, weather } from '../lib/state.svelte.js';
   import { weatherInfo, dayInfo, dow, time, dayKey } from '../lib/format.js';
 
@@ -12,6 +13,8 @@
   let info = $derived(d ? dayInfo(d) : null);
   let metric = $derived(wx && wx.unit === 'C');
   let openAlert = $state(-1);
+  // Radar: shown in place of the day's details, from the button beside the days.
+  let radar = $state(new URLSearchParams(location.search).has('radar')); // ?weather=0&radar for screenshots
 
   // Today: from the current hour, running on into tomorrow in the evening; other days: from 6 AM.
   // At most 12 columns, every other hour when the day has more than that.
@@ -29,7 +32,7 @@
   const uvLabel = (u) => (u <= 2 ? 'Low' : u <= 5 ? 'Moderate' : u <= 7 ? 'High' : u <= 10 ? 'Very high' : 'Extreme');
   const amount = (p) => (p == null ? '—' : p <= 0 ? 'None' : metric ? p.toFixed(1) + ' mm' : p < 0.01 ? 'Trace' : p.toFixed(2) + ' in');
   const until = (t) => (t ? 'until ' + (dayKey(new Date(t)) === dayKey(clock.now) ? '' : dow(dayKey(new Date(t))) + ' ') + time(new Date(t)) : '');
-  const close = () => { ui.weatherDay = null; openAlert = -1; };
+  const close = () => { ui.weatherDay = null; openAlert = -1; radar = false; };
 </script>
 
 {#if d}
@@ -39,16 +42,24 @@
         <nav class="days">
           {#each wx.days as day, n (day.date)}
             {@const di = dayInfo(day)}
-            <button class:on={n === i} onclick={() => { ui.weatherDay = n; openAlert = -1; }}>
+            <button class:on={n === i && !radar} onclick={() => { ui.weatherDay = n; openAlert = -1; radar = false; }}>
               <span class="dn">{dayLabel(day.date, n)}</span>
               <span class="ic {di.tint}"><Icon name={di.icon} size={22} /></span>
               <span class="num"><b>{day.hi}°</b> {day.lo}°</span>
             </button>
           {/each}
+          <button class="rbtn" class:on={radar} onclick={() => (radar = true)}>
+            <span class="dn">Radar</span>
+            <span class="ic rain"><Icon name="rain" size={22} /></span>
+            <span class="num">2 hours</span>
+          </button>
         </nav>
         <button class="x" onclick={close} aria-label="Close"><Icon name="close" size={26} /></button>
       </header>
 
+      {#if radar}
+        <Radar width={1072} height={470} />
+      {:else}
       {#if i === 0 && wx.alerts && wx.alerts.length}
         <div class="alerts">
           {#each wx.alerts as a, n (n)}
@@ -111,6 +122,7 @@
           {/each}
         </div>
       {/if}
+      {/if}
     </div>
   </div>
 {/if}
@@ -123,6 +135,7 @@
   .days { flex: 1; display: flex; gap: 6px; }
   .days button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-radius: 14px; font-size: 16px; color: var(--secondary); }
   .days button.on { background: var(--track); }
+  .days .rbtn { flex: 0 0 120px; }
   .days button:active { opacity: .6; }
   .days b { color: var(--label); font-weight: 600; }
   .dn { font-weight: 700; color: var(--label); }

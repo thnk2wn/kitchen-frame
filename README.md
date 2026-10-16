@@ -226,7 +226,9 @@ following the sun. Both themes are CSS variables, so switching costs one repaint
   as secrets (`npx wrangler secret put`, as this deployment does) or `vars` in
   `dashboard/wrangler.jsonc`, and in `.dev.vars` locally. Open-Meteo needs no key. In the US the
   same location also brings the National Weather Service's written forecast and alerts (no key
-  either); elsewhere the detail sheet just leaves them out.
+  either); elsewhere the detail sheet just leaves them out. **Radar**, beside the days in that
+  sheet, loops the past two hours of rain around the same location (RainViewer, free, no key; about
+  500 km across over OpenStreetMap). It loads only while it's open.
 - **Todoist:** `npx wrangler secret put TODOIST_TOKEN` (Todoist → Settings → Integrations →
   Developer → API token). By default the lists read the projects named **Groceries** and
   **To-do**; `TODOIST_GROCERY_PROJECT` / `TODOIST_TODO_PROJECT` in `wrangler.jsonc` point them
@@ -271,7 +273,7 @@ secret, so the names stay out of the repo.
 
 ```sh
 printf '%s' '[
-  {"name":"Up early","icon":"sunrise","switchAt":"10:00",
+  {"name":"Up early with kids","icon":"sunrise","switchAt":"10:00",
    "days":{"mon":"Sam","tue":"Alex","wed":"Sam","thu":"Alex","fri":"Sam","sat":"Alex","sun":"Sam"}},
   {"name":"Bedtime","icon":"moon","switchAt":"21:00",
    "alternate":{"from":"2026-10-15","who":["Alex","Sam"],"what":["Mia","Leo"]}}

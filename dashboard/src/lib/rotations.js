@@ -42,6 +42,6 @@ export function rotationLines(rules, now = new Date()) {
 
 // Demo mode: invented names.
 export const DEMO_ROTATIONS = [
-  { name: 'Up early', icon: 'sunrise', switchAt: '10:00', days: { mon: 'Sam', tue: 'Alex', wed: 'Sam', thu: 'Alex', fri: 'Sam', sat: 'Alex', sun: 'Sam' } },
+  { name: 'Up early with kids', icon: 'sunrise', switchAt: '10:00', days: { mon: 'Sam', tue: 'Alex', wed: 'Sam', thu: 'Alex', fri: 'Sam', sat: 'Alex', sun: 'Sam' } },
   { name: 'Bedtime', icon: 'moon', switchAt: '21:00', alternate: { from: '2026-01-01', who: ['Alex', 'Sam'], what: ['Mia', 'Leo'] } },
 ];

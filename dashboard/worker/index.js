@@ -1,6 +1,7 @@
 // Serves the dashboard (static assets) and its API:
 //   GET  /api/calendar               merged iCal feeds (cron refreshes them into KV every 10 min)
 //   GET  /api/weather                Open-Meteo current + 5-day (see weather.js)
+//   GET  /api/radar                  rain radar frames and home's position (see radar.js)
 //   GET  /api/lists/:list            Todoist project tasks, list = groceries | todo (see todoist.js)
 //   POST /api/lists/:list            { content, description? } adds an item, or { items: [...] } several
 //   POST /api/lists/:list/:id        { content?, priority? } edits an item
@@ -47,6 +48,7 @@
 // Optional: DISPLAY_TZ  IANA zone for times with no TZID and no X-WR-TIMEZONE (default UTC).
 import { expand, merge, splitNotes } from './calendar.js';
 import { getWeather } from './weather.js';
+import { getRadar } from './radar.js';
 import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js';
 import { listPhotos, photoResponse } from './photos.js';
 import { room } from './messages.js';
@@ -135,6 +137,7 @@ async function handle(req, env, ctx) {
         return json(stored);
       }
       if (url.pathname === '/api/weather') return json(await getWeather(env));
+      if (url.pathname === '/api/radar') return json(await getRadar(env));
       if (url.pathname === '/api/spotify/playlists') {
         if (!spotifyConfigured(env)) return json({ configured: false });
         try { return json({ configured: true, ...(await getPlaylists(env)) }); }
