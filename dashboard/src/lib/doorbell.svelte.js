@@ -104,6 +104,7 @@ export function dismiss() {
 // candidates come back as subscription events. Resolves to a stop function, or null when the
 // camera doesn't stream over WebRTC (the pop-up keeps showing the still).
 // Each step that can stall is logged (camera.*), as live video has been the frame's touchiest part.
+const RING_MAX_KBPS = 1200; // what the frame asks Ring to stay under (0 = no cap)
 export async function startLive(entity_id, video, onPlaying) {
   const t0 = Date.now(), ms = () => Date.now() - t0;
   log('camera.live_start', { camera: entity_id });
@@ -122,7 +123,13 @@ export async function startLive(entity_id, video, onPlaying) {
     video.play().catch(() => {});
   };
   let played = false, tracks = 0;
-  video.onplaying = () => { played = true; log('camera.live', { camera: entity_id, ms: ms() }); onPlaying(); };
+  video.onplaying = () => {
+    played = true;
+    // The size that arrived, a few seconds in (it can start small and grow).
+    log('camera.live', { camera: entity_id, ms: ms(), size: video.videoWidth + 'x' + video.videoHeight });
+    setTimeout(() => { if (!stopped) log('camera.size', { camera: entity_id, size: video.videoWidth + 'x' + video.videoHeight, ms: ms() }); }, 8000);
+    onPlaying();
+  };
   pc.oniceconnectionstatechange = () => {
     const st = pc.iceConnectionState;
     if (st === 'failed' || st === 'disconnected') log('camera.ice', { camera: entity_id, state: st, ms: ms() }, 'warn');
@@ -136,7 +143,15 @@ export async function startLive(entity_id, video, onPlaying) {
     const c = { candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex };
     if (session) sendCandidate(c); else queued.push(c);
   };
-  await pc.setLocalDescription(await pc.createOffer());
+  // Ring's camera scales its video to what the viewer's link can take (on a weak link the frame got
+  // 480x272; on a good one 1536x1536, which this frame's RK3326 can't decode: 1080p is its limit).
+  // So for Ring's own live view the offer states a bandwidth cap (b=AS, which libwebrtc senders
+  // honour), and Ring sends a smaller picture. Streams through go2rtc are passed through unchanged.
+  const offer = await pc.createOffer();
+  if (RING_MAX_KBPS && !/_stream$/.test(entity_id)) {
+    offer.sdp = offer.sdp.replace(/(m=video[^\r\n]*\r\n(?:c=[^\r\n]*\r\n)?)/, '$1b=AS:' + RING_MAX_KBPS + '\r\n');
+  }
+  await pc.setLocalDescription(offer);
   if (cfg.getCandidatesUpfront) {
     // Some cameras want every candidate in the offer: wait for gathering (at most 3 s).
     await new Promise((done) => {

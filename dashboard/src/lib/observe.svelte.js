@@ -9,7 +9,25 @@ import { log } from './log.svelte.js';
 
 const ago = (t) => (t ? Math.round((Date.now() - t) / 60000) : null);
 
+// What this device's video decoder says it can play, once per load (camera.decoder): H.264 at a few
+// picture sizes. Ring's newer cameras send 1536x1536 or 2560x1440; a frame's decoder may stop at 1080p.
+async function probeDecoder() {
+  const mc = typeof navigator !== 'undefined' && navigator.mediaCapabilities;
+  if (!mc || !mc.decodingInfo) return;
+  const out = {};
+  for (const [w, h] of [[1280, 720], [1920, 1080], [1536, 1536], [2560, 1440]]) {
+    for (const type of ['webrtc', 'media-source']) {
+      try {
+        const r = await mc.decodingInfo({ type, video: { contentType: type === 'webrtc' ? 'video/H264; profile-level-id=64001f' : 'video/mp4; codecs="avc1.64001f"', width: w, height: h, bitrate: 4000000, framerate: 15 } });
+        out[type[0] + w + 'x' + h] = (r.supported ? 'yes' : 'no') + (r.powerEfficient ? '+hw' : '');
+      } catch (e) { out[type[0] + w + 'x' + h] = 'err'; }
+    }
+  }
+  log('camera.decoder', out);
+}
+
 export function startObserving() {
+  probeDecoder();
   let haWas = null, downSince = null, nightWas = null, idleWas = null;
   $effect.root(() => {
     $effect(() => {
