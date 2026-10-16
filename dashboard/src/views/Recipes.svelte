@@ -64,7 +64,9 @@
     const want = ui.openRecipe;
     if (!want) return;
     ui.openRecipe = null;
-    openOurs({ id: want.id, title: want.title, hasImage: true });
+    // ?open=mdb:<id> opens an Explore recipe (screenshots, testing); anything else is one of ours.
+    if (String(want.id).startsWith('mdb:')) { setMode('explore'); openRecipe({ id: want.id, title: want.title }, 'id=' + encodeURIComponent(want.id.slice(4))); }
+    else openOurs({ id: want.id, title: want.title, hasImage: true });
   });
 
   // Paprika: filter chips are All, Favorites (if any), every Paprika category A–Z, then Uncategorized
