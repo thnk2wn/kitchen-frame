@@ -7,6 +7,7 @@
 //
 // Context is welcome (which calendar, list or entity, an error's message), raw payloads aren't, and
 // secrets never: the dashboard key and Home Assistant token are never logged.
+import { untrack } from 'svelte';
 import { limiter } from './limit.js';
 
 const PENDING_MAX = 300;
@@ -30,9 +31,13 @@ export function log(event, data = {}, level = 'info') {
   for (const [k, v] of Object.entries(data)) if (v !== undefined && v !== null && v !== '') e[k] = trim(v);
   pending.push(e);
   if (pending.length > PENDING_MAX) pending = pending.slice(-PENDING_MAX);
-  recent.unshift(e);
-  if (recent.length > 50) recent.length = 50;
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent)); } catch {}
+  // Untracked: log() is called from inside effects, and reading `recent` there made the effect
+  // depend on it, so each entry re-ran the effect, which logged again (the 2026-10-15 camera loop).
+  untrack(() => {
+    recent.unshift(e);
+    if (recent.length > 50) recent.length = 50;
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(recent)); } catch {}
+  });
   if (level === 'error' && flushSoon) flushSoon();
   if (typeof console !== 'undefined') (level === 'error' ? console.error : console.info)('[frame] ' + event, e);
 }

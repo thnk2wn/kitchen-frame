@@ -113,7 +113,17 @@ function onMessage(m) {
 }
 
 // onEvent: for subscriptions, receives each event sent for this message's id.
+// Every message to Home Assistant also passes a brake: the same kind of message (for the same entity)
+// more than 30 times in 2 s, or more than 150 in 5 s, is refused for 30 s and reported once as
+// ha.send_flood. Start-up sends a few dozen, all different; a loop sends one kind over and over.
+const sendLimit = limiter({ perKey: 30, perKeyMs: 2000, total: 150, totalMs: 5000 });
+
 export function send(msg, onEvent) {
+  const verdict = sendLimit(msg.type + '|' + (msg.entity_id || ''));
+  if (verdict !== 'ok') {
+    if (verdict === 'report') log('ha.send_flood', { type: msg.type, entity: msg.entity_id }, 'error');
+    return Promise.reject(new Error('Too many ' + msg.type + ' messages at once'));
+  }
   return new Promise((resolve, reject) => {
     if (!ws || ws.readyState !== 1) return reject(new Error('Not connected to Home Assistant'));
     const id = ++nextId;

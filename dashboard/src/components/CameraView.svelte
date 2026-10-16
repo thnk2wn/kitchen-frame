@@ -61,7 +61,9 @@
         if (tries < 2) { log('camera.retry', { camera: cam }, 'warn'); attempt(); } else { log('camera.no_live', { camera: cam, tries }, 'warn'); noLive = true; }
       }, RETRY_MS);
     };
-    attempt();
+    // Untracked: starting the video reads and writes state (the log, the connection), and none of it
+    // may make this effect start again.
+    untrack(attempt);
     // onclose and onsnap are read only when called: the House tab passes new functions whenever any
     // state changes, and reading them here would restart the video every few seconds.
     const close = setTimeout(() => onclose(), OPEN_MS);
