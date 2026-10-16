@@ -48,7 +48,8 @@
       {#if still}<img src={still} alt="" class:hide={live} />{/if}
       {#if !still && !live}<div class="wait"><Icon name="camera" size={56} /></div>{/if}
       <!-- svelte-ignore a11y_media_has_caption -->
-      <video bind:this={video} {muted} autoplay playsinline class:hide={!live}></video>
+      <!-- A transparent poster: WebView otherwise draws a big play icon before the first frame. -->
+    <video bind:this={video} {muted} autoplay playsinline poster="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" class:hide={!live}></video>
     </div>
     <div class="bar">
       <span class="ic"><Icon name="bell" size={28} /></span>

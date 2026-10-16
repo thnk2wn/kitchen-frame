@@ -124,7 +124,12 @@ export async function startLive(entity_id, video, onPlaying) {
     video.play().catch(() => {});
   };
   let played = false, tracks = 0;
-  video.onplaying = () => {
+  // "Playing" with no picture (0x0: audio only, or video that won't decode) isn't live: wait for the
+  // first real frame size (the resize event) before saying so.
+  video.onplaying = () => { if (video.videoWidth) shown(); };
+  video.onresize = () => { if (video.videoWidth && !played) shown(); };
+  const shown = () => {
+    if (played) return;
     played = true;
     // The size that arrived, a few seconds in (it can start small and grow).
     log('camera.live', { camera: entity_id, ms: ms(), size: video.videoWidth + 'x' + video.videoHeight });
