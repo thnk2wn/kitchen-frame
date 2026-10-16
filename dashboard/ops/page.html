@@ -107,6 +107,21 @@
       return [name, 'Reminders: ' + l.items + ' items' + (l.pending ? ', ' + l.pending + ' changes queued' : '') + ' · ' + state, l.error || l.stale || l.waiting ? 'warn' : ''];
     });
     if (lists.length) box.append(group('Lists', lists));
+    // The Mac bridge (bridge/mac/): it checks in every 5 minutes; 15 without one is worth a look.
+    const m = d.mac;
+    if (m) {
+      const quiet = !m.seen || Date.now() - Date.parse(m.seen) > 15 * 60000;
+      const rows = [['Checked in', m.seen ? ago(m.seen) + ' (' + at(m.seen) + ')' : 'never', quiet ? 'bad' : '']];
+      if (m.error) rows.push(['Status', m.error, 'bad']);
+      if (m.calendars) rows.push(['Calendars', m.calendars.names.join(', ') + ' · sent ' + (m.calendars.sent ? ago(m.calendars.sent) : 'never'),
+        !m.calendars.sent || Date.now() - Date.parse(m.calendars.sent) > 3 * 3600000 ? 'warn' : '']);
+      if (m.photos) rows.push(['Photos', m.photos.album + ' · ' + m.photos.showing + ' showing' + (m.photos.changed ? ' · changed ' + ago(m.photos.changed) : ''), m.photos.showing ? '' : 'warn']);
+      if (m.relay) rows.push(['Camera relay', Object.entries(m.relay).map(([k, v]) => k + (v ? ' running' : ' DOWN')).join(' · '), Object.values(m.relay).every(Boolean) ? '' : 'bad']);
+      // Problems the Mac reports (a permission lost, an album not found), each its own row, not nested.
+      for (const p of m.problems || []) rows.push(['Problem', p, 'bad']);
+      if (m.version) rows.push(['Bridge', m.version]);
+      box.append(group('Mac bridge', rows));
+    }
     const p = d.paprika || {};
     if (p.configured) box.append(group('Paprika', p.error ? [['Sync', p.error, 'bad']]
       : [['Recipes', String(p.recipes)], ['Synced', p.updated ? ago(p.updated) : 'never'], ...(p.remaining ? [['Still to fetch', String(p.remaining)]] : [])]));
@@ -168,12 +183,16 @@
       if (res.status === 401) { location.href = '/login'; return; }
       const d = await res.json();
       last = d;
-      $('who').replaceChildren(document.createTextNode('Signed in as ' + d.you + ' · '), el('a', { href: '/logout', textContent: 'Sign out' }));
+      // When this was last read, so a page left open shows it's live (it refreshes every minute).
+      const stamp = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+      $('who').replaceChildren(document.createTextNode('Updated ' + stamp + ' · refreshes every minute · Signed in as ' + d.you + ' · '), el('a', { href: '/logout', textContent: 'Sign out' }));
       frame(d); backend(d); timeline(d); events(d); notices(d);
     } catch (e) { $('frame').textContent = 'Could not load: ' + e.message; }
   }
   load();
   setInterval(() => { if (!document.hidden) load(); }, 60000);
+  // Back on the tab after a while: fresh at once rather than at the next minute.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
 </script>
 </body>
 </html>

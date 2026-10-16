@@ -21,13 +21,36 @@ async function lists(env) {
   return out;
 }
 
+// The Mac bridge: when it last checked in, what it reports wrong, the camera relay beside it, and
+// the calendars and photos it sends (bridge:<name> in CALENDAR_URLS, bridge:<album> in ALBUM_URL).
+async function mac(env) {
+  const cals = String(env.CALENDAR_URLS || '').split(/[\s,]+/).filter((u) => /^bridge:/i.test(u)).map((u) => decodeURIComponent(u.slice(7)));
+  const album = /^bridge:/i.test(env.ALBUM_URL || '') ? decodeURIComponent(env.ALBUM_URL.slice(7)) : null;
+  const uses = Object.keys(BRIDGE_LISTS).some((l) => fromReminders(env, l)) || cals.length || album;
+  if (!uses) return null;
+  const [status, calAt, photos] = await Promise.all([
+    bridge(env).fetch('https://bridge/status').then((r) => r.json()).catch(() => null),
+    cals.length ? env.CALENDAR.get('bridge-calendars', 'json').then((c) => c && c.at).catch(() => null) : null,
+    album ? env.CALENDAR.get('bridge-photos', 'json').catch(() => null) : null,
+  ]);
+  return {
+    seen: status && status.seen ? new Date(status.seen).toISOString() : null,
+    problems: (status && status.problems) || [],
+    relay: (status && status.relay) || null,
+    version: (status && status.version) || null,
+    calendars: cals.length ? { names: cals, sent: calAt || null } : null,
+    photos: album ? { album, showing: photos ? photos.photos.length : 0, changed: photos && photos.fetched ? new Date(photos.fetched).toISOString() : null } : null,
+  };
+}
+
 export async function opsSummary(env, calendarKey) {
-  const [frame, cal, notices, paprika, listInfo] = await Promise.all([
+  const [frame, cal, notices, paprika, listInfo, macInfo] = await Promise.all([
     getStatus(env),
     env.CALENDAR.get(calendarKey, 'json'),
     listNotices(env).catch(() => null),
     listPaprika(env).catch((e) => ({ error: String(e.message || e) })),
     lists(env),
+    mac(env).catch((e) => ({ error: String(e.message || e) })),
   ]);
   const perCal = {};
   for (const e of (cal && cal.events) || []) perCal[e.cal] = (perCal[e.cal] || 0) + 1;
@@ -39,6 +62,7 @@ export async function opsSummary(env, calendarKey) {
     paprika: paprika.configured === false ? { configured: false }
       : { configured: true, updated: paprika.updated || null, recipes: (paprika.recipes || []).length, remaining: paprika.remaining || 0, error: paprika.error },
     lists: listInfo,
+    mac: macInfo,
     spotify: { configured: spotifyConfigured(env) },
   };
 }

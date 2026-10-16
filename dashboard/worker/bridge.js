@@ -10,8 +10,8 @@
 //     POST /api/lists/:list/:id/done       a queued completion
 //   Mac (Authorization: Bearer <BRIDGE_TOKEN>), separate from the frame's key:
 //     GET  /api/bridge/config              which Reminders list feeds which frame list
-//     POST /api/bridge/snapshot            { lists: { groceries: {...}, todo: {...} }, applied: [op ids] }
-//                                          -> { ops: [...] } still to apply
+//     POST /api/bridge/snapshot            { lists: { groceries: {...}, todo: {...} }, applied: [op ids],
+//                                          status: { problems, relay, version } } -> { ops: [...] } still to apply
 //     GET  /api/bridge/live                WebSocket: { ops } pushed as soon as the frame queues one
 //
 // Settings: GROCERIES_SOURCE / TODO_SOURCE = todoist (default) | reminders; REMINDERS_GROCERIES_LIST /
@@ -128,6 +128,15 @@ export class ListBridge {
         const s = await this.ctx.storage.get('snap:' + name);
         if (s) await this.ctx.storage.put('snap:' + name, { ...s, seen: now });
       }
+      // How the Mac is doing, for the status page: what's wrong there now (permissions, uploads), and
+      // whether the camera relay on the same Mac is running. Replaced on each check-in.
+      const st = body.status && typeof body.status === 'object' ? body.status : {};
+      await this.ctx.storage.put('status', {
+        seen: now,
+        problems: (Array.isArray(st.problems) ? st.problems : []).map((x) => clean(x, 300)).filter(Boolean).slice(0, 20),
+        ...(st.relay && typeof st.relay === 'object' ? { relay: Object.fromEntries(Object.entries(st.relay).slice(0, 5).map(([k, v]) => [clean(k, 30), v === true])) } : {}),
+        ...(clean(st.version, 40) ? { version: clean(st.version, 40) } : {}),
+      });
       const applied = new Set(Array.isArray(body.applied) ? body.applied : []);
       let ops = await this.ops();
       if (applied.size) { ops = ops.filter((o) => !applied.has(o.id)); await this.ctx.storage.put('ops', ops); }
@@ -135,6 +144,7 @@ export class ListBridge {
     }
 
     if (kind === 'view') return json(viewOf(await this.ctx.storage.get('snap:' + list), await this.ops(), list));
+    if (kind === 'status') return json((await this.ctx.storage.get('status')) || null);
 
     if (kind === 'add' && req.method === 'POST') {
       const items = (await req.json()).items || [];
