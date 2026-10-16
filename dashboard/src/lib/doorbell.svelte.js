@@ -148,10 +148,19 @@ export async function startLive(entity_id, video, onPlaying) {
   // Given up on before it played: what the connection had done, to tell a slow start from video that
   // arrives but won't decode (bytes and frames received, its size).
   const report = async () => {
-    const out = { camera: entity_id, ms: ms(), ice: pc.iceConnectionState, conn: pc.connectionState, tracks, answered: !!pc.remoteDescription };
+    // The size the camera offered, from the answer, when no frame decoded to tell us.
+    const sdp = (pc.remoteDescription && pc.remoteDescription.sdp) || '';
+    const offered = (/a=imageattr:\S+ recv \[x=(\d+),y=(\d+)\]/.exec(sdp) || /a=framesize:\S+ (\d+)-(\d+)/.exec(sdp) || []).slice(1).join('x');
+    const out = { camera: entity_id, ms: ms(), ice: pc.iceConnectionState, conn: pc.connectionState, tracks, answered: !!pc.remoteDescription, ...(offered ? { offered } : {}) };
     try {
-      (await pc.getStats()).forEach((r) => {
-        if (r.type === 'inbound-rtp' && (r.kind || r.mediaType) === 'video') Object.assign(out, { bytes: r.bytesReceived || 0, frames: r.framesDecoded || 0, size: r.frameWidth ? r.frameWidth + 'x' + r.frameHeight : '' });
+      const stats = await pc.getStats();
+      stats.forEach((r) => {
+        if (r.type === 'inbound-rtp' && (r.kind || r.mediaType) === 'video') {
+          Object.assign(out, { bytes: r.bytesReceived || 0, frames: r.framesDecoded || 0, size: r.frameWidth ? r.frameWidth + 'x' + r.frameHeight : '' });
+          // The video format sent (e.g. H264 with its profile), to see what the decoder was given.
+          const c = r.codecId && stats.get(r.codecId);
+          if (c) out.codec = (c.mimeType || '') + (c.sdpFmtpLine ? ' ' + c.sdpFmtpLine : '');
+        }
         if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) out.pair = 'ok';
       });
     } catch {}
