@@ -24,6 +24,8 @@ const CHECKED = 'frame-settings-checked'; // set once this storage has been chec
 const kiosk = () => typeof window !== 'undefined' && !!window.FrameKiosk;
 const loadedAt = new Date().toISOString();
 const version = () => ((/assets\/index-([\w-]+)\.js/.exec(document.documentElement.innerHTML) || [])[1] || 'dev').slice(0, 8);
+/* global __RELEASE__ */
+const release = () => (typeof __RELEASE__ === 'string' ? __RELEASE__ : ''); // "v1.0.0+3 (a1b2c3d)", from vite.config.js
 
 function settings() {
   const out = {};
@@ -43,7 +45,7 @@ export async function checkIn() {
   const events = take();
   try {
     await api('/api/frame/status', { method: 'POST', body: JSON.stringify({
-      version: version(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] || '',
+      version: version(), release: release(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] || '',
       kiosk: window.FrameKiosk.getVersion ? window.FrameKiosk.getVersion() : '',
       loadedAt, screen: ui.idle ? (night.active ? 'night' : 'clock') : 'awake', tab: ui.tab, ha: ha.status,
       ...(changed ? { settings: now } : {}), ...(events.length ? { events } : {}),
@@ -91,7 +93,7 @@ if (typeof window !== 'undefined') window.addEventListener('frame-command', (e) 
 });
 
 export function startCheckIn() {
-  log('app.load', { version: version(), reason: loadReason(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] });
+  log('app.load', { version: version(), release: release(), reason: loadReason(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] });
   restore().then(() => setTimeout(checkIn, 20000)); // give Home Assistant a moment to connect first
   setInterval(checkIn, 10 * 60 * 1000);
 }

@@ -45,7 +45,8 @@
   const when = (t) => { const d = new Date(t); return d.toDateString() === new Date().toDateString() ? time(d) : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }); };
   const version = ((/assets\/index-([\w-]+)\.js/.exec(document.documentElement.innerHTML) || [])[1] || 'dev').slice(0, 6);
   // And when it was built (vite.config.js), e.g. "Oct 15, 10:24 PM".
-  /* global __BUILT_AT__ */
+  /* global __BUILT_AT__, __RELEASE__ */
+  const release = typeof __RELEASE__ === 'string' ? __RELEASE__ : '';
   const built = typeof __BUILT_AT__ === 'string' ? new Date(__BUILT_AT__).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
   // Brightness goes through the kiosk app (window.FrameKiosk); not available in a normal browser.
@@ -377,7 +378,7 @@
         paprika.configured && paprika.updated ? 'Recipes synced ' + when(paprika.updated) : '', photos.items.length + ' photos'].filter(Boolean).join(' · ')}</span>
     </div>
     <div class="row last">
-      <span>Version {version}{built ? ' · built ' + built : ''}</span>
+      <span>{release ? release + ' · build ' + version : 'Version ' + version}{built ? ' · built ' + built : ''}</span>
       <button class="reload" disabled={reloading} onclick={reload}><Icon name="reload" size={20} />{reloading ? 'Reloading…' : 'Reload'}</button>
     </div>
     {/if}

@@ -2,7 +2,7 @@
 // so it reports to the Worker instead: what it's running and showing, every 10 minutes and on load,
 // and a copy of its Settings choices whenever they change. After a reset (a firmware update wiped
 // it once) the frame finds its storage empty and takes its settings back from here.
-//   POST /api/frame/status    { version, webview, kiosk, loadedAt, screen, tab, ha, settings?, events? }
+//   POST /api/frame/status    { version, release, webview, kiosk, loadedAt, screen, tab, ha, settings?, events? }
 //   GET  /api/frame/status    -> the last check-in, with when it arrived and the last 200 events
 //                                (scripts/frame-status.sh, --log for the events)
 // Events (src/lib/log.svelte.js) are written to the Worker's log one by one, as structured entries
@@ -81,7 +81,7 @@ export async function saveStatus(env, body) {
     (e.level === 'error' ? console.error : e.level === 'warn' ? console.warn : console.log)(line);
   }
   const status = {
-    version: clip(b.version, 40), webview: clip(b.webview, 40), kiosk: clip(b.kiosk, 40),
+    version: clip(b.version, 40), release: clip(b.release, 60), webview: clip(b.webview, 40), kiosk: clip(b.kiosk, 40),
     loadedAt: clip(b.loadedAt, 40), screen: clip(b.screen, 20), tab: clip(b.tab, 20), ha: clip(b.ha, 20),
     receivedAt: new Date().toISOString(),
   };

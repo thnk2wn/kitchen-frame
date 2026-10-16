@@ -29,7 +29,7 @@ s, live, mode, count = json.loads(sys.argv[1]), sys.argv[2], sys.argv[3], int(sy
 if not s: sys.exit('The frame has never checked in.')
 ago = (dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(s['receivedAt'].replace('Z', '+00:00'))).total_seconds() / 60
 print(f"Checked in   {ago:.0f} min ago")
-print(f"Dashboard    {s.get('version')}" + ('  (the deployed one)' if s.get('version') == live[:len(s.get('version') or '')] else f'  (deployed now: {live}; it reloads once idle)'))
+print(f"Dashboard    {(s.get('release') + '  build ') if s.get('release') else ''}{s.get('version')}" + ('  (the deployed one)' if s.get('version') == live[:len(s.get('version') or '')] else f'  (deployed now: {live}; it reloads once idle)'))
 print(f"Kiosk app    {s.get('kiosk') or 'before 1.6'}   WebView {s.get('webview')}")
 print(f"Loaded       {s.get('loadedAt')}")
 print(f"Showing      {s.get('screen')} · tab {s.get('tab')} · Home Assistant {s.get('ha')}")

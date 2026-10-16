@@ -80,7 +80,7 @@
       dl([['Checked in', ago(f.receivedAt) + ' (' + at(f.receivedAt) + ')', online ? '' : 'bad'],
         ['Showing', f.screen + ' · ' + (f.tab || '') + ' tab'],
         ['Home Assistant', f.ha, f.ha === 'connected' ? 'ok' : 'bad'],
-        ['Dashboard', f.version], ['Kiosk app', f.kiosk || 'before 1.6'], ['WebView', f.webview],
+        ['Dashboard', f.release ? f.release + ' · build ' + f.version : f.version], ['Kiosk app', f.kiosk || 'before 1.6'], ['WebView', f.webview],
         ['Page loaded', f.loadedAt ? ago(f.loadedAt) + ' (' + at(f.loadedAt) + ')' : null]]));
   }
 
