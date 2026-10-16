@@ -205,6 +205,9 @@ export async function startLive(entity_id, video, onPlaying) {
       pc.addIceCandidate(c).catch(() => {});
     } else if (ev.type === 'error') { log('camera.live_error', { camera: entity_id, step: 'offer', code: ev.code, error: ev.message, ms: ms() }, 'warn'); stop(); }
   });
+  // Has Home Assistant answered yet? A stream that has to be started up first (a battery camera
+  // through ring-mqtt and a transcoder) can take 15-25 s to answer; the camera view waits for it.
+  stop.answered = () => !!pc.remoteDescription;
   // Video bytes received so far: the camera view keeps waiting while they grow (see CameraView).
   stop.receivedBytes = async () => {
     let b = 0;

@@ -15,6 +15,12 @@
   // takenAt: when the picture shown was taken (ms; 0 if unknown), shown as a clock time with seconds.
   // takenAt: { t, real }: when the picture was taken by the camera (real), or only loaded here.
   let { entity, soundEntity = null, name, picture = '', onclose, onsnap = null, age = '', takenAt = { t: 0, real: false } } = $props();
+  // "Starting live video…", then with the seconds, then a word about why it can take a while: a
+  // stream that goes through ring-mqtt and a transcoder starts in 10-25 s.
+  const startingText = (now) => {
+    const s = Math.round((now - openedAt) / 1000);
+    return s < 6 ? 'Starting live video…' : s < 12 ? 'Starting live video… ' + s + ' s' : 'Still starting (the stream spins up on request, 10–25 s)… ' + s + ' s';
+  };
   const taken = (p, now) => {
     if (!p || !p.t) return '';
     const s = Math.max(0, Math.round((now - p.t) / 1000));
@@ -40,6 +46,7 @@
   // second: so one retry after RETRY_MS, then pictures instead, rather than "connecting" for ever.
   const RETRY_MS = 10000;
   const KEYFRAME_WAIT_MS = 30000;
+  const ANSWER_WAIT_MS = 30000; // for Home Assistant's answer when the stream has to start up first
   // The first big picture's wait, logged when slow (it has taken a minute on the frame's Wi-Fi).
   const openedAt = Date.now();
   let firstStill = true;
@@ -66,8 +73,16 @@
       // while bytes keep coming it waits on, up to KEYFRAME_WAIT_MS; with nothing coming it retries.
       const startedAt = Date.now();
       let lastBytes = 0, waited = false;
+      let waitedAnswer = false;
       const check = async () => {
         if (live || gone || n !== tries) return;
+        // No answer yet: the stream is still starting up (ring-mqtt waking a battery camera, a
+        // transcoder spinning up). Give it ANSWER_WAIT_MS before falling back.
+        if (stop && stop.answered && !stop.answered() && Date.now() - startedAt < ANSWER_WAIT_MS) {
+          if (!waitedAnswer) { waitedAnswer = true; log('camera.waiting_answer', { camera: cam }); }
+          retry = setTimeout(check, 3000);
+          return;
+        }
         const bytes = stop && stop.receivedBytes ? await stop.receivedBytes() : 0;
         if (live || gone || n !== tries) return;
         if (bytes > lastBytes && Date.now() - startedAt < KEYFRAME_WAIT_MS) {
@@ -103,6 +118,13 @@
     const c = setInterval(() => (clockNow = Date.now()), 5000);
     return () => clearInterval(c);
   });
+  // While video is starting, the picture keeps refreshing too (every STILL_MS), so what's shown is
+  // current rather than the picture from when the view opened.
+  $effect(() => {
+    if (live || noLive) return;
+    const t = setInterval(() => (tick = Date.now()), STILL_MS);
+    return () => clearInterval(t);
+  });
   // No live video: a new snapshot now and every SNAP_MS (a Ring camera keeps returning its last one
   // until asked for another), and the picture reloaded meanwhile to pick it up.
   $effect(() => {
@@ -130,7 +152,7 @@
       <div class="title">{name}</div>
       <div class="sub">
         {#if live}Live{withSound && !sharpFailed ? ' · with sound, lower quality' : ''}{:else if noLive}No live video right now · picture {takenAt.t ? taken(takenAt, clockNow) : age}{age === 'updating…' ? ', a new one on its way' : ''}
-        {:else if ha.status === 'connected'}<span class="spin"></span>Starting live video…{takenAt.t ? ' · picture ' + taken(takenAt, clockNow) : ''}{:else}Not connected to Home Assistant{/if}
+        {:else if ha.status === 'connected'}<span class="spin"></span>{startingText(clockNow)}{takenAt.t ? ' · picture ' + taken(takenAt, clockNow) : ''}{:else}Not connected to Home Assistant{/if}
       </div>
     </div>
     {#if canSwitch && (live || withSound)}
