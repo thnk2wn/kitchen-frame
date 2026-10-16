@@ -21,12 +21,15 @@ which speaker, and `announce.skipped` with why).
 ## Event reminders
 
 Tap a calendar to have its events announced ("In 30 minutes: Swim lesson, at the Aquatic center"),
-all off to start. Each event is said once, at its own reminder when the feed has one between 0 and
-2 hours before (the iCal `VALARM`; Google and Outlook links usually leave them out), otherwise at the
-lead time chosen (30 minutes by default). All-day events aren't said. An event's details show when it
+all off to start. An event is said at each of its own reminders between 0 and 2 hours before (15
+and 5 minutes before, say), otherwise once at the lead time chosen (30 minutes by default). Its own
+reminders are the iCal `VALARM`s in its feed: Fastmail and Google secret addresses include them, but
+iCloud's public links never do and Outlook's usually don't. For an Apple calendar, send it through
+the Mac bridge to get them ([calendar.md](calendar.md#apple-calendars-through-the-mac)). If the
+frame was off at the first reminder, it says only the latest one due, not two back to back. All-day events aren't said. An event's details show when it
 will be announced. The frame does the timing, so nothing is said while it's off; a reminder missed
 by up to 10 minutes (a reload) is still said if the event hasn't started. **Own reminders** decides
-whether an event's own `VALARM` wins over the lead time.
+whether an event's own reminders win over the lead time.
 
 ## Home alerts
 

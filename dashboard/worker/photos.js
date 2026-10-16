@@ -1,5 +1,6 @@
-// Photos for the idle screen, from an iCloud Shared Album with "Public Website" turned on.
-// Secret: ALBUM_URL, either link format iCloud hands out:
+// Photos for the idle screen, from an iCloud Shared Album: sent by the Mac bridge (ALBUM_URL
+// bridge:<album name>, below), or read from the album's public link (ALBUM_URL, with the album's
+// "Public Website" on), either link format iCloud hands out:
 //   https://photos.icloud.com/shared/album/<token>   (newer: CloudKit, below)
 //   https://www.icloud.com/sharedalbum/#<token>       (classic: the sharedstreams web feed, further down)
 //
@@ -155,6 +156,7 @@ function relist(env) {
 }
 
 export async function getAlbum(env, { force = false, ctx } = {}) {
+  if (bridgeAlbum(env)) return (await env.CALENDAR.get(BRIDGE_KEY, 'json')) || { fetched: 0, photos: [], error: 'Waiting for the Mac to send the album' };
   const cached = await env.CALENDAR.get(KEY, 'json');
   if (!force && cached && Date.now() - cached.fetched < MAX_AGE_MS) return cached;
   if (!force && cached && ctx) { ctx.waitUntil(relist(env).catch(() => {})); return cached; }
@@ -184,6 +186,7 @@ export async function photoResponse(env, id, ctx) {
   };
   const stored = await env.CALENDAR.get('photo:' + id, 'arrayBuffer');
   if (stored) return new Response(stored, { headers: { ...headers, 'X-Photo-Source': 'kv' } });
+  if (bridgeAlbum(env)) return new Response('not found', { status: 404 }); // only what the Mac sent
 
   let photo = (await getAlbum(env)).photos.find((p) => p.id === id);
   let upstream = photo && (await fetch(photo.url));
@@ -198,4 +201,43 @@ export async function photoResponse(env, id, ctx) {
   const save = env.CALENDAR.put('photo:' + id, bytes, { expirationTtl: PHOTO_TTL_S });
   if (ctx && ctx.waitUntil) ctx.waitUntil(save); else await save;
   return new Response(bytes, { headers: { ...headers, 'X-Photo-Source': 'icloud' } });
+}
+
+// ---- Through the Mac bridge (bridge/mac/): ALBUM_URL = bridge:<album name>
+// The Mac reads the shared album as you (Apple's Photos framework), so the album needs no public
+// link. It sends the album's photo list; the Worker answers which photos it doesn't have yet; the Mac
+// uploads those, already sized for the screen, and sends the list again. Photos taken out of the
+// album are deleted here. Uploaded photos don't expire: they stay until they leave the album.
+const BRIDGE_KEY = 'bridge-photos';
+export const bridgeAlbum = (env) => (/^bridge:/i.test(env.ALBUM_URL || '') ? decodeURIComponent(env.ALBUM_URL.slice(7)) : null);
+const PHOTO_ID = /^[A-Za-z0-9-]{8,80}$/;
+const MAX_UPLOAD = 1024 * 1024;
+
+// POST { photos: [{ id, w, h, date }] }, newest first -> { missing: [ids still to upload] }.
+// The frame's list becomes the photos sent that are here; any missing join it once uploaded.
+export async function bridgePhotoList(env, body) {
+  const sent = (Array.isArray(body && body.photos) ? body.photos : []).filter((p) => p && PHOTO_ID.test(p.id) && p.w > 0 && p.h > 0).slice(0, MAX_PHOTOS)
+    .map((p) => ({ id: p.id, w: Math.round(p.w), h: Math.round(p.h), date: typeof p.date === 'string' ? p.date.slice(0, 40) : null }));
+  const prev = (await env.CALENDAR.get(BRIDGE_KEY, 'json')) || { photos: [] };
+  const had = new Set(prev.photos.map((p) => p.id));
+  const missing = [];
+  for (const p of sent) if (!had.has(p.id) && !(await env.CALENDAR.get('photo:' + p.id, 'stream'))) missing.push(p.id);
+  const photos = sent.filter((p) => !missing.includes(p.id));
+  const keep = new Set(sent.map((p) => p.id));
+  const gone = prev.photos.filter((p) => !keep.has(p.id)).map((p) => p.id);
+  for (const id of gone) await env.CALENDAR.delete('photo:' + id);
+  if (gone.length || JSON.stringify(photos) !== JSON.stringify(prev.photos)) {
+    await env.CALENDAR.put(BRIDGE_KEY, JSON.stringify({ fetched: Date.now(), photos }));
+  }
+  return { missing, removed: gone.length, showing: photos.length };
+}
+
+// PUT a photo's JPEG (sized by the Mac).
+export async function bridgePhotoUpload(env, id, bytes) {
+  if (!PHOTO_ID.test(id)) return { status: 400, body: { error: 'bad photo id' } };
+  const b = new Uint8Array(bytes);
+  if (b.byteLength > MAX_UPLOAD) return { status: 413, body: { error: 'over 1 MB: size it for the screen first' } };
+  if (b[0] !== 0xff || b[1] !== 0xd8) return { status: 415, body: { error: 'not a JPEG' } };
+  await env.CALENDAR.put('photo:' + id, bytes);
+  return { status: 200, body: { ok: true } };
 }

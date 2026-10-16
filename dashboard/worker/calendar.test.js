@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { expand, merge, prefilter, cleanNotes, splitNotes, place } from './calendar.js';
+import { expand, merge, prefilter, cleanNotes, splitNotes, place, fromBridge } from './calendar.js';
 
 const DAY = 864e5;
 const now = Date.parse('2026-10-12T12:00:00Z');
@@ -141,4 +141,33 @@ test('alarm: the event\'s own reminder, in minutes, when 0 to 120 minutes before
   assert.equal(at([':-P1D']), undefined);                   // only a day before: none
   assert.equal(at([';RELATED=END:-PT5M']), undefined);      // relative to the end: skipped
   assert.equal(at([]), undefined);
+});
+
+test('alarms: every reminder within two hours, longest first, each once', () => {
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', 'UID:a1', 'DTSTART:20261020T150000Z', 'DTEND:20261020T160000Z',
+    'SUMMARY:Visitors', ...[':-PT5M', ':-PT15M', ':-PT15M', ':-P1D'].flatMap((t) => ['BEGIN:VALARM', 'ACTION:DISPLAY', 'TRIGGER' + t, 'END:VALARM']),
+    'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const e = expand(ics, 0, Date.UTC(2026, 9, 19), Date.UTC(2026, 9, 22), 'UTC')[0];
+  assert.deepEqual(e.alarms, [15, 5]);
+  assert.equal(e.alarm, 15);
+});
+
+test('fromBridge: the Mac\'s events, with their alerts, private and out-of-window ones dropped', () => {
+  const from = Date.UTC(2026, 9, 1), to = Date.UTC(2026, 10, 1);
+  const list = [
+    { uid: 'u1', title: 'Visitors', start: '2026-10-16T15:00:00Z', end: '2026-10-16T15:15:00Z', allDay: false, alarms: [5, 15, 300], location: 'Home', notes: 'Bring pie' },
+    { uid: 'u2', title: 'Holiday', start: '2026-10-20', end: '2026-10-21', allDay: true, alarms: [10] },
+    { uid: 'u3', title: 'Surprise #private', start: '2026-10-18T15:00:00Z', end: '2026-10-18T16:00:00Z' },
+    { uid: 'u4', title: 'Long ago', start: '2025-01-01T15:00:00Z', end: '2025-01-01T16:00:00Z' },
+    { title: 'No uid', start: '2026-10-18T15:00:00Z', end: '2026-10-18T16:00:00Z' },
+  ];
+  const out = fromBridge(list, 1, from, to);
+  assert.deepEqual(out.map((e) => e.uid), ['u1', 'u2']);
+  assert.deepEqual(out[0].alarms, [15, 5]);              // over two hours dropped, longest first
+  assert.equal(out[0].start, '2026-10-16T15:00:00.000Z');
+  assert.equal(out[0].location, 'Home');
+  assert.equal(out[0].notes, undefined);                 // notes only when the calendar allows them
+  assert.equal(fromBridge(list, 1, from, to, { notes: true })[0].notes, 'Bring pie');
+  assert.equal(out[1].start, '2026-10-20');              // all-day: plain dates, no alerts
+  assert.equal(out[1].alarms, undefined);
 });

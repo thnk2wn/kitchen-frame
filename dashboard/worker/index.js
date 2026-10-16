@@ -36,10 +36,13 @@
 //   CALENDAR_DETAILS optional yes/no per calendar, comma-separated, in link order: whether tapping
 //                  an event opens its details (with its notes). Notes are only kept for "yes" ones.
 //   CALENDAR_URLS  iCal links separated by spaces, commas or newlines. Google "Secret address in
-//                  iCal format" and iCloud public calendar links (webcal://) both work.
+//                  iCal format" and iCloud public calendar links (webcal://) both work. bridge:<name>
+//                  instead of a link: the Apple Calendar calendar of that name, sent by the Mac
+//                  bridge (bridge/mac/) with its alerts, which iCloud's public links leave out.
 //   DASHBOARD_KEY  shared key the frame sends with every API call. Unset = no check (dev only).
 //   TODOIST_TOKEN  Todoist API token.
-//   ALBUM_URL      iCloud shared album link with Public Website on.
+//   ALBUM_URL      iCloud shared album link with Public Website on, or bridge:<album name> for the
+//                  Mac bridge to send that shared album's photos, with no public link (photos.js).
 //   AGENT_TOKEN    lets AI agents post messages and save recipes; it can't read anything.
 //   PAPRIKA_EMAIL, PAPRIKA_PASSWORD  optional: a Paprika Cloud Sync account to show our recipes.
 //   GROCERIES_SOURCE, TODO_SOURCE  optional: "reminders" to show that list from Apple Reminders
@@ -48,11 +51,11 @@
 //   SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN  optional: all playlists and
 //                  their last-played order for the Music tab (scripts/spotify-auth.mjs).
 // Optional: DISPLAY_TZ  IANA zone for times with no TZID and no X-WR-TIMEZONE (default UTC).
-import { expand, merge, splitNotes } from './calendar.js';
+import { expand, fromBridge, merge, splitNotes } from './calendar.js';
 import { getWeather } from './weather.js';
 import { getRadar } from './radar.js';
 import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js';
-import { listPhotos, photoResponse } from './photos.js';
+import { listPhotos, photoResponse, bridgeAlbum, bridgePhotoList, bridgePhotoUpload } from './photos.js';
 import { room } from './messages.js';
 import { listNotices, addNotice } from './notices.js';
 import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
@@ -116,9 +119,33 @@ async function handle(req, env, ctx) {
       if (what === 'config') {
         // extras: also read sections, flags and assignees from the Reminders database (docs/lists.md).
         const extras = /^(on|yes|true|1)$/i.test(String(env.REMINDERS_EXTRAS || '').trim());
-        return json({ lists: Object.fromEntries(Object.keys(BRIDGE_LISTS).filter((l) => fromReminders(env, l)).map((l) => [l, remindersName(env, l)])), ...(extras ? { extras: true } : {}) });
+        // calendars: the bridge:<name> entries in CALENDAR_URLS, with whether to send their notes.
+        const cals = bridgeCalendars(env);
+        return json({ lists: Object.fromEntries(Object.keys(BRIDGE_LISTS).filter((l) => fromReminders(env, l)).map((l) => [l, remindersName(env, l)])), ...(extras ? { extras: true } : {}),
+          ...(cals.length ? { calendars: Object.fromEntries(cals.map((c) => [c.name, { notes: c.notes }])), window: { back: DAYS_BACK, ahead: DAYS_AHEAD } } : {}),
+          // photos: the shared album to send, and the sizes to send it at (a landscape fills the
+          // 1920-wide screen, a portrait half of it, as they show in pairs).
+          ...(bridgeAlbum(env) ? { photos: { album: bridgeAlbum(env), landscape: 1920, portrait: 960 } } : {}) });
       }
-      if (what === 'snapshot' && req.method === 'POST') return bridge(env).fetch('https://bridge/snapshot', { method: 'POST', body: await req.text() });
+      if (what === 'photos' && req.method === 'POST') return json(await bridgePhotoList(env, await req.json().catch(() => ({}))));
+      if (what.startsWith('photos/') && req.method === 'PUT') {
+        const { status, body } = await bridgePhotoUpload(env, what.slice(7), await req.arrayBuffer());
+        return json(body, status);
+      }
+      if (what === 'snapshot' && req.method === 'POST') {
+        let body;
+        try { body = await req.json(); } catch { return json({ error: 'Body must be JSON' }, 400); }
+        // Calendars come only when they changed (or hourly): kept in KV for the calendar refresh,
+        // which runs at once so the frame sees the change within a minute.
+        if (body.calendars && typeof body.calendars === 'object') {
+          const wanted = new Set(bridgeCalendars(env).map((c) => c.name));
+          const calendars = Object.fromEntries(Object.entries(body.calendars).filter(([n, l]) => wanted.has(n) && Array.isArray(l)).map(([n, l]) => [n, l.slice(0, 5000)]));
+          await env.CALENDAR.put(BRIDGE_CAL_KEY, JSON.stringify({ at: new Date().toISOString(), calendars }));
+          ctx.waitUntil(env.CALENDAR.get(KEY, 'json').then((prev) => updateCalendar(env, prev)));
+        }
+        delete body.calendars;
+        return bridge(env).fetch('https://bridge/snapshot', { method: 'POST', body: JSON.stringify(body) });
+      }
       if (what === 'live') return bridge(env).fetch(new Request('https://bridge/live', req));
       return json({ error: 'not found' }, 404);
     }
@@ -287,8 +314,21 @@ async function updateCalendar(env, previous) {
   return data;
 }
 
+// The calendars CALENDAR_URLS takes from the Mac bridge (bridge:<name>), with their index there and
+// whether their notes are wanted (CALENDAR_DETAILS).
+const BRIDGE_CAL_KEY = 'bridge-calendars';
+const BRIDGE_CAL_STALE_MS = 3 * 60 * 60 * 1000; // the Mac resends at least hourly
+function bridgeCalendars(env) {
+  const urls = String(env.CALENDAR_URLS || '').split(/[\s,]+/).filter(Boolean);
+  const details = String(env.CALENDAR_DETAILS || '').split(',');
+  return urls.map((u, cal) => ({ cal, name: /^bridge:/i.test(u) ? decodeURIComponent(u.slice(7)) : null, notes: /^(yes|y|true|on)$/i.test((details[cal] || '').trim()) }))
+    .filter((c) => c.name);
+}
+
 async function refresh(env, previous) {
   const urls = String(env.CALENDAR_URLS || '').split(/[\s,]+/).filter(Boolean);
+  // What the Mac bridge last sent, for bridge:<name> calendars (read once for all of them).
+  const fromMac = urls.some((u) => /^bridge:/i.test(u)) ? await env.CALENDAR.get(BRIDGE_CAL_KEY, 'json') : null;
   const now = Date.now(), from = now - DAYS_BACK * DAY, to = now + DAYS_AHEAD * DAY;
   const tz = env.DISPLAY_TZ || 'UTC';
   const errors = [];
@@ -298,6 +338,15 @@ async function refresh(env, previous) {
 
   const lists = await Promise.all(urls.map(async (link, cal) => {
     try {
+      if (/^bridge:/i.test(link)) {
+        const name = decodeURIComponent(link.slice(7));
+        names[cal] = name;
+        const list = fromMac?.calendars?.[name];
+        if (!list) throw new Error('nothing from the Mac bridge yet for "' + name + '"');
+        // Old but kept: the frame shows them, and the status page says the Mac has gone quiet.
+        if (now - Date.parse(fromMac.at) > BRIDGE_CAL_STALE_MS) errors.push({ cal, error: 'the Mac bridge last sent this calendar ' + fromMac.at });
+        return fromBridge(list, cal, from, to, { notes: !!details?.[cal] });
+      }
       // Some feeds (Sidearm sports sites, say) refuse anything that doesn't look like a browser.
       const res = await fetch(link.replace(/^webcal:/i, 'https:'), { headers: { Accept: 'text/calendar', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);

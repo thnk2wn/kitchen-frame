@@ -6,6 +6,7 @@
   <key>CFBundleName</key><string>KitchenFrameBridge</string>
   <key>CFBundleDisplayName</key><string>Kitchen Frame Bridge</string>
   <key>CFBundleExecutable</key><string>KitchenFrameBridge</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundleVersion</key><string>1</string>
@@ -13,6 +14,9 @@
   <!-- Background only: no Dock icon or menu bar. -->
   <key>LSUIElement</key><true/>
   <key>NSRemindersUsageDescription</key><string>Keeps the lists you chose in step with the kitchen frame.</string>
+  <key>NSCalendarsUsageDescription</key><string>Sends the calendars you chose, with their alerts, to the kitchen frame.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Sends the calendars you chose, with their alerts, to the kitchen frame, so it can say each reminder out loud. It only reads them.</string>
+  <key>NSPhotoLibraryUsageDescription</key><string>Sends the shared album you chose to the kitchen frame's slideshow, sized for its screen. It only reads.</string>
   <key>NSRemindersFullAccessUsageDescription</key><string>Keeps the lists you chose in step with the kitchen frame: it reads them, ticks off items done on the frame, and adds items added there.</string>
 </dict>
 </plist>

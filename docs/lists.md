@@ -62,6 +62,21 @@ frame: tick, add ──▶ Worker queue ──WebSocket──▶ bridge app ─�
   `worker/bridge.js`). The frame never talks to the Mac.
 - **Only the lists you name** are read or changed. Timed and location reminders in other lists are
   never touched.
+- **Each job is optional, and chosen on the Worker.** The bridge does only what the settings send
+  through it: Reminders lists (`GROCERIES_SOURCE` / `TODO_SOURCE`), Apple calendars (`bridge:<name>`
+  entries in `CALENDAR_URLS`), a shared album (`ALBUM_URL=bridge:<album>`). Anything else keeps
+  working from its link or Todoist as before, and macOS is asked only for the access those jobs need.
+- **What's wrong shows on the status page.** The bridge sends its current problems (a permission
+  lost, a calendar or album not found, uploads failing) with each check-in, and whether the camera
+  relay on the same Mac is running; the status page's **Mac bridge** section shows them, and when
+  the Mac last checked in.
+- **Photos too**, optionally: with `ALBUM_URL=bridge:<album name>` the bridge sends that shared
+  album's photos, sized for the screen, so the album needs no public link
+  ([presence.md](presence.md)). macOS then also asks for Photos access.
+- **Calendars too**, optionally: Apple calendars named `bridge:<name>` in the Worker's
+  `CALENDAR_URLS` are sent with their alerts, which iCloud's public links leave out
+  ([calendar.md](calendar.md#apple-calendars-through-the-mac)). macOS then also asks for Calendar
+  access.
 - **What travels**: each item's title, due date and time, priority and the first line of its notes,
   and an ID. The
   Mac's Apple ID and password never leave the Mac; the bridge uses the Mac's existing iCloud
@@ -141,7 +156,10 @@ a log line, and the frame, within seconds. Tick it on the frame: "Completed …"
 ticked on your phone.
 
 **Update** after pulling new code: `git -C ~/kitchen-frame pull && ~/kitchen-frame/bridge/mac/install.sh`.
-macOS asks for Reminders access again, because a rebuilt app is a new app to it.
+Permissions carry over: the build signs the app with the same self-signed certificate every time
+(made once on the Mac, in its own keychain under `~/Library/Application Support/KitchenFrameBridge/signing`),
+and macOS knows an app by its identifier and certificate. Builds from before that were signed ad hoc,
+a new app to macOS each time; the first build with the certificate asks once more.
 
 **Remove**: `~/kitchen-frame/bridge/mac/uninstall.sh` (add `--all` to delete its settings too),
 and set the list's source back to `todoist`.
@@ -153,8 +171,8 @@ shared reminder is assigned to. The Reminders app keeps them in its own database
 bridge can read them from there. It only reads: every change still goes through EventKit.
 
 1. On the Mac: System Settings → Privacy & Security → **Full Disk Access** → **+** → choose
-   `~/Applications/KitchenFrameBridge.app` and turn it on. Do this again after each `install.sh`,
-   since a rebuilt app counts as a new one.
+   `~/Applications/KitchenFrameBridge.app` and turn it on. It stays on across updates (see
+   **Update** above).
 2. Set `REMINDERS_EXTRAS=on` in `.dev.vars` and run `scripts/push-secrets.sh`. The Mac picks it up
    within 5 minutes; its log says "Extras on".
 
@@ -172,8 +190,11 @@ goes back to plain lists until the bridge is fixed; nothing else stops working.
 | `HTTP 401` in the log | The token doesn't match the Worker's `BRIDGE_TOKEN`: run `install.sh --reconfigure` and paste it again (without the quotes) |
 | `--check` lists only "Reminders" | The Mac isn't showing your iCloud lists: turn on iCloud → Reminders, open the Reminders app until your lists appear, then run `install.sh` again |
 | `No Reminders list named "…"` in the log | The name in `REMINDERS_…_LIST` must match the list in Reminders (case doesn't matter) |
-| `Extras: can't read the Reminders database` | Full Disk Access for Kitchen Frame Bridge is off (it resets after each install.sh); see [extras](#extras-sections-flags-and-assignees) |
+| `Extras: can't read the Reminders database` | Full Disk Access for Kitchen Frame Bridge is off; see [extras](#extras-sections-flags-and-assignees) |
+| `No access to Photos` / `No album named "…"` | Photos → Kitchen Frame Bridge on in Privacy & Security; the album name in `ALBUM_URL` (`bridge:<name>`) must match, and Shared Albums must be on in Photos → Settings → iCloud |
 | `No access to Reminders` | System Settings → Privacy & Security → Reminders → Kitchen Frame Bridge on (Full Access), then run install.sh again |
+| `No access to Calendar` | System Settings → Privacy & Security → Calendars → Kitchen Frame Bridge on (Full Access), then run install.sh again |
+| `No calendar named "…" on this Mac` | `bridge:<name>` in `CALENDAR_URLS` must match the calendar's name in Apple Calendar (`--check` lists them) |
 | Changes from the phone are slow to reach the frame | That's iCloud reaching the Mac; the bridge also checks every 5 minutes. Opening Reminders on the Mac nudges a stuck iCloud sync |
 | "The Mac last checked in …" on the frame | The Mac is asleep, off or logged out; see step 5 |
 

@@ -22,6 +22,11 @@
   let mapFor = $derived(e && e.location && e.location !== 'Video call' && (!ui.demo || /stadium/i.test(e.location)) ? e.location : '');
   // Settings → Announcements → Event reminders: when this one will be said out loud.
   let reminder = $derived(e && Date.parse(e.start) > clock.now.getTime() ? reminderFor(e) : null);
+  // "15 and 5 min before", "10 min before and as it starts".
+  const whenSaid = (all) => {
+    const mins = all.filter((m) => m > 0), start = all.includes(0);
+    return [mins.length ? mins.join(' and ') + ' min before' : '', start ? 'as it starts' : ''].filter(Boolean).join(' and ');
+  };
   let mapped = $state(false);
   let rowsHeight = $state(0); // the map matches the details beside it
 
@@ -66,7 +71,7 @@
           <div class="row"><span class="ic"><Icon name="mapPin" size={24} /></span><div class="day">{e.location}</div></div>
         {/if}
         {#if reminder}
-          <div class="row"><span class="ic"><Icon name="volume" size={24} /></span><div class="sub">Announced {reminder.minutes ? reminder.minutes + ' min before' : 'as it starts'}{reminder.own ? ' (its own reminder)' : ''}{speaker() ? ' on ' + speaker().label : ''}</div></div>
+          <div class="row"><span class="ic"><Icon name="volume" size={24} /></span><div class="sub">Announced {whenSaid(reminder.all)}{reminder.own ? (reminder.all.length > 1 ? ' (its own reminders)' : ' (its own reminder)') : ''}{speaker() ? ' on ' + speaker().label : ''}</div></div>
         {/if}
         {#if notes}
           <div class="row notes"><span class="ic"><Icon name="notes" size={24} /></span><p>{notes}</p></div>

@@ -10,8 +10,10 @@ Each link is effectively a password: anyone with it can read that calendar. They
 to the Worker as a secret with `scripts/push-secrets.sh`; they're never in the repo or on the frame.
 
 - **Google:** Settings → your calendar → *Integrate calendar* → **Secret address in iCal format**.
-- **Apple (iCloud):** Calendar app → right-click the calendar → *Share Calendar* → **Public
-  Calendar** → copy the `webcal://` link (used as-is).
+- **Apple (iCloud):** best through the Mac bridge, with no link at all (next section). Otherwise
+  Calendar app → right-click the calendar → *Share Calendar* → **Public Calendar** → copy the
+  `webcal://` link (used as-is). iCloud's public link leaves out every alert, so the frame can only
+  announce its events at the default lead time.
 - **Fastmail:** Settings → Calendars → the calendar's sharing settings → **Publish**, full details →
   copy the .ics link.
 - **Outlook / Microsoft 365 (Exchange):** Outlook on the web → Settings → Calendar → Shared calendars
@@ -20,6 +22,25 @@ to the Worker as a secret with `scripts/push-secrets.sh`; they're never in the r
 - **Subscribed calendars** (a sports team's schedule, school holidays): use the same .ics link you'd
   subscribe to on your phone. Some sports sites refuse anything that doesn't look like a browser;
   the Worker identifies itself as one, so these work.
+
+### Apple calendars through the Mac
+
+With the [Mac bridge](lists.md#apple-reminders-through-a-mac) set up, put `bridge:<name>` in
+`CALENDAR_URLS` instead of a link, where `<name>` is the calendar's name in Apple Calendar on that Mac
+(`bridge:Family`). The bridge reads the calendar as you, through Apple's EventKit, and sends its
+events to the Worker whenever they change (and hourly), repeats already expanded:
+
+- **Alerts come along.** In Apple Calendar an alert belongs to each person, not to the event, so a
+  shared calendar's public link has none. The bridge sends yours, so the frame announces an event at
+  each of them ([announcements](announcements.md#event-reminders)).
+- **No public link.** Turn **Public Calendar** off, and there's no address left that reads the
+  calendar. Sharing it with people directly isn't affected.
+- **The Mac has to be on.** When it isn't, the frame keeps the last events it sent, and after 3 hours
+  the status page says when the Mac last sent the calendar.
+- The first time, macOS asks to give Kitchen Frame Bridge access to Calendar; click **Allow**
+  (Full Access). It only reads, and only the calendars named here.
+
+Names, colours and details below work the same, in the same position in the list.
 
 ## Settings
 
@@ -71,11 +92,13 @@ The frame shows each event's title, time and location, and notes only for calend
 
 To keep an event off the frame (a surprise, say), put `#private` in its title or notes, or mark it
 Private in your calendar app. The Worker drops it before the frame ever sees it. It's still in the
-published feed, so this hides it from the kitchen, not from anyone who has the link.
+published feed, so this hides it from the kitchen, not from anyone who has the link. A calendar
+through the Mac bridge has no link; `#private` works there too.
 
 ## Refreshing and failures
 
-A cron job fetches every feed into KV every 10 minutes, and writes KV only when something changed (or
+A cron job fetches every feed into KV every 10 minutes (a calendar from the Mac bridge arrives
+when it changes instead), and writes KV only when something changed (or
 hourly, to show it's alive). The frame asks the Worker every 5 minutes; Settings → **Reload** pulls
 fresh from the feeds right away. If one feed fails, its last good events stay up and the others carry
 on.

@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- The bridge app's icon (make-icon.sh renders it): the frame's mark from its boot animation
+     (kiosk/bootanimation/frame.html), a picture frame with the sun up over hills, on a macOS-style
+     rounded square. -->
+<html><head><meta charset="utf-8"><style>
+  html, body { margin: 0; width: 1024px; height: 1024px; background: transparent; }
+  .tile { position: absolute; left: 100px; top: 100px; width: 824px; height: 824px; border-radius: 185px;
+    background: linear-gradient(180deg, #2c2c2e, #1c1c1e); box-shadow: 0 10px 24px rgba(0, 0, 0, .35); }
+  svg { position: absolute; left: 152px; top: 210px; }
+</style></head><body>
+<div class="tile"></div>
+<svg width="720" height="630" viewBox="0 0 240 210" fill="none">
+  <defs>
+    <clipPath id="pic"><rect x="22" y="22" width="196" height="136" rx="20" /></clipPath>
+    <radialGradient id="glow"><stop offset="0" stop-color="#ffd60a" stop-opacity=".55" /><stop offset="1" stop-color="#ffd60a" stop-opacity="0" /></radialGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c2a4a" /><stop offset="1" stop-color="#3a2a3e" /></linearGradient>
+  </defs>
+  <g clip-path="url(#pic)">
+    <rect x="22" y="22" width="196" height="136" fill="url(#sky)" />
+    <circle cx="160" cy="62" r="46" fill="url(#glow)" />
+    <circle cx="160" cy="62" r="13" fill="#ffd60a" />
+    <path d="M22 158 L22 132 L78 84 L112 116 L134 98 L190 140 L218 122 L218 158 Z" fill="#ff9f0a" />
+    <path d="M22 158 L22 146 L70 120 L104 140 L150 118 L218 150 L218 158 Z" fill="#c45a00" />
+  </g>
+  <rect x="16" y="16" width="208" height="148" rx="24" stroke="#e5e5ea" stroke-width="8" />
+  <path d="M86 190 H154" stroke="#e5e5ea" stroke-width="8" stroke-linecap="round" />
+</svg>
+</body></html>

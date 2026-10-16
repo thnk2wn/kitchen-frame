@@ -5,7 +5,12 @@
 //   - whenever a chosen list changes (Siri, a phone, the watch), it sends the list to the Worker;
 //   - the Worker pushes the frame's changes (an item ticked off, added or edited) over a WebSocket, and
 //     this applies them to Reminders, then reports which ones it applied;
-//   - every 5 minutes it checks in anyway, so the frame knows the Mac is alive.
+//   - every 5 minutes it checks in anyway, so the frame knows the Mac is alive;
+//   - Apple Calendar calendars named in the Worker's CALENDAR_URLS as bridge:<name> are sent too, with
+//     their alerts (iCloud's public calendar links leave alerts out): whenever they change, and hourly;
+//   - with the Worker's ALBUM_URL set to bridge:<album name>, that shared album's photos, sized for the
+//     frame's screen, so the album needs no public link: as Photos on this Mac gets changes, and every
+//     10 minutes.
 // Which Reminders list feeds which frame list comes from the Worker's settings (GROCERIES_SOURCE,
 // REMINDERS_GROCERIES_LIST, ...). This only needs the Worker's address and BRIDGE_TOKEN:
 //   ~/Library/Application Support/KitchenFrameBridge/config.json  {"worker": "https://…", "token": "…"}
@@ -14,8 +19,10 @@
 // Reminders app's own database (RemindersDB below), which needs Full Disk Access.
 //
 // Run with --check to ask for Reminders access and log the lists it can see, then exit.
+import AppKit
 import EventKit
 import Foundation
+import Photos
 import SQLite3
 
 let supportDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/KitchenFrameBridge")
@@ -30,12 +37,55 @@ func log(_ s: String) {
 
 struct Config: Decodable { let worker: String; let token: String }
 
-final class Bridge: NSObject, URLSessionWebSocketDelegate {
+final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeObserver {
   let store = EKEventStore()
   let cfg: Config
   var session: URLSession!
   var lists: [String: String] = [:]   // frame list (groceries, todo) -> Reminders list name
   var extras = false                 // REMINDERS_EXTRAS: sections, flags and assignees from RemindersDB
+  var calendars: [String: Bool] = [:] // Apple Calendar calendars to send (bridge:<name>) -> send notes too
+  var window = (back: 40, ahead: 70)  // days of events to send, from the Worker
+  var calendarAccess = false
+  var remindersAccess = false
+  var sentCalendars = ""              // what was last sent, to send only changes
+  var sentCalendarsAt = Date.distantPast
+  var photoCfg: (album: String, landscape: Int, portrait: Int)? // the shared album to send, from the Worker
+  var photosAccess = false
+  var photosSyncing = false
+  var sentPhotos = ""                 // the photo list last confirmed complete, to skip unchanged runs
+  var sentPhotosAt = Date.distantPast
+  var photosWatched = false
+  var photosSoon: DispatchWorkItem?
+  var problems: [String: String] = [:] // what's wrong now, by area, sent with each check-in for the status page
+
+  // Records (or clears, with nil) the current problem in one area, logging it when it changes.
+  func problem(_ area: String, _ text: String?) {
+    if problems[area] == text { return }
+    problems[area] = text
+    if let t = text { log(t) }
+  }
+
+  // The camera relay (bridge/camera-relay/) runs on this Mac too: is go2rtc's API and the gate up?
+  func relayStatus() -> [String: Bool]? {
+    let agent = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/LaunchAgents/local.kitchen-frame.go2rtc.plist")
+    guard FileManager.default.fileExists(atPath: agent.path) else { return nil }
+    return ["go2rtc": listening(1984), "gate": listening(1985)]
+  }
+  func listening(_ port: UInt16) -> Bool {
+    let fd = Darwin.socket(AF_INET, SOCK_STREAM, 0)
+    guard fd >= 0 else { return false }
+    defer { Darwin.close(fd) }
+    var addr = sockaddr_in()
+    addr.sin_family = sa_family_t(AF_INET)
+    addr.sin_port = port.bigEndian
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+    return withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0 } }
+  }
+  // When this build was made, so the status page shows which bridge is running.
+  lazy var built: String = {
+    let d = (try? Bundle.main.executableURL?.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? nil
+    return d.map { "built " + ISO8601DateFormatter().string(from: $0) } ?? "unknown"
+  }()
   let db = RemindersDB()
   var configAt = Date.distantPast
   var toAck: [String] = []           // ops applied here, not yet reported to the Worker
@@ -71,6 +121,21 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate {
     }
   }
 
+  func requestCalendarAccess() async -> Bool {
+    do {
+      if #available(macOS 14.0, *) { return try await store.requestFullAccessToEvents() }
+      return try await store.requestAccess(to: .event)
+    } catch {
+      log("Calendar access failed: \(error.localizedDescription)")
+      return false
+    }
+  }
+
+  func requestPhotosAccess() async -> Bool {
+    let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+    return status == .authorized || status == .limited
+  }
+
   func calendar(named name: String) -> EKCalendar? {
     store.calendars(for: .reminder).first { $0.title.compare(name, options: [.caseInsensitive]) == .orderedSame }
   }
@@ -83,11 +148,11 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate {
 
   // MARK: Worker
 
-  func request(_ path: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+  func request(_ path: String, method: String = "GET", body: Data? = nil, contentType: String = "application/json") async throws -> Data {
     var req = URLRequest(url: URL(string: cfg.worker.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + path)!)
     req.httpMethod = method
     req.setValue("Bearer " + cfg.token, forHTTPHeaderField: "Authorization")
-    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.setValue(contentType, forHTTPHeaderField: "Content-Type")
     req.httpBody = body
     req.timeoutInterval = 30
     let (data, res) = try await session.data(for: req)
@@ -102,10 +167,161 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate {
     let next = r["lists"] as? [String: String] ?? [:]
     if next != lists { log("Lists from the Worker: " + (next.isEmpty ? "none set to Reminders" : next.map { "\($0.key) ← \"\($0.value)\"" }.sorted().joined(separator: ", "))) }
     lists = next
+    // Reminders access is asked for only when a list comes from Reminders (like Calendar and Photos).
+    if !lists.isEmpty && !remindersAccess {
+      remindersAccess = await requestAccess()
+      problem("reminders-access", remindersAccess ? nil : "No access to Reminders. Allow it in System Settings > Privacy & Security > Reminders > KitchenFrameBridge (Full Access).")
+    }
     let more = r["extras"] as? Bool ?? false
     if more != extras { log(more ? "Extras on: reading sections, flags and assignees from the Reminders database" : "Extras off") }
     extras = more
+    let cals = (r["calendars"] as? [String: [String: Any]] ?? [:]).mapValues { $0["notes"] as? Bool ?? false }
+    if cals != calendars { log("Calendars from the Worker: " + (cals.isEmpty ? "none" : cals.keys.sorted().map { "\"\($0)\"" }.joined(separator: ", "))) }
+    calendars = cals
+    if let w = r["window"] as? [String: Int] { window = (w["back"] ?? 40, w["ahead"] ?? 70) }
+    if !calendars.isEmpty && !calendarAccess {
+      calendarAccess = await requestCalendarAccess()
+      problem("calendar-access", calendarAccess ? nil : "No access to Calendar. Allow it in System Settings > Privacy & Security > Calendars > KitchenFrameBridge (Full Access).")
+    }
+    if let p = r["photos"] as? [String: Any], let album = p["album"] as? String {
+      if photoCfg?.album != album { log("Photos from the Worker: the shared album \"\(album)\"") }
+      photoCfg = (album, p["landscape"] as? Int ?? 1920, p["portrait"] as? Int ?? 960)
+      if !photosAccess {
+        photosAccess = await requestPhotosAccess()
+        problem("photos-access", photosAccess ? nil : "No access to Photos. Allow it in System Settings > Privacy & Security > Photos > KitchenFrameBridge.")
+        // Hear about album changes as iCloud delivers them, rather than only on the 10-minute timer.
+        if photosAccess && !photosWatched { PHPhotoLibrary.shared().register(self); photosWatched = true }
+      }
+    } else {
+      photoCfg = nil
+    }
     configAt = Date()
+  }
+
+  // MARK: Photos (ALBUM_URL = bridge:<album name>)
+
+  // Sends the album's photo list; the Worker answers with the ones it doesn't have; uploads those,
+  // sized for the screen; sends the list again. The Worker deletes photos that left the album.
+  @MainActor func syncPhotos() async {
+    guard let pc = photoCfg, photosAccess, !photosSyncing else { return }
+    photosSyncing = true
+    defer { photosSyncing = false }
+    guard let assets = albumAssets(pc.album) else {
+      problem("photos", "No album named \"\(pc.album)\" in Photos on this Mac. Check the name, and that Shared Albums is on (Photos > Settings > iCloud).")
+      return
+    }
+    let iso = ISO8601DateFormatter()
+    let list: [[String: Any]] = assets.map { a in
+      var p: [String: Any] = ["id": photoId(a), "w": a.pixelWidth, "h": a.pixelHeight]
+      if let d = a.creationDate { p["date"] = iso.string(from: d) }
+      return p
+    }
+    let ids = list.compactMap { $0["id"] as? String }.joined(separator: ",")
+    if ids == sentPhotos && Date().timeIntervalSince(sentPhotosAt) < 3600 { return }
+    log("Album \"\(pc.album)\" changed: \(list.count) photos; sending")
+    do {
+      var missing = try await postPhotos(list)
+      if !missing.isEmpty {
+        let byId = Dictionary(assets.map { (photoId($0), $0) }, uniquingKeysWith: { a, _ in a })
+        var sent = 0
+        for id in missing {
+          guard let a = byId[id], let jpg = await jpeg(a, pc) else { continue }
+          // One photo that won't go doesn't stop the rest; it's tried again next time.
+          do {
+            _ = try await request("/api/bridge/photos/" + id, method: "PUT", body: jpg, contentType: "image/jpeg")
+            sent += 1
+          } catch { log("Photo \(id) not uploaded (\(jpg.count / 1024) KB): \(error.localizedDescription)") }
+        }
+        log("Uploaded \(sent) of \(missing.count) new photo(s) from \"\(pc.album)\"")
+        missing = try await postPhotos(list)
+      }
+      if missing.isEmpty { sentPhotos = ids; sentPhotosAt = Date() }
+      problem("photos", missing.isEmpty ? nil : "\(missing.count) photo(s) from \"\(pc.album)\" couldn't be uploaded; trying again in 10 minutes")
+    } catch {
+      problem("photos", "Photos sync failed: \(error.localizedDescription)")
+    }
+  }
+
+  // Photos changed on this Mac (iCloud brought a new photo, say): look again in 15 s, so a burst of
+  // changes (several photos added at once) is one look.
+  func photoLibraryDidChange(_ changeInstance: PHChange) {
+    DispatchQueue.main.async {
+      self.photosSoon?.cancel()
+      let work = DispatchWorkItem { Task { await self.syncPhotos() } }
+      self.photosSoon = work
+      DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: work)
+    }
+  }
+
+  func postPhotos(_ list: [[String: Any]]) async throws -> [String] {
+    let data = try await request("/api/bridge/photos", method: "POST", body: try JSONSerialization.data(withJSONObject: ["photos": list]))
+    return ((try JSONSerialization.jsonObject(with: data) as? [String: Any])?["missing"] as? [String]) ?? []
+  }
+
+  // The album's photos, newest first (at most 500). Shared albums are albums to Photos, too.
+  func albumAssets(_ name: String) -> [PHAsset]? {
+    var found: PHAssetCollection?
+    PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil).enumerateObjects { c, _, stop in
+      if (c.localizedTitle ?? "").compare(name, options: [.caseInsensitive]) == .orderedSame { found = c; stop.pointee = true }
+    }
+    guard let album = found else { return nil }
+    let opts = PHFetchOptions()
+    opts.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+    var out: [PHAsset] = []
+    PHAsset.fetchAssets(in: album, options: opts).enumerateObjects { a, _, stop in
+      out.append(a)
+      if out.count >= 500 { stop.pointee = true }
+    }
+    return out
+  }
+
+  // A JPEG of exactly the size wanted, in pixels. Photos can hand back a Retina (2x) image for the
+  // size asked, which came out over the Worker's 1 MB limit; drawing into a bitmap of the target
+  // size fixes that. Lower quality is tried if it's still over 900 KB.
+  func encode(_ cg: CGImage, fitting size: CGSize) -> Data? {
+    let scale = min(1, size.width / CGFloat(cg.width), size.height / CGFloat(cg.height))
+    let w = max(1, Int((CGFloat(cg.width) * scale).rounded())), h = max(1, Int((CGFloat(cg.height) * scale).rounded()))
+    guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                              bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+    ctx.interpolationQuality = .high
+    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+    guard let out = ctx.makeImage() else { return nil }
+    let rep = NSBitmapImageRep(cgImage: out)
+    for q in [0.8, 0.65, 0.5] {
+      if let d = rep.representation(using: .jpeg, properties: [.compressionFactor: q]), d.count <= 900 * 1024 { return d }
+    }
+    return nil
+  }
+
+  // A photo's id on the frame: its Photos id plus when it was last edited, so an edit is a new photo.
+  func photoId(_ a: PHAsset) -> String {
+    let base = String(a.localIdentifier.split(separator: "/").first ?? "").filter { $0.isLetter || $0.isNumber || $0 == "-" }
+    return base + "-" + String(Int((a.modificationDate ?? a.creationDate ?? Date(timeIntervalSince1970: 0)).timeIntervalSince1970), radix: 36)
+  }
+
+  // The photo as a JPEG sized for the screen: a landscape the screen's width, a portrait half of it
+  // (they show in pairs). A video gives its still. Downloads from iCloud when the Mac hasn't it yet.
+  func jpeg(_ a: PHAsset, _ pc: (album: String, landscape: Int, portrait: Int)) async -> Data? {
+    let width = Double(a.pixelHeight > a.pixelWidth ? pc.portrait : pc.landscape)
+    let scale = min(1, width / Double(max(a.pixelWidth, 1)))
+    let size = CGSize(width: (Double(a.pixelWidth) * scale).rounded(), height: (Double(a.pixelHeight) * scale).rounded())
+    let o = PHImageRequestOptions()
+    o.isNetworkAccessAllowed = true
+    o.deliveryMode = .highQualityFormat
+    o.resizeMode = .exact
+    return await withCheckedContinuation { cont in
+      var done = false
+      PHImageManager.default().requestImage(for: a, targetSize: size, contentMode: .aspectFit, options: o) { img, info in
+        if done || (info?[PHImageResultIsDegradedKey] as? Bool) == true { return }
+        done = true
+        guard let img = img, let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+          log("Couldn't get photo \(a.localIdentifier): \((info?[PHImageErrorKey] as? Error)?.localizedDescription ?? "no image")")
+          cont.resume(returning: nil)
+          return
+        }
+        cont.resume(returning: self.encode(cg, fitting: size))
+      }
+    }
   }
 
   // MARK: Sync
@@ -134,8 +350,9 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate {
     var payload: [String: Any] = [:]
     var cals: [String: EKCalendar] = [:]
     let more = extras ? db.read(lists: Array(lists.values)) : [:]
-    for (list, name) in lists {
-      guard let cal = calendar(named: name) else { log("No Reminders list named \"\(name)\" (for \(list)). Check the name, and that iCloud Reminders is on."); continue }
+    for (list, name) in lists where remindersAccess {
+      guard let cal = calendar(named: name) else { problem("list:" + list, "No Reminders list named \"\(name)\" (for \(list)). Check the name, and that iCloud Reminders is on."); continue }
+      problem("list:" + list, nil)
       cals[list] = cal
       let items = await incomplete(in: cal)
         .sorted { a, b in
@@ -163,8 +380,24 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate {
       payload[list] = ["name": cal.title, "items": items, "sections": more[cal.title.lowercased()]?.sections ?? []]
     }
     let acking = toAck
-    let body = try JSONSerialization.data(withJSONObject: ["lists": payload, "applied": acking])
+    // Extras that can't be read (Full Disk Access off) are a problem worth showing too.
+    if extras { problems["extras"] = db.lastProblem.isEmpty ? nil : "Extras: " + db.lastProblem } else { problems["extras"] = nil }
+    var status: [String: Any] = ["problems": problems.keys.sorted().compactMap { problems[$0] }, "version": built]
+    if let r = relayStatus() { status["relay"] = r }
+    var bodyObj: [String: Any] = ["lists": payload, "applied": acking, "status": status]
+    // Calendars: only when they changed, or hourly so the Worker knows they're current.
+    var calText = ""
+    if calendarAccess && !calendars.isEmpty {
+      let cals = calendarsPayload()
+      calText = String(decoding: (try? JSONSerialization.data(withJSONObject: cals, options: [.sortedKeys])) ?? Data(), as: UTF8.self)
+      if calText != sentCalendars || Date().timeIntervalSince(sentCalendarsAt) > 3600 { bodyObj["calendars"] = cals }
+    }
+    let body = try JSONSerialization.data(withJSONObject: bodyObj)
     let data = try await request("/api/bridge/snapshot", method: "POST", body: body)
+    if bodyObj["calendars"] != nil {
+      if calText != sentCalendars { log("Sent calendars: " + calendars.keys.sorted().joined(separator: ", ")) }
+      sentCalendars = calText; sentCalendarsAt = Date()
+    }
     toAck.removeAll { acking.contains($0) }
     saveOps()
 
@@ -205,6 +438,46 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate {
       }
     }
     if changed { saveOps(); again = true } // report them, with the lists as they are now
+  }
+
+  // The chosen calendars' events in the Worker's window, repeats expanded (one entry per occurrence),
+  // each with its alerts in minutes before the start. uid is the iCloud event's own id, the same as
+  // in its calendar link, so reminders already said aren't said again after switching over.
+  func calendarsPayload() -> [String: [[String: Any]]] {
+    let now = Date(), cal = Calendar.current
+    let from = now.addingTimeInterval(-Double(window.back) * 86400), to = now.addingTimeInterval(Double(window.ahead) * 86400)
+    let iso = ISO8601DateFormatter()
+    let dayFmt = DateFormatter()
+    dayFmt.calendar = Calendar(identifier: .gregorian); dayFmt.locale = Locale(identifier: "en_US_POSIX"); dayFmt.timeZone = .current
+    dayFmt.dateFormat = "yyyy-MM-dd"
+    var out: [String: [[String: Any]]] = [:]
+    for (name, notes) in calendars {
+      guard let c = store.calendars(for: .event).first(where: { $0.title.compare(name, options: [.caseInsensitive]) == .orderedSame }) else {
+        problem("calendar:" + name, "No calendar named \"\(name)\" on this Mac. Check the name, and that iCloud Calendars is on.")
+        continue
+      }
+      problem("calendar:" + name, nil)
+      out[name] = store.events(matching: store.predicateForEvents(withStart: from, end: to, calendars: [c]))
+        .filter { $0.status != .canceled }
+        .sorted { $0.startDate < $1.startDate }
+        .map { e -> [String: Any] in
+          var o: [String: Any] = ["uid": e.calendarItemExternalIdentifier ?? e.eventIdentifier ?? UUID().uuidString, "title": e.title ?? "", "allDay": e.isAllDay]
+          if e.isAllDay {
+            // All-day: plain dates, the end exclusive (EventKit ends them at 23:59:59 on the last day).
+            o["start"] = dayFmt.string(from: e.startDate)
+            o["end"] = dayFmt.string(from: cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: e.endDate)) ?? e.endDate)
+          } else {
+            o["start"] = iso.string(from: e.startDate)
+            o["end"] = iso.string(from: e.endDate)
+          }
+          if let l = e.location, !l.isEmpty { o["location"] = l }
+          if notes, let n = e.notes, !n.isEmpty { o["notes"] = n }
+          let alarms = (e.alarms ?? []).filter { $0.absoluteDate == nil }.map { Int((-$0.relativeOffset / 60).rounded()) }
+          if !alarms.isEmpty { o["alarms"] = alarms }
+          return o
+        }
+    }
+    return out
   }
 
   func day(_ c: DateComponents?) -> String? {
@@ -258,6 +531,9 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate {
     NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in self?.soon() }
     // Heartbeat: check in, and nudge iCloud in case a change notification was missed.
     Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in self?.store.refreshSourcesIfNecessary(); self?.soon(0) }
+    // Photos: their own loop, so uploads never hold up the lists.
+    Timer.scheduledTimer(withTimeInterval: 600, repeats: true) { [weak self] _ in Task { await self?.syncPhotos() } }
+    Task { await self.syncPhotos() }
     // Keep-alive for the live connection (answered by Cloudflare without waking the Worker).
     Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.socket?.send(.string("ping")) { _ in } }
     connect()
@@ -366,15 +642,23 @@ guard let data = try? Data(contentsOf: supportDir.appendingPathComponent("config
   exit(1)
 }
 let bridge = Bridge(cfg: cfg)
+// Each job is optional: Reminders lists, Apple calendars and a shared album are each handled only when
+// the Worker's settings say that source comes from this Mac, and macOS is asked only for those.
 Task { @MainActor in
-  guard await bridge.requestAccess() else {
-    log("No access to Reminders. Allow it in System Settings > Privacy & Security > Reminders > KitchenFrameBridge (Full Access).")
-    exit(2)
-  }
   if check {
-    let names = bridge.store.calendars(for: .reminder).map { $0.title }.sorted()
-    log("Reminders access OK. Lists on this Mac: " + names.joined(separator: ", "))
     do { try await bridge.loadConfig(); log("Worker reachable.") } catch { log("Worker check failed: \(error.localizedDescription)") }
+    if bridge.lists.isEmpty && bridge.calendars.isEmpty && bridge.photoCfg == nil {
+      log("Nothing is set to come from this Mac yet (lists, calendars or photos); see docs/lists.md.")
+    }
+    if !bridge.lists.isEmpty {
+      log(bridge.remindersAccess ? "Reminders access OK. Lists on this Mac: " + bridge.store.calendars(for: .reminder).map { $0.title }.sorted().joined(separator: ", ") : "Reminders access NOT granted.")
+    }
+    if let pc = bridge.photoCfg {
+      log(bridge.photosAccess ? "Photos access OK. Album \"\(pc.album)\": " + (bridge.albumAssets(pc.album).map { "\($0.count) photos" } ?? "NOT FOUND") : "Photos access NOT granted.")
+    }
+    if !bridge.calendars.isEmpty {
+      log(bridge.calendarAccess ? "Calendar access OK. Calendars on this Mac: " + bridge.store.calendars(for: .event).map { $0.title }.sorted().joined(separator: ", ") : "Calendar access NOT granted.")
+    }
     exit(0)
   }
   log("Starting; Worker \(cfg.worker)")

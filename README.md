@@ -103,19 +103,20 @@ flowchart LR
     ha["Home Assistant"]
     speakers["Speakers<br/>(Echo, Nest, Sonos…)"]
     ha --> speakers
-    mac["Mac (optional)<br/>Reminders bridge"]
+    mac["Mac (optional)<br/>bridge: Reminders, Apple<br/>calendars, shared album;<br/>camera relay"]
   end
-  mac -- "bridge token<br/>(lists, live)" --> worker
+  mac -- "bridge token<br/>(lists, calendars, photos)" --> worker
+  app -- "token (camera relay)" --> mac
 
   app -- "HTTPS + dashboard key" --> worker
   app -- "WebSocket + HA token<br/>(House, Music, read-aloud,<br/>doorbell + live video)" --> ha
 
-  worker -- iCal links --> cal["Calendars<br/>(iCloud, Fastmail, Exchange, Google)"]
+  worker -- iCal links --> cal["Calendars<br/>(Fastmail, Exchange, Google, iCloud)"]
   worker -- API token --> todoist["Todoist"]
   worker -- "sync (cron); saves" --> paprika["Paprika<br/>recipes + meal plan"]
   worker --> mealdb["TheMealDB"]
   worker --> weather["Open-Meteo<br/>+ NWS (US)"]
-  worker -- public album link --> icloud["iCloud shared album"]
+  worker -. "public album link<br/>(without the Mac)" .-> icloud["iCloud shared album"]
   worker -- "read-only (optional)" --> spotifyapi["Spotify<br/>playlists, what's playing"]
   worker --> osm["OpenStreetMap<br/>event maps, radar"]
   ha -- integrations --> spotify["Spotify, Alexa Devices,<br/>thermostats, locks, cameras…"]
@@ -148,8 +149,11 @@ The developer wiki is in [openwiki/](openwiki/quickstart.md).
   lists, photos, recipes, notices, the frame's check-ins and agent messages). Tokens and links for
   those services stay on the server.
 - `dashboard/ops/`: the optional status page, a second Worker.
-- `bridge/mac/`: the optional Mac app that keeps Apple Reminders lists in step with the frame
+- `bridge/mac/`: the optional Mac app that keeps Apple Reminders lists in step with the frame, and can send Apple calendars (with their alerts) and a shared album without public links
   (Swift, EventKit). See [docs/lists.md](docs/lists.md).
+- `bridge/camera-relay/`: the optional camera relay for a Mac, which shrinks cameras too big for
+  the frame's video decoder (go2rtc, plus a small token gate). See
+  [docs/house.md](docs/house.md#cameras-the-frame-cant-decode-the-camera-relay).
 - `kiosk/`: the Android app the frame boots into (one full-screen WebView). `kiosk/build.sh` builds
   it without Gradle; see [docs/frame.md](docs/frame.md).
 - `homeassistant/`: the announce script and notice blueprints to import into Home Assistant.

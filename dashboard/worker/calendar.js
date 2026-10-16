@@ -1,4 +1,5 @@
-// Turns iCal feeds (Google secret address, iCloud public link) into one small, sorted event list.
+// Turns iCal feeds (Google secret address, iCloud public link), and calendars the Mac bridge sends,
+// into one small, sorted event list.
 // Pure functions, no Worker APIs, so it runs under `node --test` too.
 import ICAL from 'ical.js';
 
@@ -151,24 +152,55 @@ function toEvent(comp, uid, cal, start, end, tz, withNotes) {
     end: allDay ? dateStr(end) : new Date(endMs).toISOString(),
     ...(place(location) ? { location: place(location) } : {}),
     ...(notes ? { notes } : {}),
-    ...(!allDay && alarmOf(comp) != null ? { alarm: alarmOf(comp) } : {}),
+    ...alarmFields(allDay ? [] : alarmsOf(comp)),
   };
 }
 
-// The event's own reminder, in minutes before it starts, for the frame's spoken reminders: the
-// longest one between 0 and 2 hours before the start (a day-before reminder isn't something to say
-// out loud in the kitchen). null when it has none, or only ones outside that range.
-export function alarmOf(comp) {
-  let best = null;
+// alarms: every reminder to say, longest first; alarm: the longest (what older frames read).
+const alarmFields = (list) => (list.length ? { alarm: list[0], alarms: list } : {});
+
+// The event's own reminders, in minutes before it starts, for the frame's spoken reminders: each one
+// between 0 and 2 hours before the start (a day-before reminder isn't something to say out loud in
+// the kitchen), longest first, each once. Empty when it has none in that range.
+export function alarmsOf(comp) {
+  const out = [];
   for (const alarm of comp.getAllSubcomponents('valarm')) {
     const prop = alarm.getFirstProperty('trigger');
     if (!prop || String(prop.getParameter('related') || 'START').toUpperCase() !== 'START') continue;
     const value = prop.getFirstValue();
     if (!value || typeof value.toSeconds !== 'function') continue; // an absolute time: skip
-    const minutes = Math.round(-value.toSeconds() / 60);
-    if (minutes >= 0 && minutes <= 120 && (best === null || minutes > best)) best = minutes;
+    out.push(Math.round(-value.toSeconds() / 60));
   }
-  return best;
+  return cleanAlarms(out);
+}
+export const cleanAlarms = (list) => [...new Set(list.filter((m) => Number.isInteger(m) && m >= 0 && m <= 120))].sort((a, b) => b - a);
+// The longest of them (null for none), as the frame used to have.
+export const alarmOf = (comp) => alarmsOf(comp)[0] ?? null;
+
+// A calendar sent by the Mac bridge (bridge/mac/, EventKit) instead of read from a link: iCloud's
+// public links leave out every alert, since an alert there belongs to the person, not the event. The
+// Mac reads the calendar as you, alerts included, with repeats already expanded. Same events out as
+// expand(): `cal` its index, kept to [from, to), private ones dropped, notes only when allowed.
+export function fromBridge(list, cal, from, to, { notes = false } = {}) {
+  const out = [];
+  for (const b of Array.isArray(list) ? list : []) {
+    if (!b || typeof b.uid !== 'string' || typeof b.start !== 'string' || typeof b.end !== 'string') continue;
+    const title = String(b.title || '(No title)').slice(0, 300);
+    if (PRIVATE_TAG.test(title) || PRIVATE_TAG.test(String(b.notes || ''))) continue;
+    const allDay = b.allDay === true && /^\d{4}-\d{2}-\d{2}$/.test(b.start) && /^\d{4}-\d{2}-\d{2}$/.test(b.end);
+    const startMs = Date.parse(b.start), endMs = Math.max(Date.parse(b.end), startMs);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || !(endMs > from && startMs < to)) continue;
+    const text = notes ? cleanNotes(b.notes, title) : '';
+    out.push({
+      uid: b.uid.slice(0, 300), cal, startMs, endMs, allDay, title,
+      start: allDay ? b.start : new Date(startMs).toISOString(),
+      end: allDay ? b.end : new Date(endMs).toISOString(),
+      ...(place(b.location) ? { location: place(b.location) } : {}),
+      ...(text ? { notes: text } : {}),
+      ...alarmFields(allDay ? [] : cleanAlarms(Array.isArray(b.alarms) ? b.alarms : [])),
+    });
+  }
+  return out;
 }
 
 // An event's location as a place to show: links dropped (nothing on the frame can open them, and

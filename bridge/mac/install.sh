@@ -3,7 +3,8 @@
 #   1. builds the app into ~/Applications
 #   2. asks for the Worker address and BRIDGE_TOKEN (first time only; kept in
 #      ~/Library/Application Support/KitchenFrameBridge/config.json, readable only by you)
-#   3. opens it once so macOS asks for Reminders access (click Allow)
+#   3. opens it once so macOS asks for the access it needs (click Allow): Reminders, Calendar or Photos,
+#      each only if the Worker's settings send that source through this Mac
 #   4. adds a LaunchAgent so it runs in the background from now on, restarting if it stops
 # Run again after pulling changes to update it.
 set -euo pipefail
@@ -31,12 +32,14 @@ if [ ! -f "$support/config.json" ]; then
   python3 -c 'import json,sys; print(json.dumps({"worker": sys.argv[1], "token": sys.argv[2]}))' "$worker" "$token" > "$support/config.json"
 fi
 
-echo "Opening the bridge once to ask for Reminders access. If macOS asks, click Allow (Full Access)."
+echo "Opening the bridge once to ask for the access it needs (only for what's set to come from this Mac). If macOS asks, click Allow (Full Access)."
 : > "$log"
 open -W "$app" --args --check || true
 cat "$log"
-grep -q "Reminders access OK" "$log" || { echo "Reminders access wasn't granted: see System Settings > Privacy & Security > Reminders, then run this again." >&2; exit 1; }
 grep -q "Worker reachable" "$log" || { echo "Couldn't reach the Worker with that address and token (see above). Run: $0 --reconfigure" >&2; exit 1; }
+if grep -q "access NOT granted" "$log"; then
+  echo "Some access wasn't granted (see above): System Settings > Privacy & Security, turn on Kitchen Frame Bridge, then run this again." >&2; exit 1
+fi
 
 cat > "$agent" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

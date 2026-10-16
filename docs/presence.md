@@ -115,8 +115,15 @@ later.
 After a while untouched (Settings → Display → Clock screen after: 30 minutes by default, up to two
 hours, or never) the frame shows a clock over the photo slideshow, and any tap brings the dashboard
 back. It never switches while a recipe is open or a timer is running. The clock's colour is chosen
-in Settings → Display, and the slideshow uses the iCloud shared album (classic links work; album
-videos show as a still). The event log records each switch and why (`screen.clock`,
+in Settings → Display, and the slideshow uses an iCloud shared album (album videos show as a still).
+With the [Mac bridge](lists.md#apple-reminders-through-a-mac), set `ALBUM_URL=bridge:<album name>`:
+the Mac reads the album as you and uploads each photo sized for the screen (a landscape 1920 wide, a
+portrait 960, as they show in pairs) about 15 seconds after iCloud brings it to the Mac (seconds
+to a minute or two), checking every 10 minutes as well; photos taken out of the album are deleted
+from the Worker. The frame picks them up on its next photo refresh (every 5 minutes while the
+slideshow shows, and whenever it goes idle). The album then needs no public link: turn **Public Website**
+off. Without a Mac, `ALBUM_URL` is the album's link with Public Website on (both link formats work),
+which anyone holding it can open. The event log records each switch and why (`screen.clock`,
 `screen.awake`).
 
 **Night** (Settings → Display → Night, 10:30 PM to 6:30 AM by default, or off): the clock screen
