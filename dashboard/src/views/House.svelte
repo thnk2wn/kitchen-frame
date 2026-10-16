@@ -99,10 +99,18 @@
   };
   let viewing = $state(null); // the camera open full screen
   const refreshAll = (items) => { for (const i of items) if (i.kind === 'camera') tapCamera(i.entity); };
+  // A camera is asked for a new snapshot at most every SNAP_GAP_MS, whatever asks (a tap, Refresh, the
+  // full-screen view): a runaway caller once pressed the button thousands of times in seconds.
+  const SNAP_GAP_MS = 10000;
+  const lastPress = new Map();
   function tapCamera(id) {
     const snap = snapOf(id);
-    if (snap && st(snap.button)) { asked = { ...asked, [id]: Date.now() }; act(run(snap.button)); }
-    else refresh(id);
+    if (snap && st(snap.button)) {
+      if (Date.now() - (lastPress.get(id) || 0) < SNAP_GAP_MS) return;
+      lastPress.set(id, Date.now());
+      asked = { ...asked, [id]: Date.now() };
+      act(run(snap.button));
+    } else refresh(id);
   }
   const camAge = (id) => {
     const snap = snapOf(id);

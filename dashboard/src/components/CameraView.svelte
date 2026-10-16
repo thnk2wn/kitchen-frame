@@ -71,7 +71,10 @@
   // until asked for another), and the picture reloaded meanwhile to pick it up.
   $effect(() => {
     if (!noLive) return;
-    const snap = () => { const f = untrack(() => onsnap); if (f) f(); };
+    // Called untracked as a whole: onsnap reads and writes the House tab's state, and run tracked here
+    // it re-ran this effect at once, pressing "Take Snapshot" thousands of times (2026-10-15), which
+    // flooded the connection until Home Assistant dropped it.
+    const snap = () => untrack(() => { if (onsnap) onsnap(); });
     snap();
     const s = setInterval(snap, SNAP_MS);
     const t = setInterval(() => (tick = Date.now()), STILL_MS);
