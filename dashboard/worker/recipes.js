@@ -4,7 +4,9 @@
 //   GET    /api/recipes/explore?random=1   one random recipe (full)
 //   GET    /api/recipes/explore?id=52772   one recipe (full)
 //   GET    /api/recipes                    saved recipes (full)
-//   POST   /api/recipes                    save one (AGENT_TOKEN or the frame's key)
+//   POST   /api/recipes                    save one (AGENT_TOKEN or the frame's key): into Paprika when
+//                                          a Paprika account is configured (paprika-write.js), else here
+//   POST   /api/recipes/:id/paprika        move a recipe saved here into Paprika (frame)
 //   DELETE /api/recipes/:id                remove a saved one (frame)
 //   GET    /api/recipes/:id/image          a saved recipe's photo, stored at save time
 // Saved recipes are one KV value; photos are copied into KV when saved so they keep working if the
@@ -13,6 +15,8 @@ const MDB = 'https://www.themealdb.com/api/json/v1/1/';
 const KEY = 'recipes';
 const MAX_SAVED = 300;
 import { shrink } from './images.js';
+import { paprikaConfigured, syncPaprika } from './paprika.js';
+import { saveToPaprika } from './paprika-write.js';
 
 const MAX_IMAGE = 3 * 1024 * 1024;
 const SAVED_WIDTH = 640; // saved photos are resized to this once, at save time
@@ -109,10 +113,21 @@ export async function listSaved(env) {
   return { recipes: await load(env) };
 }
 
-export async function saveRecipe(env, input) {
+export async function saveRecipe(env, input, ctx) {
   const recipe = cleanRecipe(input || {});
   if (!recipe.title) return { status: 400, body: { error: 'A recipe needs a title' } };
   if (!recipe.ingredients.length && !recipe.steps.length) return { status: 400, body: { error: 'Send ingredients and/or steps' } };
+  // With a Paprika account, Save means Paprika: the household's library, on every phone.
+  if (paprikaConfigured(env) && !(input && input.local)) {
+    try {
+      const r = await saveToPaprika(env, recipe, { imageUrl: str(input.image, 1000) });
+      if (!r.existing && ctx) ctx.waitUntil(syncPaprika(env).catch(() => {})); // so the frame's Paprika view has it soon
+      return { status: r.existing ? 200 : 201, body: { paprika: true, uid: r.uid, ...(r.existing ? { existing: true } : {}) } };
+    } catch (e) {
+      console.error({ source: 'worker', message: 'save to Paprika failed', error: String(e.message || e) });
+      return { status: 502, body: { error: 'Paprika didn’t take the recipe: ' + String(e.message || e).slice(0, 120) } };
+    }
+  }
   const list = await load(env);
   if (recipe.ref && list.some((r) => r.ref === recipe.ref)) return { status: 200, body: { id: list.find((r) => r.ref === recipe.ref).id, existing: true } };
   if (list.length >= MAX_SAVED) return { status: 429, body: { error: 'Saved recipes are full (' + MAX_SAVED + ')' } };
@@ -135,6 +150,23 @@ export async function saveRecipe(env, input) {
   list.unshift(entry);
   await env.CALENDAR.put(KEY, JSON.stringify(list));
   return { status: 201, body: { id } };
+}
+
+// A recipe saved here, moved into Paprika (its stored photo goes with it), then removed from here.
+export async function moveToPaprika(env, id, ctx) {
+  if (!paprikaConfigured(env)) return { status: 400, body: { error: 'Paprika is not configured' } };
+  const list = await load(env);
+  const entry = list.find((r) => r.id === id);
+  if (!entry) return { status: 404, body: { error: 'not found' } };
+  const img = entry.hasImage ? await env.CALENDAR.getWithMetadata('recipe-image:' + id, { type: 'arrayBuffer' }) : null;
+  try {
+    const r = await saveToPaprika(env, entry, img && img.value ? { imageBytes: img.value, imageType: (img.metadata && img.metadata.type) || 'image/jpeg' } : {});
+    await deleteRecipe(env, id);
+    if (ctx) ctx.waitUntil(syncPaprika(env).catch(() => {}));
+    return { status: 200, body: { paprika: true, uid: r.uid, ...(r.existing ? { existing: true } : {}) } };
+  } catch (e) {
+    return { status: 502, body: { error: 'Paprika didn’t take the recipe: ' + String(e.message || e).slice(0, 120) } };
+  }
 }
 
 export async function deleteRecipe(env, id) {

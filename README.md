@@ -251,11 +251,16 @@ Surprise me, and "Add to Groceries" as for any recipe. Search by name, or tap a 
 strip down the right edge to jump through a long library. A recipe shows your Paprika notes beside
 it, plus its description and nutrition (tap to expand) when it has them. A cron reads the library every 15 minutes,
 fetching only new or changed recipes, a batch at a time, and stores them with resized photos. It
-never writes to Paprika. Paprika has no official API, so this uses the undocumented one its apps
+writes to Paprika only to save a recipe you asked it to (below). Paprika has no official API, so this uses the undocumented one its apps
 sync with (see `dashboard/worker/paprika.js`); if that changes, the last copy keeps showing.
 
 The same sync reads Paprika's meal plan (2 days back to 3 weeks ahead): today's meals appear at the
 top of Home's Today list, and Recipes gets a **Meals** view of the next seven days.
+
+**Saving into Paprika.** With an account configured, **Save to Paprika** on an Explore recipe puts
+it in your library, photo included, under your matching category (or a **Kitchen Frame** one if
+you've made it), and recipes agents send go there too. The recipe page says **In Paprika** when the library already has it (same source link
+or title), and the Worker won't save a duplicate. Details in [docs/recipes.md](docs/recipes.md).
 
 Photos come from a recipe's full-size photo in Paprika when it has one, otherwise Paprika's 280px
 thumbnail. Many web imports only ever gave Paprika a thumbnail, which looks soft on the frame (and

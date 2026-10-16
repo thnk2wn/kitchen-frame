@@ -9,7 +9,7 @@
   import Icon from '../components/Icon.svelte';
   import { recipeTitle } from '../lib/format.js';
   import { mediaUrl } from '../lib/api.js';
-  import { recipes, saveRecipe, removeRecipe, addToGroceries } from '../lib/state.svelte.js';
+  import { recipes, paprika, inPaprika, saveRecipe, removeRecipe, addToGroceries } from '../lib/state.svelte.js';
   import { startTimer, splitDurations } from '../lib/timers.svelte.js';
   let { recipe, onback } = $props();
   let showNutrition = $state(false);
@@ -27,6 +27,10 @@
   // While loading, recipe is a stand-in with the card's title and photo (loading: true).
   let savedCopy = $derived((recipes.saved || []).find((r) => r.id === recipe.id || (r.ref && r.ref === recipe.id)));
   let isSavedView = $derived(!!recipe.savedAt);
+  // With a Paprika account, Save puts the recipe in Paprika; one that's already there says so instead.
+  let toPaprika = $derived(!!paprika.configured);
+  let already = $derived(toPaprika && !recipe.savedAt && !String(recipe.id).startsWith('pap:') ? inPaprika(recipe) : null);
+  const savedText = (res) => (res && res.paprika ? (res.existing ? 'Already in Paprika' : 'Saved to Paprika') : 'Saved');
   // Ours (synced from Paprika): already in our library, so no Save or Remove.
   let isOurs = $derived(String(recipe.id || '').startsWith('pap:'));
   let image = $derived(isSavedView
@@ -54,10 +58,12 @@
     {#if isOurs}
     {:else if isSavedView}
       <button class="btn" disabled={busy} onclick={() => { removeRecipe(recipe.id); onback(); }}><Icon name="trash" size={20} />Remove</button>
+    {:else if already}
+      <span class="saved" title="Already in your Paprika library"><Icon name="check" size={20} />In Paprika</span>
     {:else if savedCopy}
       <span class="saved"><Icon name="check" size={20} />Saved</span>
     {:else}
-      <button class="btn tint" disabled={busy || recipe.loading} onclick={() => act(() => saveRecipe(recipe), () => 'Saved')}><Icon name="bookmark" size={20} />Save</button>
+      <button class="btn tint" disabled={busy || recipe.loading} onclick={() => act(() => saveRecipe(recipe), savedText)}><Icon name="bookmark" size={20} />{toPaprika ? 'Save to Paprika' : 'Save'}</button>
     {/if}
     <button class="btn solid" disabled={busy || recipe.loading || !needed.length}
       onclick={() => act(() => addToGroceries(recipe, needed), (n) => 'Added ' + n + ' to Groceries')}>

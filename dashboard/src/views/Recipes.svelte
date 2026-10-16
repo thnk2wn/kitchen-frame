@@ -185,7 +185,10 @@
           <button role="tab" aria-selected={mode === 'ours'} class:on={mode === 'ours'} onclick={() => setMode('ours')}>Paprika{#if paprika.recipes?.length}<span class="n num">{paprika.recipes.length}</span>{/if}</button>
         {/if}
         <button role="tab" aria-selected={mode === 'explore'} class:on={mode === 'explore'} onclick={() => setMode('explore')}>Explore</button>
+        <!-- With Paprika, saving goes there; the Saved view stays only while it still holds something. -->
+        {#if !(oursOn() && recipes.saved && !recipes.saved.length)}
         <button role="tab" aria-selected={mode === 'saved'} class:on={mode === 'saved'} onclick={() => setMode('saved')}>Saved{#if recipes.saved?.length}<span class="n num">{recipes.saved.length}</span>{/if}</button>
+        {/if}
       </div>
       <div class="actions">
         {#if mode === 'ours'}

@@ -59,7 +59,7 @@ import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.
 import { opsSummary } from './ops.js';
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
-import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage } from './recipes.js';
+import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage, moveToPaprika } from './recipes.js';
 import { geocode, tile } from './maps.js';
 import { spotifyConfigured, getPlaylists, getNow, getQueue } from './spotify.js';
 import { level, BRIDGE_LISTS, fromReminders, remindersName, bridge } from './bridge.js';
@@ -125,7 +125,7 @@ async function handle(req, env, ctx) {
     // Agents may also save recipes with their token (the frame saves with its own key).
     const agent = env.AGENT_TOKEN && req.headers.get('Authorization') === 'Bearer ' + env.AGENT_TOKEN;
     if (url.pathname === '/api/recipes' && req.method === 'POST' && agent) {
-      const { status, body } = await saveRecipe(env, await req.json().catch(() => ({})));
+      const { status, body } = await saveRecipe(env, await req.json().catch(() => ({})), ctx);
       return json(body, status);
     }
     if (!(await authorized(req, env))) return json({ error: 'unauthorized' }, 401);
@@ -203,9 +203,11 @@ async function handle(req, env, ctx) {
       }
       if (url.pathname === '/api/recipes' && req.method === 'GET') return json(await listSaved(env));
       if (url.pathname === '/api/recipes' && req.method === 'POST') {
-        const { status, body } = await saveRecipe(env, await req.json().catch(() => ({})));
+        const { status, body } = await saveRecipe(env, await req.json().catch(() => ({})), ctx);
         return json(body, status);
       }
+      const move = /^\/api\/recipes\/([\w-]+)\/paprika$/.exec(url.pathname);
+      if (move && req.method === 'POST') { const { status, body } = await moveToPaprika(env, move[1], ctx); return json(body, status); }
       const recipe = /^\/api\/recipes\/([\w-]+)(\/image)?$/.exec(url.pathname);
       if (recipe && recipe[2] && req.method === 'GET') return recipeImage(env, recipe[1]);
       if (recipe && !recipe[2] && req.method === 'DELETE') return json(await deleteRecipe(env, recipe[1]));

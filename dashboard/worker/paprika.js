@@ -1,6 +1,7 @@
 // Our own recipes from Paprika (paprikaapp.com), read-only. Paprika has no official API; its apps
 // sync through an undocumented one, described by the community at
-// https://github.com/aarons22/paprika-tools/blob/main/API_REFERENCE.md. We only ever read from it.
+// https://github.com/aarons22/paprika-tools/blob/main/API_REFERENCE.md. This file only reads; the
+// one write, saving a recipe, is in paprika-write.js.
 //
 //   GET /api/recipes/paprika              { configured, updated, recipes: [card…] }
 //   GET /api/recipes/paprika/:uid         { recipe }  (full: ingredients and steps)
@@ -54,18 +55,21 @@ async function readJson(res) {
   try { return JSON.parse(text); } catch { return null; }
 }
 
-async function get(env, path, state) {
+// One request: GET, or POST when a form is given (paprika-write.js). Logs in once and retries once
+// with a fresh token when the stored one is refused.
+export async function api(env, path, state, formBody = null) {
   for (let attempt = 0; attempt < 2; attempt++) {
     if (!state.token) state.token = (await env.CALENDAR.get(TOKEN_KEY)) || (await login(env));
-    const res = await fetch(API + path, { headers: { Authorization: 'Bearer ' + state.token } });
+    const res = await fetch(API + path, { method: formBody ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + state.token }, ...(formBody ? { body: formBody } : {}) });
     if (res.status === 401 || res.status === 403) { state.token = null; await env.CALENDAR.delete(TOKEN_KEY); continue; }
-    if (!res.ok) throw new Error('Paprika ' + path + ': HTTP ' + res.status);
     const data = await readJson(res);
+    if (!res.ok || (data && data.error)) throw new Error('Paprika ' + path + ': HTTP ' + res.status + (data && data.error ? ' ' + JSON.stringify(data.error).slice(0, 160) : ''));
     if (!data || !('result' in data)) throw new Error('Paprika ' + path + ': unexpected response');
     return data.result;
   }
   throw new Error('Paprika rejected the login');
 }
+const get = (env, path, state) => api(env, path, state);
 
 // ---- Shape
 
@@ -225,8 +229,12 @@ async function load(env) {
   return (await env.CALENDAR.get(KEY, { type: 'json', cacheTtl: 60 })) || { recipes: [], updated: null };
 }
 
+export const loadSynced = (env) => load(env);
+
 const card = (r) => ({
   id: r.id, title: r.title, categories: r.categories || [], hasImage: !!r.hasImage,
+  // The source link, so the frame can tell an Explore recipe is already in the library.
+  ...(r.source ? { source: r.source } : {}),
   // Photo version: part of the photo's address, so a replaced photo isn't served from a week-long cache.
   ...(r.hasImage ? { img: String(r.photoLarge || r.photoHash || '').replace(/\W/g, '').slice(0, 8) } : {}),
   ...(r.favorite ? { favorite: true } : {}), ...(r.rating ? { rating: r.rating } : {}),

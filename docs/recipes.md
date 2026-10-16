@@ -9,8 +9,17 @@ The Recipes tab has four views:
   recipes with photos; the free API key is for personal use). Browse by category or tap
   **Surprise me** for a random recipe. Vegetarian and Vegan recipes are left out (`HIDDEN` in
   `worker/recipes.js`), as is Goat, which has only 2 recipes.
-- **Saved:** recipes agents send, plus any saved from Explore with **Save**. Remove one with the
-  trash button on its page.
+- **Saved:** with a Paprika account configured, **Save to Paprika** on an Explore recipe (and a
+  recipe an agent sends) goes straight into your Paprika library, photo included, filed under your
+  category of the same name when you have one (Explore's Seafood into Seafood, Chicken into
+  Poultry, Starter into Appetizers), otherwise under a **Kitchen Frame** category if you've made
+  one in the Paprika app, otherwise uncategorized (Paprika's sync API has no call to create a
+  category). It shows up in the Paprika apps within a minute and in the frame's Paprika view a few
+  seconds later. A recipe already in the library, by source link or by
+  title, shows **In Paprika** instead of Save, and the Worker refuses a duplicate at save time too.
+  Without Paprika, Save keeps the recipe on the Worker and it appears under **Saved**; remove one
+  with the trash button on its page. A Saved recipe from before Paprika saving can be moved into
+  Paprika with `POST /api/recipes/<id>/paprika` (the frame's key); Saved hides itself once empty.
 
 On a recipe page, tap the ingredients you already have to cross them off. **Add N to Groceries**
 then adds the rest to Groceries (Todoist's grocery project, or the Reminders list when Groceries
@@ -42,6 +51,9 @@ curl -X POST https://photo-frame-dashboard.<your-subdomain>.workers.dev/api/reci
     (shown as "Saved by …"), `category`, `tags` (≤8).
 - **Response:** `201 {"id": "..."}`. `400` for a missing title or no ingredients and no steps,
   `401` for a wrong token, `429` when 300 recipes are saved.
+- **Where it goes:** into Paprika when `PAPRIKA_EMAIL`/`PAPRIKA_PASSWORD` are set (the response is
+  `{ paprika: true, uid }`, or `existing: true` when the library already had it); otherwise into
+  the Worker's Saved list (`{ id }`). Send `"local": true` to keep it on the Worker regardless.
 - **Timing:** the frame loads Saved whenever the Recipes tab or Saved is opened.
 - **Skill:** `~/.agents/skills/kitchen-frame-recipe` (linked from `~/.claude/skills`). It extracts
   schema.org Recipe data from a link, previews it, and posts with `$KITCHEN_FRAME_URL` /
