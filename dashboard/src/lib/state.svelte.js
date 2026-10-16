@@ -236,7 +236,13 @@ function connectMessages() {
   };
   ws.onmessage = (e) => {
     alive = true;
-    if (e.data !== 'pong') { try { showMessages(JSON.parse(e.data).messages); } catch {} }
+    if (e.data === 'pong') return;
+    try {
+      const d = JSON.parse(e.data);
+      // A command from the Worker (lib/checkin.js listens): e.g. "checkin" now.
+      if (d.command) window.dispatchEvent(new CustomEvent('frame-command', { detail: d.command }));
+      if (d.messages) showMessages(d.messages);
+    } catch {}
   };
   ws.onclose = () => {
     if (socketUp) loadMessages(); // catch anything sent while it was closing

@@ -42,6 +42,15 @@ export class MessageRoom {
     }
     if (path === '/list') return json({ messages: await this.load() });
     if (path === '/post') return this.post(req);
+    // A command for the frame itself (e.g. "checkin": send your status and events now), pushed to
+    // every connected frame; nothing is stored.
+    if (path === '/command') {
+      const { command } = await req.json().catch(() => ({}));
+      if (!['checkin'].includes(command)) return json({ error: 'unknown command' }, 400);
+      let sent = 0;
+      for (const ws of this.ctx.getWebSockets()) { try { ws.send(JSON.stringify({ command })); sent++; } catch {} }
+      return json({ sent });
+    }
     const dismiss = /^\/dismiss\/([\w-]+)$/.exec(path);
     if (dismiss) {
       const list = await this.load();

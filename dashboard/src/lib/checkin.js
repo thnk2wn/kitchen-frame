@@ -80,6 +80,14 @@ onError(() => {
   errorTimer = setTimeout(() => { errorTimer = null; lastErrorSend = Date.now(); checkIn(); }, 60000);
 });
 
+// "Check in now" from the Worker (frame-status.sh --now, the status page): at most every 10 s.
+let lastAsked = 0;
+if (typeof window !== 'undefined') window.addEventListener('frame-command', (e) => {
+  if (e.detail !== 'checkin' || Date.now() - lastAsked < 10000) return;
+  lastAsked = Date.now();
+  checkIn();
+});
+
 export function startCheckIn() {
   log('app.load', { version: version(), reason: loadReason(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] });
   restore().then(() => setTimeout(checkIn, 20000)); // give Home Assistant a moment to connect first

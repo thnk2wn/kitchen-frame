@@ -4,10 +4,18 @@
 # every 10 minutes, so "minutes ago" over about 12 means it's off, offline or not in the kiosk app.
 # Also whether the dashboard it runs is the one deployed now. Usage: scripts/frame-status.sh
 # With --log, also the frame's recent events (lib/log.svelte.js), oldest first; --log N for the last N.
+# With --now first, it asks the frame to check in at once (over its live connection) and waits for it:
+#   scripts/frame-status.sh --now --log 30
 set -euo pipefail
 cd "$(dirname "$0")/.."
 key=$(sed -n 's/^DASHBOARD_KEY="\(.*\)"/\1/p' .dev.vars)
 url=$(sed -n 's/^DASHBOARD_URL="\(.*\)"/\1/p' .frame.vars); url=${url%/}
+if [ "${1:-}" = "--now" ]; then
+  shift
+  sent=$(curl -fsS -X POST -H "Authorization: Bearer $key" "$url/api/frame/checkin" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("sent", 0))')
+  if [ "$sent" = "0" ]; then echo "The frame isn't connected right now; showing its last check-in."
+  else echo "Asked the frame to check in ($sent connection(s)); waiting..."; perl -e 'sleep 6'; fi
+fi
 status=$(curl -fsS -H "Authorization: Bearer $key" "$url/api/frame/status")
 live=$(curl -fsS "$url/" | sed -n 's/.*assets\/index-\([A-Za-z0-9_-]\{1,8\}\).*/\1/p' | head -1)
 python3 -I - "$status" "$live" "${1:-}" "${2:-40}" <<'PY'
