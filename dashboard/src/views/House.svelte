@@ -164,7 +164,9 @@
   // ring-mqtt's live-stream switch for the camera, when there is one: turned on while the view is
   // open, it starts the Ring session at once and keeps it up through a retry, which otherwise costs
   // a cold start each time.
-  const warmOf = (id) => { const w = 'switch.' + id.replace(/^camera\./, '').replace(/_(live_view|snapshot|stream)$/, '') + '_live_stream'; return st(w) ? w : null; };
+  // Only for cameras with a _stream companion (ring-mqtt's), and not checked against house.states:
+  // the switch isn't on the dashboard, so the House tab doesn't track it.
+  const warmOf = (id) => (streamOf(id) ? 'switch.' + id.replace(/^camera\./, '').replace(/_(live_view|snapshot|stream)$/, '') + '_live_stream' : null);
   const refreshAll = (items) => { for (const i of items) if (i.kind === 'camera') tapCamera(i.entity); };
   // A camera is asked for a new snapshot at most every SNAP_GAP_MS, whatever asks (a tap, Refresh, the
   // full-screen view): a runaway caller once pressed the button thousands of times in seconds.
