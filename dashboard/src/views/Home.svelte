@@ -135,7 +135,7 @@
           <span class="mtxt"><span class="mtype">{d.name}</span> <Txt text={d.text} /></span>
         </div>
       {/each}
-      <h2 class="later">Upcoming</h2>
+      <!-- No "Upcoming" heading: each day's own heading, with its line above, says it. -->
       {#each upcomingShown as d (d.name)}
         <div class="day-head">{d.name}</div>
         {#if d.name === 'Tomorrow'}
@@ -245,10 +245,8 @@
   .scroll .empty { grid-column: 1 / -1; }
   footer { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; border-top: 1px solid var(--sep); }
   h2 { margin: 0 0 4px; font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
-  h2.later { margin-top: 20px; color: var(--secondary); }
   /* One heading per upcoming day, with a thin line above it so days don't run together. */
   .day-head { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--sep); font-size: 15px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--secondary); }
-  h2.later + .day-head { margin-top: 2px; border-top: 0; padding-top: 4px; }
   /* Long dinner names and rotations wrap under themselves rather than being cut off. */
   .meal { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 0 6px; text-align: left; font-size: 19px; font-weight: 600; line-height: 1.35; }
   .meal.link:active { opacity: .6; }
