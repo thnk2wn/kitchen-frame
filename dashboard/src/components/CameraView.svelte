@@ -78,7 +78,7 @@
         if (live || gone || n !== tries) return;
         // Home Assistant failed the offer, usually because the stream was still starting: try the
         // same source again at once (the second start is warm and quick) before any fallback.
-        if (stop && stop.failed && stop.failed()) return giveUp();
+        if (stop && stop.failed && stop.failed()) return giveUp('offer failed');
         // No answer yet: the stream is still starting up (a transcoder spinning up, ring-mqtt starting
         // the Ring session). Give it ANSWER_WAIT_MS before falling back.
         if (stop && stop.answered && !stop.answered() && Date.now() - startedAt < ANSWER_WAIT_MS) {
@@ -94,16 +94,18 @@
           retry = setTimeout(check, 3000);
           return;
         }
-        giveUp();
+        giveUp(bytes ? 'stalled' : 'silent');
       };
-      const giveUp = () => {
+      // why: 'offer failed' (Home Assistant refused or timed out), 'silent' (nothing arrived),
+      // 'stalled' (bytes arrived but no frame decoded within the wait).
+      const giveUp = (why) => {
         if (live || gone) return;
         if (stop) { stop(); stop = null; }
         // A stream gets a second try (warm, quick) before anything else; one that still won't play
         // falls back to the camera's own live view (smaller, with sound), which gets two tries too.
-        if (tries < 2) { log('camera.retry', { camera: cam, tries }, 'warn'); attempt(); return; }
-        if (!withSound && soundEntity && soundEntity !== entity && !sharpFailed) { sharpFailed = true; withSound = true; return; }
-        log('camera.no_live', { camera: cam, tries }, 'warn'); noLive = true;
+        if (tries < 2) { log('camera.retry', { camera: cam, tries, why }, 'warn'); attempt(); return; }
+        if (!withSound && soundEntity && soundEntity !== entity && !sharpFailed) { sharpFailed = true; withSound = true; log('camera.fallback', { camera: cam, to: soundEntity, why }, 'warn'); return; }
+        log('camera.no_live', { camera: cam, tries, why }, 'warn'); noLive = true;
       };
       retry = setTimeout(check, RETRY_MS);
     };
