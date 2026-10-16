@@ -104,3 +104,13 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
 
 - **Cloudflare Access with a custom domain**, so the dashboard sits behind a login rather than only
   the shared key.
+
+## Docs
+
+- **More on the feature pages.** The README split (2026-10-16) moved the detail into `docs/` with
+  the text as it was; several pages would be clearer with a screenshot and a worked example (the
+  House tab's setup, notices from a blueprint, announcements, the Media tab).
+- **A page for the status page / frame check-in**, with a screenshot. The real page shows the
+  household (calendar names, notices), so it needs a demo mode of its own (invented frame, backends
+  and events, like the dashboard's `?demo=on`) or redaction before a screenshot.
+
