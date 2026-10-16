@@ -29,6 +29,7 @@
   import { ha, haConfigured, nowPrefs, setNowTv } from '../lib/ha.svelte.js';
   import { night, setNight, dayBrightness, setDayBrightness } from '../lib/night.svelte.js';
   import { api } from '../lib/api.js';
+  import { checkIn } from '../lib/checkin.js';
   import { time } from '../lib/format.js';
 
   const THEMES = [['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']];
@@ -62,6 +63,7 @@
     reloading = true;
     try { await api('/api/calendar?refresh'); } catch {}
     try { sessionStorage.setItem('frame-reload-reason', 'manual'); } catch {}
+    try { await checkIn(); } catch {} // send what the frame logged first
     location.reload();
   }
   // Timer alerts: "Announce" notify entities (Echos through Alexa Devices), kitchen ones first, up to 3.

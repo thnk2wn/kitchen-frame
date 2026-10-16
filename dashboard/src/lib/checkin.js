@@ -34,7 +34,7 @@ function settings() {
   return out;
 }
 
-async function checkIn() {
+export async function checkIn() {
   if (!kiosk() || ui.demo) return;
   const now = settings();
   const json = JSON.stringify(now);

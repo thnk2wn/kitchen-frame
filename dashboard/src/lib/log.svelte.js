@@ -13,7 +13,10 @@ import { limiter } from './limit.js';
 const PENDING_MAX = 300;
 const RECENT_KEY = 'frame-log-recent';
 
-let pending = [];
+// Unsent events are kept in storage too, so a reload before the next check-in doesn't lose them.
+const PENDING_KEY = 'frame-log-pending';
+let pending = (() => { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch { return []; } })();
+const savePending = () => { try { pending.length ? localStorage.setItem(PENDING_KEY, JSON.stringify(pending)) : localStorage.removeItem(PENDING_KEY); } catch {} };
 export const recent = $state((() => { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; } })());
 let flushSoon = null; // set by checkin.js: send what's pending now (used for errors)
 
@@ -31,6 +34,7 @@ export function log(event, data = {}, level = 'info') {
   for (const [k, v] of Object.entries(data)) if (v !== undefined && v !== null && v !== '') e[k] = trim(v);
   pending.push(e);
   if (pending.length > PENDING_MAX) pending = pending.slice(-PENDING_MAX);
+  savePending();
   // Untracked: log() is called from inside effects, and reading `recent` there made the effect
   // depend on it, so each entry re-ran the effect, which logged again (the 2026-10-15 camera loop).
   untrack(() => {
@@ -43,8 +47,8 @@ export function log(event, data = {}, level = 'info') {
 }
 
 // For the check-in: everything pending, cleared once it's been sent.
-export function take() { const out = pending; pending = []; return out; }
-export function putBack(events) { pending = events.concat(pending).slice(-PENDING_MAX); }
+export function take() { const out = pending; pending = []; savePending(); return out; }
+export function putBack(events) { pending = events.concat(pending).slice(-PENDING_MAX); savePending(); }
 export function onError(fn) { flushSoon = fn; }
 
 // Uncaught errors: one entry per distinct message per 10 minutes, so a loop can't flood the log.
