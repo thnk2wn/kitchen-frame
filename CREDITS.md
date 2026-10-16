@@ -25,6 +25,13 @@ description of that work.
 - Weather data by [Open-Meteo](https://open-meteo.com) (CC BY 4.0).
 - Forecast text and alerts from the US [National Weather Service](https://www.weather.gov) (public domain).
 - Recipes from [TheMealDB](https://www.themealdb.com) (free API key for personal use).
+- Maps: tiles and place lookups from [OpenStreetMap](https://www.openstreetmap.org/copyright)
+  (© OpenStreetMap contributors, ODbL) through its tile servers and
+  [Nominatim](https://operations.osmfoundation.org/policies/nominatim/), within their usage
+  policies (an identifying User-Agent, light use, results cached by the Worker).
+- Rain radar: in the US, NWS NEXRAD radar and NOAA's HRRR forecast tiles from the
+  [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu) (Iowa State University); elsewhere
+  [RainViewer](https://www.rainviewer.com/api.html) (free tier, non-commercial, attribution shown).
 - Calendars, Todoist, iCloud Shared Albums, Paprika, Spotify and Home Assistant / Music Assistant
   are each the household's own accounts, accessed through their APIs. Paprika and iCloud's shared
   album feed are undocumented APIs, read-only here.
