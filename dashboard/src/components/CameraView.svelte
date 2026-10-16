@@ -39,6 +39,7 @@
   // A first try sometimes stalls (a sleeping camera waking up), while a second connects in about a
   // second: so one retry after RETRY_MS, then pictures instead, rather than "connecting" for ever.
   const RETRY_MS = 10000;
+  const KEYFRAME_WAIT_MS = 30000;
   // The first big picture's wait, logged when slow (it has taken a minute on the frame's Wi-Fi).
   const openedAt = Date.now();
   let firstStill = true;
@@ -59,14 +60,33 @@
         // A slow first try that finishes after the retry began is closed, not kept.
         .then((s) => { if (gone || n !== tries) s && s(); else if (s) stop = s; else noLive = true; })
         .catch((e) => { console.error('camera live view', e); });
-      retry = setTimeout(() => {
+      // Video arriving but not yet shown is usually waiting for a keyframe (a whole picture to start
+      // from), which a Ring camera sends only every so often, a battery one rarely: on 2026-10-15 the
+      // frame had megabytes of video and 0 frames at 10 s. Starting over just waits for another, so
+      // while bytes keep coming it waits on, up to KEYFRAME_WAIT_MS; with nothing coming it retries.
+      const startedAt = Date.now();
+      let lastBytes = 0, waited = false;
+      const check = async () => {
+        if (live || gone || n !== tries) return;
+        const bytes = stop && stop.receivedBytes ? await stop.receivedBytes() : 0;
+        if (live || gone || n !== tries) return;
+        if (bytes > lastBytes && Date.now() - startedAt < KEYFRAME_WAIT_MS) {
+          if (!waited) { waited = true; log('camera.waiting', { camera: cam, bytes }); }
+          lastBytes = bytes;
+          retry = setTimeout(check, 3000);
+          return;
+        }
+        giveUp();
+      };
+      const giveUp = () => {
         if (live || gone) return;
         if (stop) { stop(); stop = null; }
         // A sharp stream that won't play (a doorbell's large picture can be too much for a frame's
         // video decoder): fall back to the camera's own live view, smaller but playable.
         if (!withSound && soundEntity && soundEntity !== entity && !sharpFailed) { sharpFailed = true; withSound = true; return; }
         if (tries < 2) { log('camera.retry', { camera: cam }, 'warn'); attempt(); } else { log('camera.no_live', { camera: cam, tries }, 'warn'); noLive = true; }
-      }, RETRY_MS);
+      };
+      retry = setTimeout(check, RETRY_MS);
     };
     // Untracked: starting the video reads and writes state (the log, the connection), and none of it
     // may make this effect start again.

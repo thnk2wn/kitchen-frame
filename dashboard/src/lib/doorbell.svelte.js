@@ -183,5 +183,11 @@ export async function startLive(entity_id, video, onPlaying) {
       pc.addIceCandidate(c).catch(() => {});
     } else if (ev.type === 'error') { log('camera.live_error', { camera: entity_id, step: 'offer', code: ev.code, error: ev.message, ms: ms() }, 'warn'); stop(); }
   });
+  // Video bytes received so far: the camera view keeps waiting while they grow (see CameraView).
+  stop.receivedBytes = async () => {
+    let b = 0;
+    try { (await pc.getStats()).forEach((r) => { if (r.type === 'inbound-rtp' && (r.kind || r.mediaType) === 'video') b = r.bytesReceived || 0; }); } catch {}
+    return b;
+  };
   return stop;
 }
