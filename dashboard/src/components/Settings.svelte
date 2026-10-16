@@ -312,7 +312,7 @@
     {/if}
     {#if haConfigured() && !ui.demo}
       <div class="row">
-        <span>Camera pictures<small>While the House tab is open. A camera is asked for a new picture at most every 5 min (it wakes a battery one)</small></span>
+        <span>Camera pictures<small>How often the House tab updates them while it’s open</small></span>
         <div class="seg">
           {#each [[1, 'Every minute'], [5, 'Every 5 min'], [0, 'Off']] as [v, label] (v)}
             <button class:on={ui.cameraRefresh === v} onclick={() => setSetting('cameraRefresh', v)}>{label}</button>
