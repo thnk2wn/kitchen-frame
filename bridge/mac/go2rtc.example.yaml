@@ -13,6 +13,8 @@ rtsp:
 webrtc:
   listen: ""                 # not used: Home Assistant's own go2rtc does WebRTC to the frame
 streams:
+  # One per camera the frame can't decode, named as you like (the Generic Camera in Home Assistant
+  # maps it to camera.<name>_stream). Here: two Spotlight Cam Pros.
   # ring-mqtt's RTSP: the add-on's port 8554 exposed on the home network, its livestream user and
   # password set in the add-on's options, and each camera's id from its ring-mqtt "Info" sensor
   # (stream_Source: rtsp://…-ring-mqtt:8554/<id>_live).

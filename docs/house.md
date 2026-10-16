@@ -94,11 +94,11 @@ Camera in HA → the frame.** Everything stays local; streams run only while som
    Privacy & Security → Local Network). Until then go2rtc's ffmpeg gets "No route to host" even
    though the same command works from a shell. Give the Mac a fixed address (a router reservation).
 4. **Home Assistant:** point the camera's Generic Camera entry at
-   `rtsp://frame:<go2rtc password>@<the mac>:8554/garage` (its `.lan` name from the router, or a fixed address) and enable it (`camera.garage_stream`).
+   `rtsp://frame:<go2rtc password>@<the mac>:8554/<name>` (the Mac's `.lan` name from the router, or a fixed address) and enable it, so it exists as `camera.<name>_stream`.
    The frame prefers the stream and falls back to Ring's live view and then pictures as before.
 
-Measured here: Garage comes through at 1280×718, 15 fps, H.264 Main, and the Doorbell Pro 2 at
-1280×1280, 20 fps; the Mac chain delivers a first frame in about 6–8 s cold and 5 s warm, and the frame showed live video 9 s after opening the camera
+Measured here: a Spotlight Cam Pro comes through at 1280×718, 15 fps, H.264 Main, and a Doorbell
+Pro 2 at 1280×1280, 20 fps; the Mac chain delivers a first frame in about 6–8 s cold and 5 s warm, and the frame showed live video 9 s after opening the camera
 (it waits up to 30 s for Home Assistant's answer, showing the refreshing picture and a seconds count
 meanwhile). A 2.3 GHz i7 spends a fraction of a core per stream. ring-mqtt drops the Ring session
 the moment the last viewer leaves, so a request within a second of that gets a 404 and is retried.
