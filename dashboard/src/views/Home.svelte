@@ -38,8 +38,18 @@
   });
   // Tonight's dinner (and any other meal planned today) from Paprika, above today's events.
   let todaysMeals = $derived(mealItems().filter((m) => m.date === dayKey(clock.now)));
-  // Who's up early, whose bedtime: today's, or tomorrow's once its time has passed (lib/rotations.js).
+  // Rotations (lib/rotations.js): today's at the top, a timed one (bedtime) among today's events at
+  // its time, and tomorrow's (who's up early) last, getting ready for the next day.
   let duties = $derived(rotationLines(rotationRules(), clock.now));
+  let dutiesAt = (place) => duties.filter((d) => d.place === place);
+  // Today's events with the timed rotations slotted in: all-day events first, then by start time.
+  let todayItems = $derived.by(() => {
+    const day = new Date(clock.now.getFullYear(), clock.now.getMonth(), clock.now.getDate()).getTime();
+    const items = today.map((e) => ({ e, t: e.allDay ? -1 : Date.parse(e.start) }));
+    for (const d of dutiesAt('at')) items.push({ d, t: day + d.at * 60000 });
+    return items.sort((a, b) => a.t - b.t);
+  });
+  const atTime = (d) => time(new Date(clock.now.getFullYear(), clock.now.getMonth(), clock.now.getDate(), 0, d.at));
   function openMeal(m) {
     if (!m.id) return;
     ui.openRecipe = { id: m.id, title: m.title };
@@ -103,10 +113,10 @@
     <!-- The list scrolls inside the widget on a busy day; the footer action always stays visible. -->
     <div class="scroll">
       <h2>Today</h2>
-      {#each duties as d (d.name)}
+      {#each dutiesAt('top') as d (d.name)}
         <div class="meal duty">
           <span class="mic"><Icon name={d.icon} size={16} /></span>
-          <span class="mtxt"><span class="mtype">{d.name}{d.tomorrow ? ' tomorrow' : ''}</span> <Txt text={d.text} /></span>
+          <span class="mtxt"><span class="mtype">{d.name}</span> <Txt text={d.text} /></span>
         </div>
       {/each}
       {#each todaysMeals as m (m.type + m.title)}
@@ -118,12 +128,25 @@
       {#if !calendar.data && calendar.offline}
         <p class="empty">Couldn’t load the calendar.</p>
       {:else}
-        {#each today as e (e.uid + e.start)}
-          <EventRow event={e} now={clock.now} />
+        {#each todayItems as item (item.e ? item.e.uid + item.e.start : 'duty:' + item.d.name)}
+          {#if item.e}
+            <EventRow event={item.e} now={clock.now} />
+          {:else}
+            <div class="meal duty timed">
+              <span class="mic"><Icon name={item.d.icon} size={16} /></span>
+              <span class="mtxt"><span class="mtype">{item.d.name}</span> <Txt text={item.d.text} /> <span class="at">{atTime(item.d)}</span></span>
+            </div>
+          {/if}
         {:else}
           <p class="empty">{calendar.data ? 'No more events today' : 'Loading…'}</p>
         {/each}
       {/if}
+      {#each dutiesAt('bottom') as d (d.name)}
+        <div class="meal duty next">
+          <span class="mic"><Icon name={d.icon} size={16} /></span>
+          <span class="mtxt"><span class="mtype">{d.name} tomorrow</span> <Txt text={d.text} /></span>
+        </div>
+      {/each}
       <h2 class="later">Upcoming</h2>
       {#each upcomingDays as d (d.name)}
         <div class="day-head">{d.name}</div>
@@ -230,10 +253,14 @@
   /* One heading per upcoming day, with a thin line above it so days don't run together. */
   .day-head { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--sep); font-size: 15px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--secondary); }
   h2.later + .day-head { margin-top: 2px; border-top: 0; padding-top: 4px; }
-  .meal { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0 6px; text-align: left; font-size: 19px; font-weight: 600; }
+  /* Long dinner names and rotations wrap under themselves rather than being cut off. */
+  .meal { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 0 6px; text-align: left; font-size: 19px; font-weight: 600; line-height: 1.35; }
   .meal.link:active { opacity: .6; }
   .mic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--orange); color: #fff; }
-  .mtxt { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mic { margin-top: -1px; }
+  .mtxt { min-width: 0; overflow-wrap: anywhere; }
+  .duty.timed, .duty.next { padding-top: 10px; }
+  .at { font-weight: 500; color: var(--secondary); }
   .mtype { color: var(--orange-text); }
   .duty .mic { background: var(--purple); }
   .duty .mtype { color: var(--purple-text); }

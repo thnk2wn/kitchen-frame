@@ -508,3 +508,16 @@ test('settings: a change a person made is logged and the version before it kept;
   assert.deepEqual(versions[0].changes, ['frame-theme: "auto" → "dark"']);
   assert.equal((await (await call('/api/frame/settings')).json()).settings['frame-theme'], 'dark');
 });
+
+import { iemFrames } from './radar.js';
+test('radar: the last hour of NEXRAD, now, then HRRR steps counted from its run', () => {
+  const now = Date.parse('2026-10-16T01:30:00Z'), valid = Date.parse('2026-10-16T01:25:00Z'), init = Date.parse('2026-10-15T23:00:00Z');
+  const f = iemFrames(valid, init, now);
+  assert.deepEqual(f.map((x) => x.kind), ['past', 'past', 'past', 'past', 'past', 'now', 'forecast', 'forecast', 'forecast', 'forecast']);
+  assert.match(f[0].url, /nexrad-n0q-900913-m50m\/\{z\}\/\{x\}\/\{y\}\.png\?v=/);
+  assert.equal(new Date(f[0].time).toISOString(), '2026-10-16T00:35:00.000Z');
+  assert.match(f[6].url, /hrrr::REFD-F0180-0\//); // 02:00Z: 3 hours into the 23Z run
+  assert.equal(new Date(f[6].time).toISOString(), '2026-10-16T02:00:00.000Z');
+  assert.match(f[9].url, /REFD-F0270-0/);
+  assert.equal(iemFrames(valid, NaN, now).length, 6); // no HRRR: past and now only
+});

@@ -51,7 +51,7 @@
           <button class="rbtn" class:on={radar} onclick={() => (radar = true)}>
             <span class="dn">Radar</span>
             <span class="ic rain"><Icon name="rain" size={22} /></span>
-            <span class="num">2 hours</span>
+            <span class="num">Now + 2 h</span>
           </button>
         </nav>
         <button class="x" onclick={close} aria-label="Close"><Icon name="close" size={26} /></button>
