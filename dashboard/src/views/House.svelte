@@ -161,10 +161,6 @@
   // The sharper <name>_stream companion when there is one and it's available, chosen once when the
   // view opens, so a state update while video is starting can't swap the camera underneath it.
   const streamOf = (id) => { const s = companionsOf(id)[2]; return st(s) && st(s).state !== 'unavailable' ? s : null; };
-  // ring-mqtt's live-stream switch for the camera, when there is one: turned on while the view is
-  // open, it starts the Ring session at once and keeps it up through a retry, which otherwise costs
-  // a cold start each time.
-  const warmOf = (id) => { const w = 'switch.' + id.replace(/^camera\./, '').replace(/_(live_view|snapshot|stream)$/, '') + '_live_stream'; return st(w) ? w : null; };
   const refreshAll = (items) => { for (const i of items) if (i.kind === 'camera') tapCamera(i.entity); };
   // A camera is asked for a new snapshot at most every SNAP_GAP_MS, whatever asks (a tap, Refresh, the
   // full-screen view): a runaway caller once pressed the button thousands of times in seconds.
@@ -259,7 +255,7 @@
                 </div>
               {:else if item.kind === 'camera'}
                 {@const src = shown[item.entity] || camSrc(item.entity, shots[item.entity])}
-                <button class="tile sheet camera" onclick={() => !houseDemo.on && (viewing = { entity: item.entity, stream: streamOf(item.entity), warm: warmOf(item.entity), name: label(item).replace(/\s*live view$/i, '') })} aria-label={'Open ' + label(item)}>
+                <button class="tile sheet camera" onclick={() => !houseDemo.on && (viewing = { entity: item.entity, stream: streamOf(item.entity), name: label(item).replace(/\s*live view$/i, '') })} aria-label={'Open ' + label(item)}>
                   {#if src && !houseDemo.on}<img {src} alt="" decoding="async" />{:else}<span class="noimg" class:demo={houseDemo.on}><Icon name="camera" size={30} /></span>{/if}
                   <span class="cap"><span class="cname">{label(item).replace(/\s*live view$/i, '')}</span>{#if camAge(item.entity)}<span class="age"><Icon name="reload" size={13} /> {camAge(item.entity)}</span>{/if}</span>
                 </button>
@@ -286,7 +282,7 @@
 </div>
 
 {#if viewing}
-  <CameraView entity={viewing.stream || viewing.entity} soundEntity={viewing.entity} warm={viewing.warm} name={viewing.name} picture={attr(snapOf(viewing.entity) ? snapOf(viewing.entity).cam : viewing.entity).entity_picture || ''}
+  <CameraView entity={viewing.stream || viewing.entity} soundEntity={viewing.entity} name={viewing.name} picture={attr(snapOf(viewing.entity) ? snapOf(viewing.entity).cam : viewing.entity).entity_picture || ''}
     age={camAge(viewing.entity)} takenAt={camTakenAt(viewing.entity)} onsnap={() => tapCamera(viewing.entity)} onclose={() => (viewing = null)} />
 {/if}
 

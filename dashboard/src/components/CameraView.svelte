@@ -14,16 +14,7 @@
   // its sharper <name>_stream without audio): the Sound button switches to it, Sharper back.
   // takenAt: when the picture shown was taken (ms; 0 if unknown), shown as a clock time with seconds.
   // takenAt: { t, real }: when the picture was taken by the camera (real), or only loaded here.
-  // warm: ring-mqtt's switch.<name>_live_stream, held on while the view is open (see House.svelte).
-  let { entity, soundEntity = null, name, picture = '', onclose, onsnap = null, age = '', takenAt = { t: 0, real: false }, warm = null } = $props();
-  import { callService } from '../lib/ha.svelte.js';
-  $effect(() => {
-    const w = warm;
-    if (!w) return;
-    log('camera.warm', { switch: w });
-    callService('switch', 'turn_on', {}, { entity_id: w }).catch(() => {});
-    return () => { callService('switch', 'turn_off', {}, { entity_id: w }).catch(() => {}); };
-  });
+  let { entity, soundEntity = null, name, picture = '', onclose, onsnap = null, age = '', takenAt = { t: 0, real: false } } = $props();
   // "Starting live video…", then with the seconds, then a word about why it can take a while: a
   // stream that goes through ring-mqtt and a transcoder starts in 10-25 s.
   const startingText = (now) => {
