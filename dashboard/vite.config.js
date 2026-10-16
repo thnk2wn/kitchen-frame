@@ -7,6 +7,8 @@ import { cloudflare } from '@cloudflare/vite-plugin';
 // lets the minifier rewrite rgba() into that form (found on-device in wesbos/photo-frame-dashboard).
 export default defineConfig({
   plugins: [svelte(), cloudflare()],
+  // When this build was made, shown beside the version in Settings → About.
+  define: { __BUILT_AT__: JSON.stringify(new Date().toISOString()) },
   build: {
     target: 'chrome106',
     cssTarget: 'chrome61',

@@ -39,6 +39,9 @@
   let reloading = $state(false);
   // The running version: the hash in the page's script name (a new deploy changes it).
   const version = ((/assets\/index-([\w-]+)\.js/.exec(document.documentElement.innerHTML) || [])[1] || 'dev').slice(0, 6);
+  // And when it was built (vite.config.js), e.g. "Oct 15, 10:24 PM".
+  /* global __BUILT_AT__ */
+  const built = typeof __BUILT_AT__ === 'string' ? new Date(__BUILT_AT__).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
   // Brightness goes through the kiosk app (window.FrameKiosk); not available in a normal browser.
   const kiosk = typeof window !== 'undefined' ? window.FrameKiosk : null;
@@ -354,7 +357,7 @@
       </ol>
     {/if}
     <div class="row last">
-      <span>{ui.demo ? 'Showing demo data' : (calendar.data ? 'Calendar updated ' + time(new Date(calendar.data.updated)) : 'Calendar not loaded') + ' · ' + photos.items.length + ' photos'} · version {version}</span>
+      <span>{ui.demo ? 'Showing demo data' : (calendar.data ? 'Calendar updated ' + time(new Date(calendar.data.updated)) : 'Calendar not loaded') + ' · ' + photos.items.length + ' photos'} · version {version}{built ? ', built ' + built : ''}</span>
       <button class="reload" disabled={reloading} onclick={reload}><Icon name="reload" size={20} />{reloading ? 'Reloading…' : 'Reload'}</button>
     </div>
     {/if}
