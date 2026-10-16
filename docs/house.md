@@ -71,3 +71,34 @@ through, and Ring ignores the bandwidth and frame-size hints a viewer can put in
 cameras use refreshing pictures instead; the fix would be transcoding before the frame (see
 [ROADMAP.md](../ROADMAP.md)). Streams that don't play are best left disabled in HA (Settings →
 Devices & Services → Generic Camera) so the frame doesn't wait on them.
+
+### Transcoding on a Mac
+
+For the cameras the frame can't decode, an always-on Mac on the home network (the one that runs the
+Reminders bridge, here) can shrink the stream before Home Assistant relays it:
+**Ring → ring-mqtt → go2rtc on the Mac (scaling to 1280 wide on the Mac's video hardware) → a Generic
+Camera in HA → the frame.** Everything stays local; streams run only while something is watching.
+
+1. **ring-mqtt:** in the add-on's options set a livestream user and password, and in its Network
+   section expose port 8554 (it's internal to HA until then). Restart the add-on.
+2. **The Mac:** make `~/go2rtc/`, put the `go2rtc` binary there
+   ([releases](https://github.com/AlexxIT/go2rtc/releases), `go2rtc_mac_amd64` or `_arm64`) and a
+   static `ffmpeg` with the VideoToolbox encoder (for example the darwin build from
+   [ffmpeg-static's releases](https://github.com/eugeneware/ffmpeg-static/releases); check
+   `./ffmpeg -encoders | grep videotoolbox`). Copy [`bridge/mac/go2rtc.example.yaml`](../bridge/mac/go2rtc.example.yaml)
+   to `~/go2rtc/go2rtc.yaml` and fill it in. Run it at login with a launch agent like the bridge's
+   (`~/Library/LaunchAgents/local.kitchen-frame.go2rtc.plist` running `go2rtc -config …`,
+   `RunAtLoad` and `KeepAlive`). Hardware *decode* with go2rtc's `#hardware` doesn't scale on
+   macOS (ffmpeg can't convert the pixel format); software decode plus the `h264/vt` encoder
+   template in the example is light and works.
+3. **macOS asks once** whether go2rtc may use the local network; allow it (System Settings →
+   Privacy & Security → Local Network). Until then go2rtc's ffmpeg gets "No route to host" even
+   though the same command works from a shell. Give the Mac a fixed address (a router reservation).
+4. **Home Assistant:** point the camera's Generic Camera entry at
+   `rtsp://frame:<go2rtc password>@<the mac>:8554/garage` (its `.lan` name from the router, or a fixed address) and enable it (`camera.garage_stream`).
+   The frame prefers the stream and falls back to Ring's live view and then pictures as before.
+
+Measured here: Garage comes through at 1280×718, 15 fps, H.264 Main, decoded at more than twice
+real time; a 2.3 GHz i7 spends a fraction of a core per stream. ring-mqtt drops the Ring session
+the moment the last viewer leaves, so a request within a second of that gets a 404 and is retried.
+
