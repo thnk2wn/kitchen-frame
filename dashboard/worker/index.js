@@ -17,6 +17,7 @@
 //   POST /api/frame/status           the kiosk checks in: version, screen, and its settings (frame.js)
 //   GET  /api/frame/status           its last check-in;  GET /api/frame/settings  the settings backup
 //   POST /api/frame/checkin          asks the frame to check in now, over the messages socket
+//   POST /api/frame/reload           asks it to reload the dashboard (it sends its events first)
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
@@ -173,6 +174,7 @@ async function handle(req, env, ctx) {
       }
       // Ask the frame to check in now, over its live connection (scripts/frame-status.sh --now).
       if (url.pathname === '/api/frame/checkin' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'checkin' }) });
+      if (url.pathname === '/api/frame/reload' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'reload' }) });
       if (url.pathname === '/api/frame/status') return json(await getStatus(env));
       if (url.pathname === '/api/frame/settings') return json(url.searchParams.has('history') ? await getSettingsHistory(env) : await getSettings(env));
       if (url.pathname === '/api/ops/summary') return json(await opsSummary(env, KEY));

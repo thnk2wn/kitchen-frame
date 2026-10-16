@@ -116,11 +116,13 @@ export async function startLive(entity_id, video, onPlaying) {
   pc.addTransceiver('video', { direction: 'recvonly' });
   const stream = new MediaStream();
   pc.ontrack = (e) => {
+    tracks++;
     stream.addTrack(e.track);
     video.srcObject = stream;
     video.play().catch(() => {});
   };
-  video.onplaying = () => { log('camera.live', { camera: entity_id, ms: ms() }); onPlaying(); };
+  let played = false, tracks = 0;
+  video.onplaying = () => { played = true; log('camera.live', { camera: entity_id, ms: ms() }); onPlaying(); };
   pc.oniceconnectionstatechange = () => {
     const st = pc.iceConnectionState;
     if (st === 'failed' || st === 'disconnected') log('camera.ice', { camera: entity_id, state: st, ms: ms() }, 'warn');
@@ -143,8 +145,22 @@ export async function startLive(entity_id, video, onPlaying) {
       setTimeout(done, 3000);
     });
   }
-  const stop = () => {
+  // Given up on before it played: what the connection had done, to tell a slow start from video that
+  // arrives but won't decode (bytes and frames received, its size).
+  const report = async () => {
+    const out = { camera: entity_id, ms: ms(), ice: pc.iceConnectionState, conn: pc.connectionState, tracks, answered: !!pc.remoteDescription };
+    try {
+      (await pc.getStats()).forEach((r) => {
+        if (r.type === 'inbound-rtp' && (r.kind || r.mediaType) === 'video') Object.assign(out, { bytes: r.bytesReceived || 0, frames: r.framesDecoded || 0, size: r.frameWidth ? r.frameWidth + 'x' + r.frameHeight : '' });
+        if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) out.pair = 'ok';
+      });
+    } catch {}
+    log('camera.not_playing', out, 'warn');
+  };
+  const stop = async () => {
+    if (stopped) return;
     stopped = true;
+    if (!played) await report();
     try { pc.close(); } catch {}
     if (sub) unsubscribeFrom(sub);
     video.srcObject = null;

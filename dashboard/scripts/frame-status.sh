@@ -6,10 +6,15 @@
 # With --log, also the frame's recent events (lib/log.svelte.js), oldest first; --log N for the last N.
 # With --now first, it asks the frame to check in at once (over its live connection) and waits for it:
 #   scripts/frame-status.sh --now --log 30
+# --reload asks it to reload the dashboard (sending its events first), e.g. to pick up a deploy.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 key=$(sed -n 's/^DASHBOARD_KEY="\(.*\)"/\1/p' .dev.vars)
 url=$(sed -n 's/^DASHBOARD_URL="\(.*\)"/\1/p' .frame.vars); url=${url%/}
+if [ "${1:-}" = "--reload" ]; then
+  sent=$(curl -fsS -X POST -H "Authorization: Bearer $key" "$url/api/frame/reload" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("sent", 0))')
+  echo "Asked the frame to reload ($sent connection(s))."; exit 0
+fi
 if [ "${1:-}" = "--now" ]; then
   shift
   sent=$(curl -fsS -X POST -H "Authorization: Bearer $key" "$url/api/frame/checkin" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("sent", 0))')

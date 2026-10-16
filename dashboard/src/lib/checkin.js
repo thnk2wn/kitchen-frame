@@ -83,9 +83,11 @@ onError(() => {
 // "Check in now" from the Worker (frame-status.sh --now, the status page): at most every 10 s.
 let lastAsked = 0;
 if (typeof window !== 'undefined') window.addEventListener('frame-command', (e) => {
-  if (e.detail !== 'checkin' || Date.now() - lastAsked < 10000) return;
+  if (!kiosk() || Date.now() - lastAsked < 10000) return;
   lastAsked = Date.now();
-  checkIn();
+  if (e.detail === 'checkin') checkIn();
+  // A reload sends what's logged first, and says why it happened.
+  if (e.detail === 'reload') checkIn().finally(() => { reloadFor('remote'); location.reload(); });
 });
 
 export function startCheckIn() {
