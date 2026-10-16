@@ -191,6 +191,10 @@ async function handle(req, env, ctx) {
       }
       if (url.pathname === '/api/meals' && req.method === 'GET') return json(await listMeals(env));
       if (url.pathname === '/api/rotations') return json({ rotations: rotations(env) });
+      // The camera relay on the home network (bridge/camera-relay/): CAMERA_RELAY, a secret,
+      // holds one or more addresses of the same relay, space-separated, each
+      // http://<host>:1985/<token>/?cameras=<name>,<name>. The frame uses whichever answers.
+      if (url.pathname === '/api/camera-relay') return json({ relays: String(env.CAMERA_RELAY || '').split(/[\s,]+(?=https?:)/).map((s) => s.trim()).filter(Boolean) });
       if (url.pathname === '/api/recipes/paprika' && req.method === 'GET') {
         if (url.searchParams.has('sync')) await syncPaprika(env);
         return json(await listPaprika(env));

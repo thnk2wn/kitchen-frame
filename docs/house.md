@@ -47,59 +47,116 @@ camera wakes it. New pictures load before they replace the old one, so nothing f
 Tap a camera for it full screen: live video over WebRTC when the camera offers it, otherwise the
 picture refreshed every 15 seconds, with when it was taken ("picture taken 10:31:42 PM (25 s ago)").
 It closes itself after two minutes. While video is arriving but hasn't shown yet (waiting for a
-keyframe) the frame waits up to 30 seconds before retrying.
+keyframe) the frame waits up to 30 seconds before retrying. **Sound** unmutes it; for a camera
+whose sharp stream has no sound, it switches to the camera's own live view (smaller, with sound)
+and **Sharper** switches back.
 
-### Sharper Ring live video, and what the frame can decode
+### Live video, and what the frame can decode
 
-Through Home Assistant's Ring integration, a Ring camera streams at its native size. With
-[ring-mqtt](https://github.com/tsightler/ring-mqtt), add a **Generic Camera** in Home Assistant for
-a camera (Settings → Devices & Services → Add → Generic Camera) with its **Stream source** set to the
-`stream_Source` address shown on that camera's ring-mqtt **Info** sensor
-(`rtsp://…-ring-mqtt:8554/<id>_live`), and name its entity `camera.<name>_stream`, where `<name>`
-matches the camera's `camera.<name>_live_view` or `_snapshot`. The House tab and the doorbell pop-up
-then prefer the stream and fall back to Ring's live view without one, or when the stream doesn't
-play within 30 s. The full-screen view's **Sound** button switches to Ring's live view (with sound)
-and **Sharper** back.
+**The short version:** some Ring cameras send a picture bigger than the frame's video decoder can
+handle, so it arrives and never shows. Those cameras go through a Mac at home that shrinks the
+picture first. Everything else plays as it comes.
 
-**Try each camera on the frame before keeping it.** A picture wider than the frame's video decoder
-handles arrives but never decodes: the frame's event log shows `camera.not_playing` with bytes but
-0 frames. This frame's RK3326 decodes H.264 up to 1920 wide. Measured here: a Floodlight Cam Pro
-and a Stick Up Cam play through ring-mqtt streams that come through at 720p; a Doorbell Pro 2 at
-1536×1536 plays only now and then; a Spotlight Cam Pro doesn't play on either path, since Ring sends
-it at 2624×1472 (its "2K" video quality setting) or 1968×1104 (its "1080p"), ring-mqtt passes the
-camera's size through, and Ring ignores the bandwidth and frame-size hints a viewer can put in its
-offer. Those three go through the Mac below. Streams that don't play are best left disabled in HA
-(Settings → Devices & Services → Generic Camera) so the frame doesn't wait on them.
+A camera can reach the frame three ways. The full-screen view tries them in this order and falls
+back on its own:
 
-### Transcoding on a Mac
+1. **The camera relay** (below), for cameras too big for the frame: shrunk on a Mac, with sound.
+2. **`camera.<name>_stream`**: a **Generic Camera** in Home Assistant on the camera's
+   [ring-mqtt](https://github.com/tsightler/ring-mqtt) stream, played through Home Assistant. No sound.
+3. **`camera.<name>_live_view`**: Ring's own live view through Home Assistant's Ring integration,
+   with sound. Used when the others fail, and by **Sound** for a camera on path 2.
 
-For the cameras the frame can't decode, an always-on Mac on the home network (the one that runs the
-Reminders bridge, here) can shrink the stream before Home Assistant relays it:
-**Ring → ring-mqtt → go2rtc on the Mac (scaling to 1280 wide on the Mac's video hardware) → a Generic
-Camera in HA → the frame.** Everything stays local; streams run only while something is watching.
+Then pictures, refreshed every 15 seconds. Whenever it falls back, a yellow line under the camera's
+name says why (for example "⚠ Video relay offline · showing the camera's own video"), so a grainy
+or still picture is never a mystery. The reasons are also in the frame's event log (`camera.*`).
+
+For path 2, add a Generic Camera (Settings → Devices & Services → Add → Generic Camera) with its
+**Stream source** set to the `stream_Source` address on the camera's ring-mqtt **Info** sensor
+(`rtsp://<user>:<password>@…-ring-mqtt:8554/<id>_live`, with the livestream user and password once
+those are set in ring-mqtt), and name its entity `camera.<name>_stream`, where `<name>` matches the
+camera's `camera.<name>_live_view`.
+
+**Which cameras need the relay.** The frame's RK3326 decodes H.264 up to 1920 wide. A picture wider
+than that arrives but never decodes: the event log shows `camera.not_playing` with bytes received but
+0 frames. Measured here:
+
+| Camera | Ring sends | On the frame |
+|---|---|---|
+| Floodlight Cam Pro, Stick Up Cam | 720p through ring-mqtt | plays (path 2) |
+| Doorbell Pro 2 | 1536×1536 | plays only now and then: use the relay |
+| Spotlight Cam Pro | 2624×1472 ("2K") or 1968×1104 ("1080p") | never: use the relay |
+
+There's no way to ask Ring for less: ring-mqtt passes the camera's size through, and Ring ignored
+both the bandwidth cap and the frame-size limit the frame can put in its WebRTC offer (both tried).
+The Ring app's **Video Quality** setting doesn't go below 1968 wide on a Spotlight Cam Pro.
+
+### Cameras the frame can't decode: the camera relay
+
+An always-on Mac on the home network (here the one that runs the Reminders bridge) shrinks those
+cameras to 1280 wide on its video hardware, adds their sound, and the frame plays them straight from
+it:
+
+```
+Ring → ring-mqtt (Home Assistant add-on) → go2rtc on the Mac (shrink, add sound) → the frame
+                                                 ↑ relay-gate.py checks the frame's token
+```
+
+**Why straight to the frame, not through Home Assistant.** Home Assistant gives up on a stream that
+stays silent for about 10 seconds, and a cold start (Ring wakes the camera, ring-mqtt connects,
+the Mac starts transcoding) measured 4 to 12 s, so about half the cold opens failed. Played directly,
+the frame waits as long as it needs (up to 30 s). The Mac's streams still exist as Generic Cameras
+in Home Assistant (path 2) for anything else that wants them.
+
+**Why a gate.** The frame's page can't hand go2rtc a password: browsers drop a password written in a
+WebSocket address, and go2rtc refuses the check browsers make before sending one in a header. Its
+API can't simply be left open, because go2rtc's API can run commands on the Mac. So go2rtc's API
+listens on the Mac only, and `relay-gate.py` (about 80 lines, Python that ships with macOS) lets
+through just the video signalling, and only with a long random token. The Worker hands the
+relay's address and token to the frame (secret `CAMERA_RELAY`), like it hands it everything else.
+
+**Why the sound is a separate ffmpeg.** One ffmpeg muxing both held the video seconds behind the
+audio, which played choppy and then froze while the page still said Live. Each now runs on its own
+and go2rtc combines them. For the same reason the frame plays them without lip sync, since their
+clocks are unrelated (sync froze the picture the moment sound was turned on).
+
+**Setup** (files in [`bridge/camera-relay/`](../bridge/camera-relay/)):
 
 1. **ring-mqtt:** in the add-on's options set a livestream user and password, and in its Network
-   section expose port 8554 (it's internal to HA until then). Restart the add-on.
-2. **The Mac:** make `~/go2rtc/`, put the `go2rtc` binary there
+   section expose port 8554 on the home network. Restart the add-on. **This puts a password on every
+   ring-mqtt stream**, so update any Generic Camera that used the bare address (path 2 above) to the
+   one with the user and password, or it stops playing (Home Assistant logs `401 Unauthorized`).
+2. **The Mac:** make `~/go2rtc/` and put two programs in it: `go2rtc`
    ([releases](https://github.com/AlexxIT/go2rtc/releases), `go2rtc_mac_amd64` or `_arm64`) and a
-   static `ffmpeg` with the VideoToolbox encoder (for example the darwin build from
-   [ffmpeg-static's releases](https://github.com/eugeneware/ffmpeg-static/releases); check
-   `./ffmpeg -encoders | grep videotoolbox`). Copy [`bridge/mac/go2rtc.example.yaml`](../bridge/mac/go2rtc.example.yaml)
-   to `~/go2rtc/go2rtc.yaml` and fill it in. Run it at login with a launch agent like the bridge's
-   (`~/Library/LaunchAgents/local.kitchen-frame.go2rtc.plist` running `go2rtc -config …`,
-   `RunAtLoad` and `KeepAlive`). Hardware *decode* with go2rtc's `#hardware` doesn't scale on
-   macOS (ffmpeg can't convert the pixel format); software decode plus the `h264/vt` encoder
-   template in the example is light and works.
-3. **macOS asks once** whether go2rtc may use the local network; allow it (System Settings →
-   Privacy & Security → Local Network). Until then go2rtc's ffmpeg gets "No route to host" even
-   though the same command works from a shell. Give the Mac a fixed address (a router reservation).
-4. **Home Assistant:** point the camera's Generic Camera entry at
-   `rtsp://frame:<go2rtc password>@<the mac>:8554/<name>` (the Mac's `.lan` name from the router, or a fixed address) and enable it, so it exists as `camera.<name>_stream`.
-   The frame prefers the stream and falls back to Ring's live view and then pictures as before.
+   static `ffmpeg` with VideoToolbox (for example the darwin build from
+   [ffmpeg-static](https://github.com/eugeneware/ffmpeg-static/releases); check
+   `./ffmpeg -encoders | grep videotoolbox`).
+3. **Install:** copy `bridge/camera-relay/` to the Mac and run `camera-relay.sh install`. It wraps
+   go2rtc in a small app bundle, sets up go2rtc and the gate to run at login and restart if they stop,
+   makes the token, and writes `~/go2rtc/go2rtc.yaml` from the example the first time. Fill in its
+   `<…>` parts (one `<name>` and `<name>_av` pair per camera), then `camera-relay.sh restart`.
+   `camera-relay.sh status` and `logs` show what's running. They're two processes rather than one
+   because go2rtc's app bundle holds a macOS permission the gate doesn't need (next step).
+4. **macOS asks once** whether go2rtc may use the local network; allow it (System Settings → Privacy &
+   Security → Local Network). Until then go2rtc's ffmpeg gets "No route to host" even though the same
+   command works from a shell. That's why go2rtc runs as an app: the permission belongs to an app.
+5. **The Worker:** store the relay's address with the token, from the computer you deploy from (the
+   install prints the command): `CAMERA_RELAY` = `http://<the mac>:1985/<token>/?cameras=<name>,<name>`,
+   one address per way of reaching the Mac, space-separated (its IP and its `.lan` name, say: the
+   frame uses whichever answers). `?cameras=` lists the cameras the relay serves; their `<name>`s
+   match the Home Assistant cameras.
+6. **Home Assistant (optional):** point each camera's Generic Camera at
+   `rtsp://frame:<go2rtc password>@<the mac>:8554/<name>`, so `camera.<name>_stream` (path 2) also
+   goes through the Mac. Saving can time out while Home Assistant test-opens a cold stream; open the
+   stream first (any player) so it's warm.
 
-Measured here: a Spotlight Cam Pro comes through at 1280×718, 15 fps, H.264 Main, and a Doorbell
-Pro 2 at 1280×1280, 20 fps; the Mac chain delivers a first frame in about 6–8 s cold and 5 s warm, and the frame showed live video 9 s after opening the camera
-(it waits up to 30 s for Home Assistant's answer, showing the refreshing picture and a seconds count
-meanwhile). A 2.3 GHz i7 spends a fraction of a core per stream. ring-mqtt drops the Ring session
-the moment the last viewer leaves, so a request within a second of that gets a 404 and is retried.
+**If the Mac is off, asleep or has a new address,** the frame notices in about 2.5 s and shows the
+camera's own live view with "⚠ Video relay offline". A Doorbell Pro 2 then often still plays; a
+Spotlight Cam Pro shows pictures.
+
+**Measured here:** cold, the frame shows a Spotlight Cam Pro (1280×718) or a Doorbell Pro 2
+(1280×1280) in 10–14 s, a desktop browser in about 6.5 s. The Mac (a 2.3 GHz Intel i7) spends a few
+percent of a core per camera with hardware decoding (about 57% with software decoding). ring-mqtt
+drops the Ring session the moment the last viewer leaves, so a request within a second of that gets
+a 404 and is retried. Ring's own sound is quiet (near silence from a quiet porch), so the relay
+boosts it 4×.
 

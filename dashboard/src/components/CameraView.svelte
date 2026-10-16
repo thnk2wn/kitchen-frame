@@ -5,6 +5,7 @@
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import { startLive } from '../lib/doorbell.svelte.js';
+  import { relayServes, startRelayLive } from '../lib/relay.js';
   import { ha, haUrl } from '../lib/ha.svelte.js';
   import { log } from '../lib/log.svelte.js';
 
@@ -27,7 +28,7 @@
   // "Starting live video…", then with the seconds, then a word about why it can take a while: a
   // stream that goes through ring-mqtt and a transcoder starts in 10-25 s.
   const startingText = (now) => {
-    const s = Math.round((now - openedAt) / 1000);
+    const s = Math.max(0, Math.round((now - sourceAt) / 1000));
     return s < 6 ? 'Starting live video…' : s < 12 ? 'Starting live video… ' + s + ' s' : 'Still starting (the stream spins up on request, 10–25 s)… ' + s + ' s';
   };
   const taken = (p, now) => {
@@ -35,10 +36,24 @@
     const s = Math.max(0, Math.round((now - p.t) / 1000));
     return (p.real ? 'taken ' : 'loaded ') + new Date(p.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + ' (' + (s < 90 ? s + ' s' : Math.round(s / 60) + ' min') + ' ago)';
   };
-  let withSound = $state(false);
+  // Where the video comes from: 'relay' (the camera relay on the home network, sharp and with sound,
+  // when it serves this camera: lib/relay.js), 'stream' (entity through Home Assistant), 'sound'
+  // (soundEntity, the camera's own view). null while finding out whether the relay serves it.
+  const relayName = (/^camera\.(.+)_stream$/.exec(entity) || [])[1] || null;
+  let mode = $state(relayName ? null : 'stream');
+  if (relayName) relayServes(relayName).then((yes) => { mode = yes ? 'relay' : 'stream'; }, () => { mode = 'stream'; });
+  let withSound = $derived(mode === 'sound');
   let sharpFailed = $state(false); // the sharp stream didn't play here: stay on the camera's own view
-  let source = $derived(withSound && soundEntity ? soundEntity : entity);
-  let canSwitch = $derived(!!soundEntity && soundEntity !== entity && !sharpFailed);
+  let source = $derived(mode === 'sound' && soundEntity ? soundEntity : mode === 'relay' ? 'relay:' + relayName : entity);
+  let canSwitch = $derived(mode !== 'relay' && !!soundEntity && soundEntity !== entity && !sharpFailed);
+  // What went wrong on the way, shown under the title so a fallback picture isn't a mystery.
+  let problem = $state('');
+  const fellBack = (why, text) => {
+    sharpFailed = true;
+    problem = text;
+    if (soundEntity && soundEntity !== entity) { log('camera.fallback', { camera: source, to: soundEntity, why }, 'warn'); mode = 'sound'; return true; }
+    return false;
+  };
   const OPEN_MS = 2 * 60 * 1000;
   const STILL_MS = 5000;
   const SNAP_MS = 15000;
@@ -46,6 +61,20 @@
   let live = $state(false);
   let noLive = $state(false);
   let muted = $state(true);
+  // The element's live muted property, set directly: the attribute alone only sets the default, so a
+  // tap on Sound after playback began could leave the video silent.
+  $effect(() => { if (video) video.muted = muted; });
+  // Sound on: is the picture still moving? (On the frame it once froze as the sound began.) Frames
+  // shown over the next 5 s, logged with the source.
+  $effect(() => {
+    if (muted || !live || !video || !video.getVideoPlaybackQuality) return;
+    const v = video, cam = source, f0 = v.getVideoPlaybackQuality().totalVideoFrames;
+    const t = setTimeout(() => untrack(() => {
+      const fps = (v.getVideoPlaybackQuality().totalVideoFrames - f0) / 5;
+      log('camera.unmuted', { camera: cam, fps }, fps < 2 ? 'warn' : 'info');
+    }), 5000);
+    return () => clearTimeout(t);
+  });
   let tick = $state(Date.now());
 
   // The picture until (or instead of) live video: bigger than the tile's, and fresh each time.
@@ -58,6 +87,9 @@
   const ANSWER_WAIT_MS = 30000; // for Home Assistant's answer when the stream has to start up first
   // The first big picture's wait, logged when slow (it has taken a minute on the frame's Wi-Fi).
   const openedAt = Date.now();
+  // When the current source started (reset by Sound / Sharper, not by a fallback), for the
+  // "Starting… N s" count.
+  let sourceAt = $state(openedAt);
   let firstStill = true;
   function stillLoaded() {
     if (!firstStill) return;
@@ -66,15 +98,23 @@
     log(ms > 5000 ? 'camera.still_slow' : 'camera.still', { camera: entity, ms }, ms > 5000 ? 'warn' : 'info');
   }
   $effect(() => {
-    if (!video) return;
+    if (!video || !mode) return;
     const cam = source; // switching between sharp and with-sound starts again
     live = false; noLive = false;
     let stop = null, gone = false, tries = 0, retry;
     const attempt = () => {
       const n = ++tries;
-      startLive(cam, video, () => (live = true))
+      (cam.startsWith('relay:') ? startRelayLive(relayName, video, () => (live = true), () => { if (n === tries) { clearTimeout(retry); setTimeout(check, 0); } }) : startLive(cam, video, () => (live = true)))
         // A slow first try that finishes after the retry began is closed, not kept.
-        .then((s) => { if (gone || n !== tries) s && s(); else if (s) stop = s; else noLive = true; })
+        .then((s) => {
+          if (s === 'offline') {
+            // Nothing answers at the relay's address: its computer is asleep, off or moved. Its
+            // Home Assistant stream goes through it too, so straight to the camera's own view.
+            if (!gone && n === tries && !fellBack('relay offline', 'Video relay offline · showing the camera\'s own video')) { problem = 'Video relay offline'; noLive = true; }
+            return;
+          }
+          if (gone || n !== tries) s && s(); else if (s) stop = s; else noLive = true;
+        })
         .catch((e) => { console.error('camera live view', e); });
       // Video arriving but not yet shown is usually waiting for a keyframe (a whole picture to start
       // from), which a Ring camera sends only every so often, a battery one rarely: on 2026-10-15 the
@@ -113,8 +153,11 @@
         // A stream gets a second try (warm, quick) before anything else; one that still won't play
         // falls back to the camera's own live view (smaller, with sound), which gets two tries too.
         if (tries < 2) { log('camera.retry', { camera: cam, tries, why }, 'warn'); attempt(); return; }
-        if (!withSound && soundEntity && soundEntity !== entity && !sharpFailed) { sharpFailed = true; withSound = true; log('camera.fallback', { camera: cam, to: soundEntity, why }, 'warn'); return; }
-        log('camera.no_live', { camera: cam, tries, why }, 'warn'); noLive = true;
+        const what = cam.startsWith('relay:') ? 'The video relay' : 'Sharp video';
+        if (!withSound && !sharpFailed && fellBack(why, what + ' didn\'t start (' + why + ') · showing the camera\'s own video')) return;
+        log('camera.no_live', { camera: cam, tries, why }, 'warn');
+        problem = (problem ? problem + ' · ' : '') + 'live video didn\'t start (' + why + ')';
+        noLive = true;
       };
       retry = setTimeout(check, RETRY_MS);
     };
@@ -166,14 +209,15 @@
   <div class="bar">
     <div class="txt">
       <div class="title">{name}</div>
+      {#if problem}<div class="problem">⚠ {problem}</div>{/if}
       <div class="sub">
-        {#if live}Live{withSound && !sharpFailed ? ' · with sound, lower quality' : ''}{:else if noLive}No live video right now · picture {takenAt.t ? taken(takenAt, clockNow) : age}{age === 'updating…' ? ', a new one on its way' : ''}
+        {#if live}Live{mode === 'relay' ? (muted ? '' : ' · with sound') : withSound && !sharpFailed ? ' · with sound (Ring)' : ''}{:else if noLive}No live video right now · picture {takenAt.t ? taken(takenAt, clockNow) : age}{age === 'updating…' ? ', a new one on its way' : ''}
         {:else if ha.status === 'connected'}<span class="spin"></span>{startingText(clockNow)}{takenAt.t ? ' · picture ' + taken(takenAt, clockNow) : ''}{:else}Not connected to Home Assistant{/if}
       </div>
     </div>
     {#if canSwitch && (live || withSound)}
       <!-- The sharp stream has no sound: Sound switches to the camera's own live view, unmuted. -->
-      <button class="snd" onclick={() => { withSound = !withSound; muted = !withSound; }} aria-label={withSound ? 'Sharper video, no sound' : 'Sound, lower quality video'}>
+      <button class="snd" onclick={() => { sourceAt = Date.now(); muted = withSound; mode = withSound ? 'stream' : 'sound'; }} aria-label={withSound ? 'Back to the faster video, no sound' : 'Sound (Ring\'s own video, slower to start)'}>
         <Icon name={withSound ? 'camera' : 'volume'} size={24} />{withSound ? 'Sharper' : 'Sound'}
       </button>
     {:else if live}
@@ -194,6 +238,7 @@
   .bar { flex: none; display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: #1c1c1e; color: #fff; }
   .txt { flex: 1; min-width: 0; }
   .title { font-size: 26px; font-weight: 800; letter-spacing: -.01em; }
+  .problem { font-size: 16px; font-weight: 600; color: #ffd60a; margin: 2px 0; }
   .sub { display: flex; align-items: center; gap: 10px; font-size: 17px; color: rgba(255, 255, 255, .7); }
   .spin { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .3); border-top-color: #fff; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }

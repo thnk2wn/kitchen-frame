@@ -112,34 +112,9 @@ export async function startLive(entity_id, video, onPlaying) {
   const caps = await send({ type: 'camera/capabilities', entity_id }).catch((e) => { log('camera.live_error', { camera: entity_id, step: 'capabilities', error: e.message }, 'warn'); return null; });
   if (!caps || !(caps.frontend_stream_types || []).includes('web_rtc')) { if (caps) log('camera.no_webrtc', { camera: entity_id }); return null; }
   const cfg = await send({ type: 'camera/webrtc/get_client_config', entity_id }).catch(() => ({}));
-  const pc = new RTCPeerConnection(cfg.configuration || {});
+  const p = peer(entity_id, video, onPlaying, cfg.configuration || {}, t0);
+  const pc = p.pc;
   if (cfg.dataChannel) pc.createDataChannel(cfg.dataChannel);
-  pc.addTransceiver('audio', { direction: 'recvonly' });
-  pc.addTransceiver('video', { direction: 'recvonly' });
-  const stream = new MediaStream();
-  pc.ontrack = (e) => {
-    tracks++;
-    stream.addTrack(e.track);
-    video.srcObject = stream;
-    video.play().catch(() => {});
-  };
-  let played = false, tracks = 0;
-  // "Playing" with no picture (0x0: audio only, or video that won't decode) isn't live: wait for the
-  // first real frame size (the resize event) before saying so.
-  video.onplaying = () => { if (video.videoWidth) shown(); };
-  video.onresize = () => { if (video.videoWidth && !played) shown(); };
-  const shown = () => {
-    if (played) return;
-    played = true;
-    // The size that arrived, a few seconds in (it can start small and grow).
-    log('camera.live', { camera: entity_id, ms: ms(), size: video.videoWidth + 'x' + video.videoHeight });
-    setTimeout(() => { if (!stopped) log('camera.size', { camera: entity_id, size: video.videoWidth + 'x' + video.videoHeight, ms: ms() }); }, 8000);
-    onPlaying();
-  };
-  pc.oniceconnectionstatechange = () => {
-    const st = pc.iceConnectionState;
-    if (st === 'failed' || st === 'disconnected') log('camera.ice', { camera: entity_id, state: st, ms: ms() }, 'warn');
-  };
 
   let session = null, sub = null, stopped = false, failed = false;
   const queued = [];
@@ -172,34 +147,11 @@ export async function startLive(entity_id, video, onPlaying) {
       setTimeout(done, 3000);
     });
   }
-  // Given up on before it played: what the connection had done, to tell a slow start from video that
-  // arrives but won't decode (bytes and frames received, its size).
-  const report = async () => {
-    // The size the camera offered, from the answer, when no frame decoded to tell us.
-    const sdp = (pc.remoteDescription && pc.remoteDescription.sdp) || '';
-    const offered = (/a=imageattr:\S+ recv \[x=(\d+),y=(\d+)\]/.exec(sdp) || /a=framesize:\S+ (\d+)-(\d+)/.exec(sdp) || []).slice(1).join('x');
-    const out = { camera: entity_id, ms: ms(), ice: pc.iceConnectionState, conn: pc.connectionState, tracks, answered: !!pc.remoteDescription, ...(offered ? { offered } : {}) };
-    try {
-      const stats = await pc.getStats();
-      stats.forEach((r) => {
-        if (r.type === 'inbound-rtp' && (r.kind || r.mediaType) === 'video') {
-          Object.assign(out, { bytes: r.bytesReceived || 0, frames: r.framesDecoded || 0, size: r.frameWidth ? r.frameWidth + 'x' + r.frameHeight : '' });
-          // The video format sent (e.g. H264 with its profile), to see what the decoder was given.
-          const c = r.codecId && stats.get(r.codecId);
-          if (c) out.codec = (c.mimeType || '') + (c.sdpFmtpLine ? ' ' + c.sdpFmtpLine : '');
-        }
-        if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) out.pair = 'ok';
-      });
-    } catch {}
-    log('camera.not_playing', out, 'warn');
-  };
   const stop = async () => {
     if (stopped) return;
     stopped = true;
-    if (!played) await report();
-    try { pc.close(); } catch {}
+    await p.close();
     if (sub) unsubscribeFrom(sub);
-    video.srcObject = null;
   };
   sub = await subscribeTo({ type: 'camera/webrtc/offer', entity_id, offer: pc.localDescription.sdp }, (ev) => {
     if (stopped) return;
@@ -216,10 +168,74 @@ export async function startLive(entity_id, video, onPlaying) {
   // Home Assistant refused or failed the offer (it gave up on a source that was still starting).
   stop.failed = () => failed;
   // Video bytes received so far: the camera view keeps waiting while they grow (see CameraView).
-  stop.receivedBytes = async () => {
+  stop.receivedBytes = p.receivedBytes;
+  return stop;
+}
+
+// A receive-only WebRTC connection playing into video, whatever does the signalling (Home Assistant
+// above, the camera relay in relay.js). label names the camera in the log. Logs camera.live once a
+// real picture shows, and on close before that, camera.not_playing with what had arrived.
+export function peer(label, video, onPlaying, configuration = {}, t0 = Date.now()) {
+  const ms = () => Date.now() - t0;
+  const pc = new RTCPeerConnection(configuration);
+  pc.addTransceiver('audio', { direction: 'recvonly' });
+  pc.addTransceiver('video', { direction: 'recvonly' });
+  const stream = new MediaStream();
+  let played = false, tracks = 0, closed = false;
+  pc.ontrack = (e) => {
+    tracks++;
+    stream.addTrack(e.track);
+    video.srcObject = stream;
+    video.play().catch(() => {});
+  };
+  // "Playing" with no picture (0x0: audio only, or video that won't decode) isn't live: wait for the
+  // first real frame size (the resize event) before saying so.
+  video.onplaying = () => { if (video.videoWidth) shown(); };
+  video.onresize = () => { if (video.videoWidth && !played) shown(); };
+  const shown = () => {
+    if (played || closed) return;
+    played = true;
+    // The size that arrived, a few seconds in (it can start small and grow).
+    log('camera.live', { camera: label, ms: ms(), size: video.videoWidth + 'x' + video.videoHeight });
+    setTimeout(() => { if (!closed) log('camera.size', { camera: label, size: video.videoWidth + 'x' + video.videoHeight, ms: ms() }); }, 8000);
+    onPlaying();
+  };
+  pc.oniceconnectionstatechange = () => {
+    const st = pc.iceConnectionState;
+    if (st === 'failed' || st === 'disconnected') log('camera.ice', { camera: label, state: st, ms: ms() }, 'warn');
+  };
+  // Given up on before it played: what the connection had done, to tell a slow start from video that
+  // arrives but won't decode (bytes and frames received, its size).
+  const report = async () => {
+    // The size the camera offered, from the answer, when no frame decoded to tell us.
+    const sdp = (pc.remoteDescription && pc.remoteDescription.sdp) || '';
+    const offered = (/a=imageattr:\S+ recv \[x=(\d+),y=(\d+)\]/.exec(sdp) || /a=framesize:\S+ (\d+)-(\d+)/.exec(sdp) || []).slice(1).join('x');
+    const out = { camera: label, ms: ms(), ice: pc.iceConnectionState, conn: pc.connectionState, tracks, answered: !!pc.remoteDescription, ...(offered ? { offered } : {}) };
+    try {
+      const stats = await pc.getStats();
+      stats.forEach((r) => {
+        if (r.type === 'inbound-rtp' && (r.kind || r.mediaType) === 'video') {
+          Object.assign(out, { bytes: r.bytesReceived || 0, frames: r.framesDecoded || 0, size: r.frameWidth ? r.frameWidth + 'x' + r.frameHeight : '' });
+          // The video format sent (e.g. H264 with its profile), to see what the decoder was given.
+          const c = r.codecId && stats.get(r.codecId);
+          if (c) out.codec = (c.mimeType || '') + (c.sdpFmtpLine ? ' ' + c.sdpFmtpLine : '');
+        }
+        if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) out.pair = 'ok';
+      });
+    } catch {}
+    log('camera.not_playing', out, 'warn');
+  };
+  const close = async () => {
+    if (closed) return;
+    if (!played) await report();
+    closed = true;
+    try { pc.close(); } catch {}
+    video.srcObject = null;
+  };
+  const receivedBytes = async () => {
     let b = 0;
     try { (await pc.getStats()).forEach((r) => { if (r.type === 'inbound-rtp' && (r.kind || r.mediaType) === 'video') b = r.bytesReceived || 0; }); } catch {}
     return b;
   };
-  return stop;
+  return { pc, ms, close, receivedBytes };
 }
