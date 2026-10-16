@@ -104,7 +104,7 @@ export function dismiss() {
 // candidates come back as subscription events. Resolves to a stop function, or null when the
 // camera doesn't stream over WebRTC (the pop-up keeps showing the still).
 // Each step that can stall is logged (camera.*), as live video has been the frame's touchiest part.
-const MAX_FS = 8160; // H.264 max frame size hint in macroblocks (0 = none)
+const MAX_FS = 0; // H.264 max frame size hint in macroblocks (0 = none): 8160 tried 2026-10-16, Ring ignored it
 const RING_MAX_KBPS = 0; // a cap the frame asks Ring to stay under (0 = none): tried 1200 on 2026-10-15, Ring ignored it
 export async function startLive(entity_id, video, onPlaying) {
   const t0 = Date.now(), ms = () => Date.now() - t0;

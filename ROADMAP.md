@@ -81,6 +81,13 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
 
 ## Home Assistant
 
+- **Live video from the 2K cameras, by transcoding.** The frame's RK3326 decodes H.264 up to 1920
+  wide; Ring's Spotlight Cam Pro sends 2624×1472 ("2K") or 1968×1104 ("1080p") on every path, and
+  Ring ignores the offer's bandwidth (`b=AS`) and frame-size (`max-fs`) hints (tried 2026-10-15).
+  So those cameras fall back to pictures. The fix is shrinking the video before it reaches the frame:
+  go2rtc with an `ffmpeg:…#video=h264#width=1280` stream, which wants hardware encoding. On the Pi 4
+  that is marginal; an Intel N100/N150 box (QuickSync) running Home Assistant OS would do it at
+  near-zero CPU, and would speed up everything else (README → House tab has the measured sizes).
 - **More notice blueprints:** garage door left open, a bedtime check (doors unlocked, lights on).
 - **Pop-in for red alerts:** an alert notice briefly takes over the screen, like the doorbell,
   instead of only a banner.
