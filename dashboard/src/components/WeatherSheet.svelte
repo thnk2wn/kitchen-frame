@@ -135,12 +135,15 @@
   header { display: flex; align-items: flex-start; gap: 12px; }
   .days { flex: 1; display: flex; gap: 6px; }
   .days button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0; border-radius: 14px; font-size: 16px; color: var(--secondary); }
-  .days button.on { background: var(--track); }
+  /* The day (or Radar) on show: a filled, blue-outlined tile with its name in blue. --track alone
+     matched the sheet in dark mode, so the choice didn't show at night. */
+  .days button.on { background: var(--fill); box-shadow: inset 0 0 0 2px var(--blue); }
+  .days button.on .dn { color: var(--blue-text); }
   .days .rbtn { flex: 0 0 120px; }
   .days button:active { opacity: .6; }
   .days b { color: var(--label); font-weight: 600; }
   .dn { font-weight: 700; color: var(--label); }
-  .x { flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--track); color: var(--label); }
+  .x { flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--label); }
 
   .alerts { display: flex; flex-direction: column; gap: 6px; }
   .alert { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border-radius: 14px; background: var(--orange); color: #fff; text-align: left; font-size: 18px; font-weight: 700; }
