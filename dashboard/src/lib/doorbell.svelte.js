@@ -104,6 +104,7 @@ export function dismiss() {
 // candidates come back as subscription events. Resolves to a stop function, or null when the
 // camera doesn't stream over WebRTC (the pop-up keeps showing the still).
 // Each step that can stall is logged (camera.*), as live video has been the frame's touchiest part.
+const MAX_FS = 8160; // H.264 max frame size hint in macroblocks (0 = none)
 const RING_MAX_KBPS = 0; // a cap the frame asks Ring to stay under (0 = none): tried 1200 on 2026-10-15, Ring ignored it
 export async function startLive(entity_id, video, onPlaying) {
   const t0 = Date.now(), ms = () => Date.now() - t0;
@@ -150,6 +151,12 @@ export async function startLive(entity_id, video, onPlaying) {
   const offer = await pc.createOffer();
   if (RING_MAX_KBPS && !/_stream$/.test(entity_id)) {
     offer.sdp = offer.sdp.replace(/(m=video[^\r\n]*\r\n(?:c=[^\r\n]*\r\n)?)/, '$1b=AS:' + RING_MAX_KBPS + '\r\n');
+  }
+  // The decoder's limit, stated on each H.264 format line (max-fs in 16x16 blocks: 8160 = 1920x1088,
+  // what this frame's RK3326 decodes; max-mbps to match). A sender that honours it picks a picture
+  // that fits; Ring's own live view otherwise sends 2624x1472 or 1968x1104, which never decode here.
+  if (MAX_FS && !/_stream$/.test(entity_id)) {
+    offer.sdp = offer.sdp.replace(/^(a=fmtp:\d+ [^\r\n]*profile-level-id=[0-9a-fA-F]{6}[^\r\n]*)$/gm, (line) => (/max-fs=/.test(line) ? line : line + ';max-fs=' + MAX_FS + ';max-mbps=' + MAX_FS * 30));
   }
   await pc.setLocalDescription(offer);
   if (cfg.getCandidatesUpfront) {
