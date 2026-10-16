@@ -1,10 +1,11 @@
 <script>
   // Rain radar around home, in the weather sheet: the last hour, now and the next two hours, looping
   // (GET /api/radar; worker/radar.js: NWS radar and NOAA's HRRR forecast in the US, RainViewer's
-  // past two hours elsewhere). The street map is drawn once at zoom 8 (OSM tiles through the
-  // Worker's cache); each radar frame is drawn once at zoom 7 onto its own small canvas and shown at
-  // twice the size: about 500 km across, and light on the frame's slow Wi-Fi. Canvases rather than
-  // tile images, so the frame doesn't keep ~50 decoded PNGs.
+  // past two hours elsewhere). The street map is drawn once (OSM tiles through the Worker's cache),
+  // one zoom closer than the radar: each radar frame is drawn once at the Worker's zoom onto its own
+  // small canvas and shown at twice the size, light on the frame's slow Wi-Fi. In the US that's
+  // about 130 km across: home and the towns around it. Canvases rather than tile images, so the
+  // frame doesn't keep ~60 decoded PNGs. Drag along the timeline to pick a time.
   // Loads only while the sheet shows it; the loop stops when it closes.
   import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
@@ -12,7 +13,7 @@
   import { time } from '../lib/format.js';
 
   let { width = 1070, height = 430 } = $props();
-  const TILE = 256, Z = 8, STEP_MS = 600, HOLD_MS = 1800;
+  const TILE = 256, STEP_MS = 600, HOLD_MS = 1800;
 
   let canvas = $state();
   let frames = $state([]);   // [{ time, url, kind, img?: canvas }]
@@ -50,6 +51,7 @@
       try { r = await api('/api/radar'); } catch (e) { error = 'Radar isn’t available right now.'; return; }
       if (!live) return;
       if (r.error || !r.frames || !r.frames.length) { error = r.error ? 'Radar needs the home location (WEATHER_LAT / WEATHER_LON).' : 'No radar right now.'; return; }
+      const Z = (r.zoom || 7) + 1; // the street map's zoom
       const c8 = pixel(r.lat, r.lon, Z);
       const left = c8.x - width / 2, top = c8.y - height / 2;
       home = { x: width / 2, y: height / 2 };
@@ -105,7 +107,12 @@
   });
 
   const stamp = (f) => (!f ? '' : f.kind === 'now' ? 'Now · ' + time(new Date(f.time)) : f.kind === 'forecast' ? 'Forecast · ' + time(new Date(f.time)) : time(new Date(f.time)));
-  const show = (k) => { playing = false; at = k; draw(); };
+  const show = (k) => { playing = false; if (k !== at) { at = k; draw(); } };
+  // The frame under a finger on the timeline strip.
+  function scrub(e) {
+    const r = e.currentTarget.getBoundingClientRect();
+    show(Math.max(0, Math.min(frames.length - 1, Math.floor(((e.clientX - r.left) / r.width) * frames.length))));
+  }
 </script>
 
 <div class="radar" style="width: {width}px; height: {height}px">
@@ -118,8 +125,11 @@
     <div class="bar">
       <button class="play" onclick={() => (playing = !playing)} aria-label={playing ? 'Pause' : 'Play'}><Icon name={playing ? 'pause' : 'play'} size={20} /></button>
       <span class="when" class:ahead={frames[at] && frames[at].kind === 'forecast'}>{stamp(frames[at])}</span>
-      <span class="ticks">
-        {#each frames as f, k (f.time)}<button class="tick" class:on={k === at} class:ready={!!f.img} class:now={f.kind === 'now'} class:ahead={f.kind === 'forecast'} onclick={() => show(k)} aria-label={stamp(f)}></button>{/each}
+      <!-- A finger anywhere on the strip picks the frame under it; dragging scrubs through them. -->
+      <span class="ticks" role="slider" tabindex="0" aria-label="Radar time" aria-valuemin="0" aria-valuemax={frames.length - 1} aria-valuenow={at}
+        onpointerdown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); scrub(e); }}
+        onpointermove={(e) => { if (e.buttons || e.pressure) scrub(e); }}>
+        {#each frames as f, k (f.time)}<span class="tick" class:on={k === at} class:ready={!!f.img} class:now={f.kind === 'now'} class:ahead={f.kind === 'forecast'}></span>{/each}
       </span>
     </div>
   {/if}
@@ -134,14 +144,15 @@
   .play { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .18); color: #fff; }
   .when { min-width: 190px; font-size: 17px; font-weight: 600; }
   .when.ahead { color: #64d2ff; }
-  .ticks { display: flex; gap: 4px; }
-  .tick { width: 14px; height: 24px; padding: 0; position: relative; }
-  .tick::after { content: ''; position: absolute; left: 5px; top: 8px; width: 4px; height: 8px; border-radius: 2px; background: rgba(255, 255, 255, .25); }
+  /* The timeline: wide and tall enough to hit and drag with a finger. */
+  .ticks { display: flex; width: 360px; height: 44px; touch-action: none; cursor: pointer; }
+  .tick { flex: 1; height: 44px; position: relative; }
+  .tick::after { content: ''; position: absolute; left: 50%; top: 16px; width: 5px; margin-left: -2px; height: 12px; border-radius: 3px; background: rgba(255, 255, 255, .25); }
   .tick.ready::after { background: rgba(255, 255, 255, .55); }
   .tick.ahead::after { background: rgba(100, 210, 255, .35); }
   .tick.ahead.ready::after { background: rgba(100, 210, 255, .7); }
-  .tick.now::after { height: 12px; top: 6px; }
-  .tick.on::after { top: 4px; height: 16px; background: #fff; }
+  .tick.now::after { top: 12px; height: 20px; }
+  .tick.on::after { top: 8px; height: 28px; width: 7px; margin-left: -3px; background: #fff; }
   .tick.ahead.on::after { background: #64d2ff; }
   .credit { position: absolute; right: 0; bottom: 0; padding: 2px 8px; border-top-left-radius: 8px; background: rgba(255, 255, 255, .8); color: #333; font-size: 11px; }
 </style>

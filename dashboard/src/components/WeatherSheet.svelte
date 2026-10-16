@@ -40,6 +40,12 @@
     <div class="panel sheet" role="dialog" aria-label="Weather for {dayLabel(d.date, i)}" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && close()}>
       <header>
         <nav class="days">
+          <!-- Radar first: it's about right now and the next two hours. -->
+          <button class="rbtn" class:on={radar} onclick={() => (radar = true)}>
+            <span class="dn">Radar</span>
+            <span class="ic rain"><Icon name="rain" size={22} /></span>
+            <span class="num">Now + 2 h</span>
+          </button>
           {#each wx.days as day, n (day.date)}
             {@const di = dayInfo(day)}
             <button class:on={n === i && !radar} onclick={() => { ui.weatherDay = n; openAlert = -1; radar = false; }}>
@@ -48,11 +54,6 @@
               <span class="num"><b>{day.hi}°</b> {day.lo}°</span>
             </button>
           {/each}
-          <button class="rbtn" class:on={radar} onclick={() => (radar = true)}>
-            <span class="dn">Radar</span>
-            <span class="ic rain"><Icon name="rain" size={22} /></span>
-            <span class="num">Now + 2 h</span>
-          </button>
         </nav>
         <button class="x" onclick={close} aria-label="Close"><Icon name="close" size={26} /></button>
       </header>

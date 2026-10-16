@@ -228,9 +228,9 @@ following the sun. Both themes are CSS variables, so switching costs one repaint
   same location also brings the National Weather Service's written forecast and alerts (no key
   either); elsewhere the detail sheet just leaves them out. **Radar**, beside the days in that
   sheet, loops the last hour, now and the next two hours of rain around the same location, about
-  500 km across over OpenStreetMap: in the US, NWS radar and NOAA's HRRR forecast through the Iowa
+  the town and its neighbors (about 130 km across) over OpenStreetMap: in the US, NWS radar and NOAA's HRRR forecast through the Iowa
   Environmental Mesonet; elsewhere RainViewer's past two hours (all free, no key). It loads only
-  while it's open.
+  while it's open. Drag along its timeline to pick a time.
 - **Todoist:** `npx wrangler secret put TODOIST_TOKEN` (Todoist → Settings → Integrations →
   Developer → API token). By default the lists read the projects named **Groceries** and
   **To-do**; `TODOIST_GROCERY_PROJECT` / `TODOIST_TODO_PROJECT` in `wrangler.jsonc` point them
@@ -268,17 +268,16 @@ commands.
 
 ### Rotations (optional)
 
-Who's up early with the kids, whose turn for bedtime, on Home's Today card. A rotation with `at` is
-today's, placed among today's events at that time (bedtime at 7 PM). One with `switchAt` is today's at
-the top until then, and after it tomorrow's, last in Today ("Up early with kids tomorrow"), as you get
-ready for the next day. Nothing shows until you set them, and there's no Setting for them: they're a
-Worker secret, so the names stay out of the repo.
+Who's up early with the kids, whose turn for bedtime, on Home. A rotation with `switchAt` is today's
+at the top of Today until then, and after it tomorrow's, under Tomorrow in Upcoming. One without
+(bedtime) is today's, last in Today. Nothing shows until you set them, and there's no Setting for
+them: they're a Worker secret, so the names stay out of the repo.
 
 ```sh
 printf '%s' '[
   {"name":"Up early with kids","icon":"sunrise","switchAt":"10:00",
    "days":{"mon":"Sam","tue":"Alex","wed":"Sam","thu":"Alex","fri":"Sam","sat":"Alex","sun":"Sam"}},
-  {"name":"Bedtime","icon":"moon","at":"19:00",
+  {"name":"Bedtime","icon":"moon",
    "alternate":{"from":"2026-10-15","who":["Alex","Sam"],"what":["Mia","Leo"]}}
 ]' | npx wrangler secret put ROTATIONS
 ```

@@ -10,7 +10,10 @@
 const IEM = 'https://mesonet.agron.iastate.edu';
 const TILES = IEM + '/cache/tile.py/1.0.0/';
 const MIN = 60000;
-export const RADAR_ZOOM = 7; // shown doubled over a zoom 8 street map: plenty for rain, and light
+// Radar tiles' zoom, shown doubled over a street map one zoom closer. In the US 9 (over a zoom 10
+// map, about 130 km across: home and the towns around it); RainViewer's free tiles stop at 7.
+export const RADAR_ZOOM = 9;
+const RAINVIEWER_ZOOM = 7;
 
 const inUS = (lat, lon) => lat > 18 && lat < 50 && lon > -128 && lon < -64;
 const getJson = async (u) => {
@@ -50,6 +53,6 @@ export async function getRadar(env) {
   const d = await getJson('https://api.rainviewer.com/public/weather-maps.json');
   const host = /^https:\/\/[\w.-]+$/.test(d.host || '') ? d.host : 'https://tilecache.rainviewer.com';
   const past = ((d.radar && d.radar.past) || []).filter((f) => f && /^\/v2\/radar\/[\w-]+$/.test(f.path || '') && Number.isFinite(f.time));
-  return { lat, lon, zoom: RADAR_ZOOM, source: 'RainViewer',
+  return { lat, lon, zoom: RAINVIEWER_ZOOM, source: 'RainViewer',
     frames: past.map((f, i) => ({ time: f.time * 1000, url: `${host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, kind: i === past.length - 1 ? 'now' : 'past' })) };
 }
