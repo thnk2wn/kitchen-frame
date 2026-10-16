@@ -76,8 +76,11 @@
       let waitedAnswer = false;
       const check = async () => {
         if (live || gone || n !== tries) return;
-        // No answer yet: the stream is still starting up (ring-mqtt waking a battery camera, a
-        // transcoder spinning up). Give it ANSWER_WAIT_MS before falling back.
+        // Home Assistant failed the offer, usually because the stream was still starting: try the
+        // same source again at once (the second start is warm and quick) before any fallback.
+        if (stop && stop.failed && stop.failed()) return giveUp();
+        // No answer yet: the stream is still starting up (a transcoder spinning up, ring-mqtt starting
+        // the Ring session). Give it ANSWER_WAIT_MS before falling back.
         if (stop && stop.answered && !stop.answered() && Date.now() - startedAt < ANSWER_WAIT_MS) {
           if (!waitedAnswer) { waitedAnswer = true; log('camera.waiting_answer', { camera: cam }); }
           retry = setTimeout(check, 3000);
@@ -96,10 +99,11 @@
       const giveUp = () => {
         if (live || gone) return;
         if (stop) { stop(); stop = null; }
-        // A sharp stream that won't play (a doorbell's large picture can be too much for a frame's
-        // video decoder): fall back to the camera's own live view, smaller but playable.
+        // A stream gets a second try (warm, quick) before anything else; one that still won't play
+        // falls back to the camera's own live view (smaller, with sound), which gets two tries too.
+        if (tries < 2) { log('camera.retry', { camera: cam, tries }, 'warn'); attempt(); return; }
         if (!withSound && soundEntity && soundEntity !== entity && !sharpFailed) { sharpFailed = true; withSound = true; return; }
-        if (tries < 2) { log('camera.retry', { camera: cam }, 'warn'); attempt(); } else { log('camera.no_live', { camera: cam, tries }, 'warn'); noLive = true; }
+        log('camera.no_live', { camera: cam, tries }, 'warn'); noLive = true;
       };
       retry = setTimeout(check, RETRY_MS);
     };

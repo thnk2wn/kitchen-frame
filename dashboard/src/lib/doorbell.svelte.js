@@ -136,7 +136,7 @@ export async function startLive(entity_id, video, onPlaying) {
     if (st === 'failed' || st === 'disconnected') log('camera.ice', { camera: entity_id, state: st, ms: ms() }, 'warn');
   };
 
-  let session = null, sub = null, stopped = false;
+  let session = null, sub = null, stopped = false, failed = false;
   const queued = [];
   const sendCandidate = (c) => send({ type: 'camera/webrtc/candidate', entity_id, session_id: session, candidate: c }).catch(() => {});
   pc.onicecandidate = (e) => {
@@ -203,11 +203,13 @@ export async function startLive(entity_id, video, onPlaying) {
     else if (ev.type === 'candidate') {
       const c = typeof ev.candidate === 'string' ? { candidate: ev.candidate, sdpMLineIndex: 0 } : ev.candidate;
       pc.addIceCandidate(c).catch(() => {});
-    } else if (ev.type === 'error') { log('camera.live_error', { camera: entity_id, step: 'offer', code: ev.code, error: ev.message, ms: ms() }, 'warn'); stop(); }
+    } else if (ev.type === 'error') { failed = true; log('camera.live_error', { camera: entity_id, step: 'offer', code: ev.code, error: ev.message, ms: ms() }, 'warn'); stop(); }
   });
   // Has Home Assistant answered yet? A stream that has to be started up first (a battery camera
   // through ring-mqtt and a transcoder) can take 15-25 s to answer; the camera view waits for it.
   stop.answered = () => !!pc.remoteDescription;
+  // Home Assistant refused or failed the offer (it gave up on a source that was still starting).
+  stop.failed = () => failed;
   // Video bytes received so far: the camera view keeps waiting while they grow (see CameraView).
   stop.receivedBytes = async () => {
     let b = 0;
