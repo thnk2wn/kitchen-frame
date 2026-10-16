@@ -6,6 +6,7 @@
   import Icon from './Icon.svelte';
   import { startLive } from '../lib/doorbell.svelte.js';
   import { ha, haUrl } from '../lib/ha.svelte.js';
+  import { log } from '../lib/log.svelte.js';
 
   // onsnap: asks the camera for a new picture (a Ring camera's "Take Snapshot" through ring-mqtt), for
   // when there's no live video; age: how old the picture shown is, as text.
@@ -31,6 +32,15 @@
   // A first try sometimes stalls (a sleeping camera waking up), while a second connects in about a
   // second: so one retry after RETRY_MS, then pictures instead, rather than "connecting" for ever.
   const RETRY_MS = 10000;
+  // The first big picture's wait, logged when slow (it has taken a minute on the frame's Wi-Fi).
+  const openedAt = Date.now();
+  let firstStill = true;
+  function stillLoaded() {
+    if (!firstStill) return;
+    firstStill = false;
+    const ms = Date.now() - openedAt;
+    log(ms > 5000 ? 'camera.still_slow' : 'camera.still', { camera: entity, ms }, ms > 5000 ? 'warn' : 'info');
+  }
   $effect(() => {
     if (!video) return;
     const cam = source; // switching between sharp and with-sound starts again
@@ -48,7 +58,7 @@
         // A sharp stream that won't play (a doorbell's large picture can be too much for a frame's
         // video decoder): fall back to the camera's own live view, smaller but playable.
         if (!withSound && soundEntity && soundEntity !== entity && !sharpFailed) { sharpFailed = true; withSound = true; return; }
-        if (tries < 2) attempt(); else noLive = true;
+        if (tries < 2) { log('camera.retry', { camera: cam }, 'warn'); attempt(); } else { log('camera.no_live', { camera: cam, tries }, 'warn'); noLive = true; }
       }, RETRY_MS);
     };
     attempt();
@@ -71,7 +81,7 @@
 
 <div class="cam" role="dialog" aria-label={name}>
   <div class="media">
-    {#if still}<img src={still} alt="" class:hide={live} />{/if}
+    {#if still}<img src={still} alt="" class:hide={live} onload={stillLoaded} onerror={() => log('camera.still_failed', { camera: entity }, 'warn')} />{/if}
     {#if !still && !live}<div class="wait"><Icon name="camera" size={56} /></div>{/if}
     <!-- svelte-ignore a11y_media_has_caption -->
     <video bind:this={video} {muted} autoplay playsinline class:hide={!live}></video>

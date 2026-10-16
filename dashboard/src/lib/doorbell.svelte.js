@@ -103,9 +103,12 @@ export function dismiss() {
 // Live video over HA's WebRTC signalling (HA 2024.11+): offer -> session id, answer and ICE
 // candidates come back as subscription events. Resolves to a stop function, or null when the
 // camera doesn't stream over WebRTC (the pop-up keeps showing the still).
+// Each step that can stall is logged (camera.*), as live video has been the frame's touchiest part.
 export async function startLive(entity_id, video, onPlaying) {
-  const caps = await send({ type: 'camera/capabilities', entity_id }).catch(() => null);
-  if (!caps || !(caps.frontend_stream_types || []).includes('web_rtc')) return null;
+  const t0 = Date.now(), ms = () => Date.now() - t0;
+  log('camera.live_start', { camera: entity_id });
+  const caps = await send({ type: 'camera/capabilities', entity_id }).catch((e) => { log('camera.live_error', { camera: entity_id, step: 'capabilities', error: e.message }, 'warn'); return null; });
+  if (!caps || !(caps.frontend_stream_types || []).includes('web_rtc')) { if (caps) log('camera.no_webrtc', { camera: entity_id }); return null; }
   const cfg = await send({ type: 'camera/webrtc/get_client_config', entity_id }).catch(() => ({}));
   const pc = new RTCPeerConnection(cfg.configuration || {});
   if (cfg.dataChannel) pc.createDataChannel(cfg.dataChannel);
@@ -117,7 +120,11 @@ export async function startLive(entity_id, video, onPlaying) {
     video.srcObject = stream;
     video.play().catch(() => {});
   };
-  video.onplaying = onPlaying;
+  video.onplaying = () => { log('camera.live', { camera: entity_id, ms: ms() }); onPlaying(); };
+  pc.oniceconnectionstatechange = () => {
+    const st = pc.iceConnectionState;
+    if (st === 'failed' || st === 'disconnected') log('camera.ice', { camera: entity_id, state: st, ms: ms() }, 'warn');
+  };
 
   let session = null, sub = null, stopped = false;
   const queued = [];
@@ -145,11 +152,11 @@ export async function startLive(entity_id, video, onPlaying) {
   sub = await subscribeTo({ type: 'camera/webrtc/offer', entity_id, offer: pc.localDescription.sdp }, (ev) => {
     if (stopped) return;
     if (ev.type === 'session') { session = ev.session_id; queued.splice(0).forEach(sendCandidate); }
-    else if (ev.type === 'answer') pc.setRemoteDescription({ type: 'answer', sdp: ev.answer }).catch(stop);
+    else if (ev.type === 'answer') pc.setRemoteDescription({ type: 'answer', sdp: ev.answer }).catch((e) => { log('camera.live_error', { camera: entity_id, step: 'answer', error: e.message, ms: ms() }, 'warn'); stop(); });
     else if (ev.type === 'candidate') {
       const c = typeof ev.candidate === 'string' ? { candidate: ev.candidate, sdpMLineIndex: 0 } : ev.candidate;
       pc.addIceCandidate(c).catch(() => {});
-    } else if (ev.type === 'error') stop();
+    } else if (ev.type === 'error') { log('camera.live_error', { camera: entity_id, step: 'offer', code: ev.code, error: ev.message, ms: ms() }, 'warn'); stop(); }
   });
   return stop;
 }

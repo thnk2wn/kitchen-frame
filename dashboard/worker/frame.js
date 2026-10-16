@@ -40,7 +40,7 @@ function cleanEvent(e) {
 
 // Settings the frame changes by itself (what was seen, played, the last tab): backed up, but not
 // worth a log entry or a version of their own.
-const AUTOMATIC = ['frame-notices-seen', 'frame-playlist-played', 'frame-spotify-played', 'frame-settings-tab', 'frame-timer-names'];
+const AUTOMATIC = ['frame-notices-seen', 'frame-playlist-played', 'frame-spotify-played', 'frame-settings-tab', 'frame-timer-names', 'frame-tv-apps', 'frame-recipes-mode'];
 // Shown only as set, changed or removed: the unlock PIN's hash says nothing useful and is better kept out of logs.
 const OPAQUE = ['frame-unlock-pin'];
 
