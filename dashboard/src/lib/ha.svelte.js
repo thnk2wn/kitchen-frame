@@ -2,6 +2,7 @@
 // The URL and token live in the frame's localStorage (set over ADB from dashboard/.frame.vars),
 // never in the deployed site or Cloudflare. HA's REST API refuses cross-origin calls; its
 // WebSocket API does not, so everything here goes over the socket.
+import { limiter } from './limit.js';
 import { log } from './log.svelte.js';
 
 export const ha = $state({
@@ -198,10 +199,20 @@ export function unsubscribeFrom(id) {
   return send({ type: 'unsubscribe_events', subscription: id }).catch(() => {});
 }
 
+// A brake on runaway loops (lib/limit.js): the same action on the same entity more than 12 times in
+// 2 s, or more than 60 calls in 5 s, is refused for 30 s and reported once as ha.call_flood. The
+// volume slider sends at most 4 a second; a loop on 2026-10-15 sent thousands and froze the frame.
+const callLimit = limiter({ perKey: 12, perKeyMs: 2000, total: 60, totalMs: 5000 });
+
 // Every call to Home Assistant; failures and slow ones (over 5 s) go to the event log.
 export function callService(domain, service, data = {}, target = undefined) {
   const started = Date.now();
   const entity = target && target.entity_id;
+  const verdict = callLimit(domain + '.' + service + '|' + (entity || ''));
+  if (verdict !== 'ok') {
+    if (verdict === 'report') log('ha.call_flood', { action: domain + '.' + service, entity }, 'error');
+    return Promise.reject(new Error('Too many calls to ' + domain + '.' + service + ' at once'));
+  }
   return send({ type: 'call_service', domain, service, service_data: data, ...(target ? { target } : {}) }).then((r) => {
     const ms = Date.now() - started;
     if (ms > 5000) log('ha.call_slow', { action: domain + '.' + service, entity, ms }, 'warn');

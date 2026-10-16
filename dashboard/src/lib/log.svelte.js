@@ -7,6 +7,8 @@
 //
 // Context is welcome (which calendar, list or entity, an error's message), raw payloads aren't, and
 // secrets never: the dashboard key and Home Assistant token are never logged.
+import { limiter } from './limit.js';
+
 const PENDING_MAX = 300;
 const RECENT_KEY = 'frame-log-recent';
 
@@ -16,7 +18,14 @@ let flushSoon = null; // set by checkin.js: send what's pending now (used for er
 
 const trim = (v) => (typeof v === 'string' ? v.slice(0, 300) : v);
 
+// The same event more than 20 times in 10 s is a loop: its entries are dropped for a minute and
+// log.flood says so once. Each entry is saved to storage, so a flood of them alone can freeze the frame.
+const logLimit = limiter({ perKey: 20, perKeyMs: 10000, total: 100, totalMs: 10000, cooldownMs: 60000 });
+
 export function log(event, data = {}, level = 'info') {
+  const verdict = logLimit(event);
+  if (verdict === 'drop') return;
+  if (verdict === 'report') { data = { dropped: event }; event = 'log.flood'; level = 'error'; }
   const e = { t: new Date().toISOString(), event, level };
   for (const [k, v] of Object.entries(data)) if (v !== undefined && v !== null && v !== '') e[k] = trim(v);
   pending.push(e);
