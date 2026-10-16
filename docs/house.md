@@ -98,7 +98,9 @@ Camera in HA → the frame.** Everything stays local; streams run only while som
    `rtsp://frame:<go2rtc password>@<the mac>:8554/garage` (its `.lan` name from the router, or a fixed address) and enable it (`camera.garage_stream`).
    The frame prefers the stream and falls back to Ring's live view and then pictures as before.
 
-Measured here: Garage comes through at 1280×718, 15 fps, H.264 Main, decoded at more than twice
-real time; a 2.3 GHz i7 spends a fraction of a core per stream. ring-mqtt drops the Ring session
+Measured here: Garage comes through at 1280×718, 15 fps, H.264 Main; the Mac chain delivers a first
+frame in about 7 s cold and 5 s warm, and the frame showed live video 9 s after opening the camera
+(it waits up to 30 s for Home Assistant's answer, showing the refreshing picture and a seconds count
+meanwhile). A 2.3 GHz i7 spends a fraction of a core per stream. ring-mqtt drops the Ring session
 the moment the last viewer leaves, so a request within a second of that gets a 404 and is retried.
 
