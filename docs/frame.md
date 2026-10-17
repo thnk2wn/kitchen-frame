@@ -101,7 +101,15 @@ boots into the kiosk, Frameo and the updaters not installed or running.
   only over USB.
 - Remote debugging (chrome://inspect) only while launched with `--ez debug true`; any normal launch turns it off.
 - Brightness: Settings → Brightness calls `window.FrameKiosk.setBrightness(0.05–1)`; the kiosk saves it and applies it at start. `setBrightness(-1)` hands control back to Android's own setting.
-- Demo mode (Settings): sample calendar and lists, no photos; ticks and additions stay on the frame and never reach Todoist.
+- Demo mode (Settings): sample calendar and lists, a meal plan made from your own Paprika recipes (or TheMealDB dishes without Paprika), and stock photos ([Lorem Picsum](https://picsum.photos), free Unsplash photos) in the slideshow instead of your album; ticks and additions stay on the frame and never reach Todoist.
+  On a frame with Home Assistant, the Media and House tabs stay live in demo mode, for showing them
+  off: your real speakers, TVs, Videos and devices, all working, with any private names swapped for
+  ones fit to show (`DEMO_NAMES`, a Worker secret: whole names such as `{"Sam's TV":"Living Room
+  TV"}`, or a name wherever it appears, `{"Sam":"Kiddo"}` turning "Sam: Home" into "Kiddo: Home") and public Spotify
+  playlists (a dinner-time mix, or your own picks in `DEMO_PLAYLISTS`) in place of yours. What's
+  playing is real, so play something you're happy to show. Cameras show stock pictures of a porch,
+  driveway, garage and yard (chosen by each camera's name) and don't open. Without Home Assistant (a
+  laptop, the README screenshots) both tabs are invented.
 - After a deploy, Cloudflare can take ~30 s to serve the new version everywhere; a frame that reloads sooner gets the old one until its next reload.
 
 ## Security

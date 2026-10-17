@@ -1,10 +1,11 @@
 <script>
   import Txt from './Txt.svelte';
-  // Home's notice banners (lib/notices.svelte.js): newest first, up to `max`, then "+N more".
+  // Home's notice banners (lib/notices.svelte.js): newest first, up to `max`, then "+N more", each
+  // with when it started.
   // Tap one for its message and Dismiss (components/NoticeSheet.svelte).
   import Icon from './Icon.svelte';
-  import { ui } from '../lib/state.svelte.js';
-  import { notices, iconOf } from '../lib/notices.svelte.js';
+  import { ui, clock } from '../lib/state.svelte.js';
+  import { notices, iconOf, startedAt } from '../lib/notices.svelte.js';
   let { max = 2 } = $props();
   let list = $derived(notices());
   let shown = $derived(list.length > max ? list.slice(0, max - 1) : list);
@@ -14,7 +15,7 @@
   <div class="notices">
     {#each shown as n (n.id)}
       <button class="notice {n.tone}" onclick={() => (ui.noticesOpen = true)}>
-        <Icon name={iconOf(n.tone)} size={20} /><span><Txt text={n.title || n.message} /></span>
+        <Icon name={iconOf(n.tone)} size={20} /><span><Txt text={n.title || n.message} /></span>{#if startedAt(n, clock.now)}<small class="at num">{startedAt(n, clock.now)}</small>{/if}
       </button>
     {/each}
     {#if list.length > shown.length}
@@ -29,6 +30,7 @@
   .notice.alert { background: var(--red); }
   .notice.info { background: var(--blue); }
   .notice.more { min-height: 36px; background: var(--track); color: var(--label); font-size: 16px; }
-  .notice span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .notice span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .notice .at { flex: none; font-size: 15px; font-weight: 600; opacity: .85; }
   .notice:active { opacity: .7; }
 </style>

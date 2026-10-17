@@ -32,6 +32,7 @@
   import House from './views/House.svelte';
   import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible, videos, loadVideos, nowVideo } from './lib/state.svelte.js';
   import { noteAlbum, prepare } from './lib/slides.js';
+  import { fakeMedia, loadDemoMedia } from './lib/demo-media.svelte.js';
   import { time, clockTime, weatherInfo } from './lib/format.js';
 
   // Reactive: Media also appears when YouTube videos are set up (Media → Videos needs no Home Assistant).
@@ -57,7 +58,7 @@
   // Keep the next slideshow slide downloaded in the background, so play/idle shows photos at once.
   $effect(() => {
     noteAlbum(photos.items);
-    if (warm && !ui.demo && photosVisible()) prepare();
+    if (warm && photosVisible()) prepare();
   });
 
   // The Lists tab reopens whichever list was shown last.
@@ -67,8 +68,10 @@
   // A list tab shows fresh items when opened (Groceries isn't polled while it's closed).
   $effect(() => { if (ui.tab === 'groceries' || ui.tab === 'todo') loadList(ui.tab); else if (ui.tab === 'home') loadList('groceries'); });
   // Demo mode shows the Music tab's invented song (no cover art: a music note).
+  // Demo mode without Home Assistant: an invented song (with it, the real one: lib/demo-media.svelte.js).
+  $effect(() => { if (ui.demo) loadDemoMedia(); });
   const DEMO_NP = { entity_id: 'media_player.spotify_demo', state: 'playing', media_title: 'Golden Hour', media_artist: 'The Lanterns', media_playlist: 'Sunday Morning' };
-  let playing = $derived(ui.demo ? DEMO_NP : shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
+  let playing = $derived(fakeMedia() ? DEMO_NP : shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
   let mini = $derived(!!playing && ui.tab !== 'home' && ui.tab !== 'music');
 </script>
 

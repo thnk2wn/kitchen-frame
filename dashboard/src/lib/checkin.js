@@ -92,7 +92,15 @@ if (typeof window !== 'undefined') window.addEventListener('frame-command', (e) 
   if (e.detail === 'reload') checkIn().finally(() => { reloadFor('remote'); location.reload(); });
 });
 
+// The frame (not a browser viewing the dashboard) tells the Worker when it's in demo mode, so Alexa
+// reads the same invented day it shows (worker/alexa.js). At load and on every switch.
+export function reportDemo() {
+  if (!kiosk()) return;
+  api('/api/frame/demo', { method: 'POST', body: JSON.stringify({ on: !!ui.demo }) }).catch(() => {});
+}
+
 export function startCheckIn() {
+  reportDemo();
   log('app.load', { version: version(), release: release(), reason: loadReason(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] });
   restore().then(() => setTimeout(checkIn, 20000)); // give Home Assistant a moment to connect first
   setInterval(checkIn, 10 * 60 * 1000);

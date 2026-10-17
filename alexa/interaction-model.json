@@ -1,0 +1,332 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "kitchen frame",
+      "intents": [
+        {
+          "name": "AddGroceryIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "add {item} to groceries",
+            "put {item} on groceries",
+            "add {item} to the groceries",
+            "put {item} on the groceries",
+            "add {item} to grocery list",
+            "put {item} on grocery list",
+            "add {item} to the grocery list",
+            "put {item} on the grocery list",
+            "add {item} to my grocery list",
+            "put {item} on my grocery list",
+            "add {item} to shopping list",
+            "put {item} on shopping list",
+            "add {item} to the shopping list",
+            "put {item} on the shopping list",
+            "add {item} to my shopping list",
+            "put {item} on my shopping list",
+            "add {item}"
+          ]
+        },
+        {
+          "name": "AddTaskIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "add {item} to tasks",
+            "put {item} on tasks",
+            "add {item} to my tasks",
+            "put {item} on my tasks",
+            "add {item} to the tasks",
+            "put {item} on the tasks",
+            "add {item} to to do list",
+            "put {item} on to do list",
+            "add {item} to my to do list",
+            "put {item} on my to do list",
+            "add {item} to the to do list",
+            "put {item} on the to do list",
+            "add {item} to to do",
+            "put {item} on to do",
+            "add {item} to tasks list",
+            "put {item} on tasks list",
+            "add {item} to my tasks list",
+            "put {item} on my tasks list",
+            "remind us to {item}"
+          ]
+        },
+        {
+          "name": "ShowTabIntent",
+          "slots": [
+            {
+              "name": "tab",
+              "type": "TAB_NAME"
+            }
+          ],
+          "samples": [
+            "show {tab}",
+            "show the {tab}",
+            "show me the {tab}",
+            "show me {tab}",
+            "open {tab}",
+            "open the {tab}",
+            "go to {tab}",
+            "go to the {tab}",
+            "switch to {tab}",
+            "switch to the {tab}"
+          ]
+        },
+        {
+          "name": "CloseIntent",
+          "slots": [],
+          "samples": [
+            "hide notifications",
+            "hide the notifications",
+            "hide notices",
+            "hide the notices",
+            "close notifications",
+            "close the notifications",
+            "close notices",
+            "close the notices",
+            "close that",
+            "close it",
+            "close this",
+            "hide that",
+            "hide it",
+            "dismiss that",
+            "dismiss it",
+            "close the sheet",
+            "go back"
+          ]
+        },
+        {
+          "name": "SlideshowIntent",
+          "slots": [],
+          "samples": [
+            "start the slideshow",
+            "start the slide show",
+            "start slideshow",
+            "slideshow",
+            "start the screensaver",
+            "start the screen saver",
+            "screensaver",
+            "screen saver",
+            "go to sleep",
+            "sleep",
+            "go to the clock",
+            "show the clock"
+          ]
+        },
+        {
+          "name": "WakeIntent",
+          "slots": [],
+          "samples": [
+            "wake up",
+            "wake",
+            "turn on",
+            "stop the slideshow"
+          ]
+        },
+        {
+          "name": "PlayVideosIntent",
+          "slots": [
+            {
+              "name": "group",
+              "type": "VIDEO_GROUP"
+            }
+          ],
+          "samples": [
+            "play {group} videos",
+            "play the {group} videos",
+            "play {group}",
+            "play videos",
+            "play some videos",
+            "play {group} video",
+            "put on {group} videos",
+            "put on {group}",
+            "put on videos"
+          ]
+        },
+        {
+          "name": "DinnerIntent",
+          "slots": [],
+          "samples": [
+            "what's for dinner",
+            "what is for dinner",
+            "what's for dinner tonight",
+            "what's for supper",
+            "what are we having for dinner",
+            "what are we eating tonight",
+            "what's dinner",
+            "dinner",
+            "what's on the menu tonight"
+          ]
+        },
+        {
+          "name": "TodayIntent",
+          "slots": [],
+          "samples": [
+            "the rundown",
+            "for the rundown",
+            "give me the rundown",
+            "what's the rundown",
+            "the briefing",
+            "the daily briefing",
+            "for the briefing",
+            "brief me",
+            "what's the plan",
+            "what's the plan for the day",
+            "what's the day look like",
+            "what's happening",
+            "what's on today",
+            "what is on today",
+            "what's on the calendar",
+            "what's on my calendar",
+            "read my calendar",
+            "what do we have today"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
+      ],
+      "types": [
+        {
+          "name": "TAB_NAME",
+          "values": [
+            {
+              "name": {
+                "value": "home",
+                "synonyms": [
+                  "home screen",
+                  "dashboard"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "calendar",
+                "synonyms": [
+                  "schedule"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "groceries",
+                "synonyms": [
+                  "grocery list",
+                  "shopping list",
+                  "lists"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "tasks",
+                "synonyms": [
+                  "to do",
+                  "to do list",
+                  "todo"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "recipes",
+                "synonyms": [
+                  "recipe"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "music",
+                "synonyms": [
+                  "media",
+                  "spotify"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "tv",
+                "synonyms": [
+                  "tvs",
+                  "television"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "videos",
+                "synonyms": [
+                  "youtube"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "house",
+                "synonyms": [
+                  "home assistant"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "notices",
+                "synonyms": [
+                  "notifications",
+                  "alerts",
+                  "the notifications",
+                  "my notifications"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "VIDEO_GROUP",
+          "values": [
+            {
+              "name": {
+                "value": "songs",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "trucks",
+                "synonyms": []
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

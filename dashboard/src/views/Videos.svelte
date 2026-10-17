@@ -6,6 +6,7 @@
   import MediaSwitch from '../components/MediaSwitch.svelte';
   import SortButton from '../components/SortButton.svelte';
   import Icon from '../components/Icon.svelte';
+  import { nm } from '../lib/demo-media.svelte.js';
   import { videos, loadVideos, nowVideo, videoPlays, videoSort, setVideoSort } from '../lib/state.svelte.js';
   import { loadYouTube, thumb } from '../lib/youtube.js';
 
@@ -32,7 +33,7 @@
     {#each shown as g (g.name)}
       <section>
         <div class="head">
-          <h2>{g.name}</h2>
+          <h2>{nm(g.name)}</h2>
           <SortButton az={videoSort[g.name] === 'az'} timeLabel="Most recently played" onchange={(az) => setVideoSort(g.name, az ? 'az' : 'recent')} />
         </div>
         <div class="row">

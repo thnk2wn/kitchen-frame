@@ -6,6 +6,9 @@
   import { ui, cameraRefresh } from '../lib/state.svelte.js';
   import { pin, allowUnlock } from '../lib/pin.svelte.js';
   import { emojiHtml } from '../lib/emoji.js';
+  import { haConfigured } from '../lib/ha.svelte.js';
+  import { liveDemo, nm } from '../lib/demo-media.svelte.js';
+  import { mediaUrl } from '../lib/api.js';
   import { house, houseDemo, setHouseDemo, startHouse, companionsOf, toggle, run, coverToggle, lock, unlock, nudge, setpoint, miniMarkdown } from '../lib/house.svelte.js';
 
   // Camera snapshots load once when the tab opens and again with the refresh button by the cameras'
@@ -14,8 +17,14 @@
   // camera opens it full screen (CameraView: live video, closed again after two minutes).
   let shots = $state({}); // entity_id -> time of the snapshot shown
   let now = $state(Date.now());
-  // Demo mode (Settings) swaps in an invented house, for screenshots and videos.
-  $effect(() => setHouseDemo(ui.demo));
+  // Demo mode (Settings): without Home Assistant, an invented house (screenshots); with it, the real
+  // house, working, with private names swapped (lib/demo-media.svelte.js) and stock pictures in place
+  // of the cameras, which don't open.
+  $effect(() => setHouseDemo(ui.demo && !haConfigured()));
+  let still = $derived(houseDemo.on || liveDemo()); // camera tiles that never fetch or open
+  const CAM_PLACES = [['door', /door|porch|front|bell/i], ['driveway', /drive|street|car|front ?yard/i], ['garage', /garage|shop/i], ['yard', /back|yard|patio|deck|garden|side/i]];
+  // The ?v= changes when a picture does: browsers keep each one for a month.
+  const stockCam = (name, i) => mediaUrl('/api/photos/demo-cam-' + ((CAM_PLACES.find(([, re]) => re.test(name)) || CAM_PLACES[i % CAM_PLACES.length])[0]) + '?v=2');
   onMount(() => {
     startHouse();
     const t = setInterval(() => (now = Date.now()), 30000);
@@ -26,7 +35,7 @@
 
   const st = (id) => house.states[id] || null;
   const attr = (id) => (st(id) || {}).attributes || {};
-  const label = (item) => item.name || attr(item.entity).friendly_name || item.entity.split('.')[1].replace(/_/g, ' ');
+  const label = (item) => nm(item.name || attr(item.entity).friendly_name || item.entity.split('.')[1].replace(/_/g, ' '));
   const on = (id) => ['on', 'open', 'opening', 'unlocked', 'heat', 'cool', 'heat_cool', 'playing'].includes((st(id) || {}).state);
   const unavailable = (id) => !st(id) || ['unavailable', 'unknown'].includes(st(id).state);
   const nice = (s) => String(s || '').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
@@ -125,7 +134,7 @@
   // one, which wakes a battery camera, so not more often.
   $effect(() => {
     const every = cameraRefresh();
-    if (!every || houseDemo.on) return;
+    if (!every || still) return;
     const t = setInterval(() => untrack(() => {
       if (ui.idle || document.hidden) return;
       const next = {};
@@ -196,7 +205,7 @@
   };
   // First load: one snapshot per camera once its entity (with its signed picture URL) arrives.
   $effect(() => {
-    if (houseDemo.on) return;
+    if (still) return;
     for (const g of house.groups) for (const i of g.items) if (i.kind === 'camera' && !shots[i.entity] && attr(i.entity).entity_picture) refresh(i.entity);
   });
   const temp = (v) => (v == null || v === '' ? '–' : Math.round(Number(v)));
@@ -215,7 +224,7 @@
   {:else if house.status !== 'ready'}
     <p class="note">Loading…</p>
   {:else}
-    {#if house.header}<div class="header">{@html emojiHtml(miniMarkdown(house.header))}</div>{/if}
+    {#if house.header}<div class="header">{@html emojiHtml(miniMarkdown(nm(house.header)))}</div>{/if}
     {#if errorMsg}<p class="toast">{errorMsg}</p>{/if}
 
     <div class="groups" class:single={house.groups.length === 1}>
@@ -223,8 +232,8 @@
         <section class="group" class:main={gi === 0}>
           {#if g.title || g.items.some((i) => i.kind === 'camera')}
             <div class="ghead">
-              {#if g.title}<h2>{g.title}</h2>{/if}
-              {#if g.items.some((i) => i.kind === 'camera') && !houseDemo.on}
+              {#if g.title}<h2>{nm(g.title)}</h2>{/if}
+              {#if g.items.some((i) => i.kind === 'camera') && !still}
                 <button class="refresh" onclick={() => refreshAll(g.items)} aria-label="Refresh camera pictures"><Icon name="reload" size={18} />Refresh</button>
               {/if}
             </div>
@@ -260,13 +269,13 @@
                   </div>
                 </div>
               {:else if item.kind === 'camera'}
-                {@const src = shown[item.entity] || camSrc(item.entity, shots[item.entity])}
-                <button class="tile sheet camera" onclick={() => !houseDemo.on && (viewing = { entity: item.entity, stream: streamOf(item.entity), warm: warmOf(item.entity), name: label(item).replace(/\s*live view$/i, '') })} aria-label={'Open ' + label(item)}>
+                {@const src = liveDemo() ? stockCam(label(item), ii) : shown[item.entity] || camSrc(item.entity, shots[item.entity])}
+                <button class="tile sheet camera" onclick={() => !still && (viewing = { entity: item.entity, stream: streamOf(item.entity), warm: warmOf(item.entity), name: label(item).replace(/\s*live view$/i, '') })} aria-label={'Open ' + label(item)}>
                   {#if src && !houseDemo.on}<img {src} alt="" decoding="async" />{:else}<span class="noimg" class:demo={houseDemo.on}><Icon name="camera" size={30} /></span>{/if}
-                  <span class="cap"><span class="cname">{label(item).replace(/\s*live view$/i, '')}</span>{#if camAge(item.entity)}<span class="age"><Icon name="reload" size={13} /> {camAge(item.entity)}</span>{/if}</span>
+                  <span class="cap"><span class="cname">{label(item).replace(/\s*live view$/i, '')}</span>{#if !still && camAge(item.entity)}<span class="age"><Icon name="reload" size={13} /> {camAge(item.entity)}</span>{/if}</span>
                 </button>
               {:else if item.kind === 'text'}
-                <div class="tile sheet text">{@html emojiHtml(miniMarkdown(house.text[item.key] || ''))}</div>
+                <div class="tile sheet text">{@html emojiHtml(miniMarkdown(nm(house.text[item.key] || '')))}</div>
               {:else}
                 {@const tappable = ['toggle', 'lock', 'cover', 'run'].includes(item.kind) && !unavailable(item.entity)}
                 <button class="tile sheet dev" class:on={item.kind !== 'value' && on(item.entity)} class:warn={item.kind === 'lock' && st(item.entity)?.state === 'unlocked'}

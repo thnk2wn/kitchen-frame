@@ -27,7 +27,7 @@ lists other frames that work.
 | ![Weather details](docs/images/weather-light.jpg) |
 
 Screenshots use the built-in demo mode (Settings → About → Demo mode, or `?demo=on`), so all data shown is
-invented, apart from the weather. It's also handy for showing the frame to people without your own
+invented, apart from the weather (the slideshow shows stock photos from [Lorem Picsum](https://picsum.photos)). It's also handy for showing the frame to people without your own
 calendar and lists on it. `?tab=`, `?open=<recipe id>`, `?explore=<category>`, `?timer=Pasta:7`,
 `?weather=<day>` and `?settings=<tab>` set up a particular screen.
 
@@ -72,6 +72,7 @@ Each feature links to its page in [`docs/`](docs/), which has the setup and the 
 | **[Rotations](docs/rotations.md)** | New | Who's up early with the kids, whose turn for bedtime, on Home's Today card. |
 | **[Timers](docs/timers.md)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
 | **[Lists](docs/lists.md)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds), with priorities, due times, aisles and flags. Tap an item to edit it; ticking one gives a few seconds to undo. |
+| **[Alexa](docs/alexa.md)** | New | Your own private Alexa skill: "Alexa, ask Kitchen Frame to add eggs to groceries", show a tab, start the slideshow, play a group of videos, what's for dinner, or the rundown of the day. |
 
 ### At a glance
 
@@ -142,6 +143,8 @@ Each is independent, and only if you want what it gives; leave any out and the r
   video decoder (the [camera relay](bridge/camera-relay/README.md)).
 - **An agent token**, if you want AI agents or scripts to post messages to the frame or save
   recipes.
+- **An Amazon developer account and an Echo**, if you want to talk to the frame through Alexa (a
+  skill of your own, never published).
 
 ### Layout
 
@@ -304,6 +307,12 @@ louder alert volume, **event reminders** per calendar ("In 30 minutes: Swim less
 said aloud (at night too, if you choose), optionally orange ones, and agent messages. It speaks
 through `script.frame_announce` from `homeassistant/scripts/`, which sets the volume and puts the
 speaker's own back afterwards. [docs/announcements.md](docs/announcements.md).
+
+### Alexa
+
+A skill of your own on your Amazon account, in development, never published: "Alexa, ask Kitchen Frame
+to add eggs to groceries", "…show the calendar", "…play Trucks videos", "…what's for dinner", "…for the rundown".
+[docs/alexa.md](docs/alexa.md).
 
 ### Messages from agents
 

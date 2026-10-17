@@ -28,6 +28,8 @@ export function noteAlbum(items) {
   const ids = new Set(items.map((p) => p.id));
   if (known !== null) queue = [...shuffle(items.filter((p) => !known.has(p.id))), ...queue.filter((p) => ids.has(p.id))];
   known = ids;
+  // A slide prepared from the other set (demo mode's stock photos, or the album) is dropped.
+  if (ready && !ready.every((p) => ids.has(p.id))) ready = null;
 }
 
 // Portraits go in pairs (side by side fills a landscape screen); landscapes and videos go alone.
@@ -110,7 +112,7 @@ export function prepare() {
     const still = img.decode().then(() => measure(p, img));
     return asVideo(p) ? still.then(() => loadVideo(p)) : still;
   }))
-    .then(() => { ready = items; }, () => {}) // a failed photo is skipped; the next call picks another
+    .then(() => { if (!known || items.every((p) => known.has(p.id))) ready = items; }, () => {}) // a failed photo is skipped; the next call picks another
     .finally(() => { preparing = null; });
   return preparing;
 }

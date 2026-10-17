@@ -12,6 +12,13 @@ DASHBOARD_KEY=""
 # Optional: AI agents and scripts that post messages and save recipes (docs/messages.md).
 # AGENT_TOKEN=""
 
+# ---- Alexa -------------------------------------------------------
+# Optional: your own Alexa skill, "Alexa, ask Frame to…" (docs/alexa.md).
+# Its skill id from the Alexa developer console (amzn1.ask.skill.…).
+# ALEXA_SKILL_ID=""
+# Only these Amazon accounts (amzn1.ask.account.…, space-separated); the Worker log shows yours.
+# ALEXA_USER_IDS=""
+
 # ---- Calendar ----------------------------------------------------
 # Optional, each in the same order as CALENDAR_URLS (docs/calendar.md).
 # Colours: red, orange, yellow, green, teal, blue, indigo, purple, pink, brown, gray or #rrggbb.
@@ -22,6 +29,13 @@ DASHBOARD_KEY=""
 # CALENDAR_NAMES="Personal, Family, Work"
 # IANA zone for event times that carry no zone at all (rare). Defaults to the feed's own.
 # DISPLAY_TZ="America/Chicago"
+
+# ---- Demo mode ---------------------------------------------------
+# Optional: on a frame with Home Assistant, demo mode's Media tab stays live (docs/frame.md).
+# Names to show instead, as JSON (speakers, TVs, Spotify devices, Videos groups).
+# DEMO_NAMES='{"Den":"Living Room TV","Sam":"Kiddo"}'
+# Public Spotify playlist links for its Music row, separated by spaces (default: a dinner-time mix).
+# DEMO_PLAYLISTS="https://open.spotify.com/playlist/..."
 
 # ---- Development -------------------------------------------------
 # Local only: with no DASHBOARD_KEY, 1 lets the API answer without one. Never in production.

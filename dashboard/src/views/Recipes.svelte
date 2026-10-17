@@ -61,6 +61,13 @@
     });
   });
 
+  // Alexa's "what's for dinner" with several meals planned: the Meals view.
+  $effect(() => {
+    if (!ui.openMeals) return;
+    ui.openMeals = false;
+    if (oursOn()) setMode('meals');
+  });
+
   // A meal tapped on Home opens its recipe here.
   $effect(() => {
     const want = ui.openRecipe;
@@ -217,8 +224,9 @@
                 <h3>{d.label}</h3>
                 <div class="dmeals">
                   {#each d.items as m (m.type + m.title)}
-                    <button class="mcard sheet" class:bare={!m.id} disabled={!m.id} onclick={() => openOurs({ id: m.id, title: m.title, hasImage: m.hasImage })}>
-                      {#if m.id && m.hasImage}<img src={ourThumb({ id: m.id, hasImage: true })} alt="" loading="lazy" decoding="async" use:fade />{:else}<span class="mnoimg"><Icon name="utensils" size={22} /></span>{/if}
+                    <!-- Demo mode's meals are TheMealDB dishes (lib/demo.js): their own photo, opened in Explore. -->
+                    <button class="mcard sheet" class:bare={!m.id} disabled={!m.id} onclick={() => (m.thumb ? (ui.openRecipe = { id: m.id, title: m.title }) : openOurs({ id: m.id, title: m.title, hasImage: m.hasImage }))}>
+                      {#if m.thumb}<img src={m.thumb} alt="" loading="lazy" decoding="async" use:fade />{:else if m.id && m.hasImage}<img src={ourThumb({ id: m.id, hasImage: true })} alt="" loading="lazy" decoding="async" use:fade />{:else}<span class="mnoimg"><Icon name="utensils" size={22} /></span>{/if}
                       <span class="mlabel"><span class="mtype">{m.type}</span><span class="mtitle">{recipeTitle(m.title)}</span></span>
                     </button>
                   {:else}
@@ -362,6 +370,9 @@
   /* Meals: one row per day, its meals as wide cards. */
   .week { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
   .day { display: grid; grid-template-columns: 190px 1fr; align-items: center; gap: 14px; }
+  /* A line between days, darker than --sep, which barely shows against this background. */
+  .day + .day { position: relative; padding-top: 10px; }
+  .day + .day::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--label); opacity: .22; }
   .day h3 { margin: 0 6px; font-size: 19px; font-weight: 700; color: var(--secondary); }
   .day.today h3 { color: var(--orange-text); }
   .dmeals { display: flex; gap: 10px; min-width: 0; overflow-x: auto; scrollbar-width: none; }

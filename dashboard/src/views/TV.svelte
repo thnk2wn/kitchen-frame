@@ -6,6 +6,7 @@
   import MediaSwitch from '../components/MediaSwitch.svelte';
   import { ha, haUrl, callService, tvAudio } from '../lib/ha.svelte.js';
   import { ui } from '../lib/state.svelte.js';
+  import { fakeMedia as fake, nm } from '../lib/demo-media.svelte.js';
 
   // Remote buttons by integration: the command names each one's remote.send_command takes. A TV whose
   // integration isn't here (or has no remote entity) shows no remote.
@@ -15,14 +16,15 @@
     roku: { up: 'up', down: 'down', left: 'left', right: 'right', ok: 'select', back: 'back', home: 'home', fwd: 'forward', rew: 'reverse' },
   };
 
-  // Demo mode: an invented TV and show; taps change it locally only.
+  // Demo mode without Home Assistant: an invented TV and show; taps change it locally only. With it,
+  // demo mode is the real TVs under names fit to show (lib/demo-media.svelte.js).
   const demo = $state({
     entity_id: 'media_player.demo_tv', friendly_name: 'Living Room', label: 'Living Room', tv: true, platform: 'apple_tv', remote: 'remote.demo_tv',
     state: 'playing', app_name: 'Nature Channel', supported_features: 1024 | 8, is_volume_muted: false, media_title: 'Coastlines', media_artist: 'S1:E3 Tide Pools',
     media_duration: 2640, media_position: 812, media_position_updated_at: new Date().toISOString(),
     source_list: ['Nature Channel', 'Kids Shows', 'Movies', 'Music', 'Photos', 'Settings'],
   });
-  let tvs = $derived(ui.demo ? [demo] : ha.players.filter((p) => p.tv));
+  let tvs = $derived(fake() ? [demo] : ha.players.filter((p) => p.tv));
   let chosen = $state(localStorage.getItem('frame-tv'));
   let tv = $derived(tvs.find((t) => t.entity_id === chosen) || tvs.find((t) => t.state === 'playing') || tvs[0]);
   function pick(t) { chosen = t.entity_id; try { localStorage.setItem('frame-tv', t.entity_id); } catch {} }
@@ -30,13 +32,13 @@
   let keys = $derived(tv && tv.remote ? KEYS[tv.platform] : null);
   let off = $derived(!tv || tv.state === 'off' || tv.state === 'standby' || tv.state === 'unavailable');
   let app = $derived(tv ? tv.app_name || tv.source || '' : '');
-  let art = $derived(tv && tv.entity_picture && !ui.demo ? haUrl(tv.entity_picture) : null);
+  let art = $derived(tv && tv.entity_picture && !fake() ? haUrl(tv.entity_picture) : null);
 
   // Apps in the order they were last watched on this TV (as the frame saw them playing), then A–Z,
   // so the ones the household uses come first without a list to keep.
   let seen = $state((() => { try { return JSON.parse(localStorage.getItem('frame-tv-apps') || '{}'); } catch { return {}; } })());
   $effect(() => {
-    if (!tv || ui.demo || tv.state !== 'playing' || !app) return;
+    if (!tv || fake() || tv.state !== 'playing' || !app) return;
     const mine = seen[tv.entity_id] || {};
     if (Date.now() - (mine[app] || 0) < 60000) return;
     seen = { ...seen, [tv.entity_id]: { ...mine, [app]: Date.now() } };
@@ -49,7 +51,7 @@
 
   let error = $state(null);
   async function run(domain, service, data = {}, target = { entity_id: tv.entity_id }) {
-    if (ui.demo) {
+    if (fake()) {
       if (service === 'media_play_pause') demo.state = demo.state === 'playing' ? 'paused' : 'playing';
       if (service === 'turn_off') demo.state = 'off';
       if (service === 'turn_on') demo.state = 'idle';
@@ -75,7 +77,7 @@
     try { localStorage.setItem('frame-tv-own-speakers', JSON.stringify(ownSpeakers)); } catch {}
   }
   const demoBar = $state({ entity_id: 'media_player.demo_soundbar', friendly_name: 'Soundbar', supported_features: 1024 | 8, volume_level: 0.2, is_volume_muted: false });
-  let speaker = $derived(ui.demo ? demoBar : tv && tvAudio[tv.entity_id] ? ha.players.find((p) => p.entity_id === tvAudio[tv.entity_id]) : null);
+  let speaker = $derived(fake() ? demoBar : tv && tvAudio[tv.entity_id] ? ha.players.find((p) => p.entity_id === tvAudio[tv.entity_id]) : null);
   let audio = $derived((speaker && !ownSpeakers.includes(tv.entity_id) && speaker) || tv);
   let canStep = $derived(!!audio && ((audio.supported_features || 0) & FEAT.VOLUME_STEP) !== 0);
   let canMute = $derived(!!audio && ((audio.supported_features || 0) & FEAT.VOLUME_MUTE) !== 0);
@@ -83,7 +85,7 @@
   const vol = (service, data = {}) => run('media_player', service, data, { entity_id: audio.entity_id });
   // An app tapped while the TV is off turns it on first, then opens the app.
   async function openApp(a) {
-    if (off && !ui.demo) { await run('media_player', 'turn_on'); await new Promise((r) => setTimeout(r, 4000)); }
+    if (off && !fake()) { await run('media_player', 'turn_on'); await new Promise((r) => setTimeout(r, 4000)); }
     run('media_player', 'select_source', { source: a });
   }
   // Back and forward 10 s: the remote's skip buttons when there are some, otherwise a seek.
@@ -112,7 +114,7 @@
     <div class="top" class:noremote={!keys}>
       <section class="sheet now">
         <div class="head">
-          <div class="art">{#if art}<img src={art} alt="" />{:else}<span class="noart" class:demo={ui.demo}><Icon name="tv" size={48} /></span>{/if}</div>
+          <div class="art">{#if art}<img src={art} alt="" />{:else}<span class="noart" class:demo={fake()}><Icon name="tv" size={48} /></span>{/if}</div>
           <div class="txt">
             {#if app}<div class="app">{app}</div>{/if}
             {#if off}<h1 class="idle">Off</h1>
@@ -142,7 +144,7 @@
         </div>
         {#if speaker}
           <div class="sound" role="radiogroup" aria-label="Sound from">
-            <button role="radio" aria-checked={audio === speaker} class:on={audio === speaker} onclick={() => useOwn(false)}>{speaker.friendly_name || 'Soundbar'}</button>
+            <button role="radio" aria-checked={audio === speaker} class:on={audio === speaker} onclick={() => useOwn(false)}>{nm(speaker.friendly_name) || 'Soundbar'}</button>
             <button role="radio" aria-checked={audio !== speaker} class:on={audio !== speaker} onclick={() => useOwn(true)}>TV speakers</button>
           </div>
         {/if}
@@ -181,7 +183,7 @@
     <MediaSwitch />
     {#each tvs as t (t.entity_id)}
       {#if tvs.length > 1}
-        <button class="chip" class:on={t === tv} onclick={() => pick(t)}><span class="dot" class:live={t.state === 'playing'}></span>{t.label}</button>
+        <button class="chip" class:on={t === tv} onclick={() => pick(t)}><span class="dot" class:live={t.state === 'playing'}></span>{nm(t.label)}</button>
       {/if}
     {/each}
     {#if tv}

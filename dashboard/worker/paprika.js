@@ -274,12 +274,20 @@ export async function paprikaImage(env, uid, w) {
 }
 
 // The meal plan, each meal linked to its recipe in our synced library when there is one.
+// "Chicken Tacos!" and "chicken tacos" are the same meal.
+export const mealKey = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+
 export async function listMeals(env) {
   if (!paprikaConfigured(env)) return { configured: false, meals: [] };
   const [stored, data] = await Promise.all([env.CALENDAR.get(MEALS_KEY, { type: 'json', cacheTtl: 60 }), load(env)]);
-  const byUid = new Map(data.recipes.filter((r) => !r.trashed).map((r) => [r.uid, r]));
+  const live = data.recipes.filter((r) => !r.trashed);
+  const byUid = new Map(live.map((r) => [r.uid, r]));
+  // A meal typed by name rather than picked from the library still opens its recipe (and shows its
+  // picture) when exactly one recipe has that name.
+  const byName = new Map();
+  for (const r of live) { const k = mealKey(r.title); byName.set(k, byName.has(k) ? null : r); }
   const meals = ((stored && stored.meals) || []).map(({ recipe, ...m }) => {
-    const r = recipe && byUid.get(recipe);
+    const r = (recipe && byUid.get(recipe)) || byName.get(mealKey(m.title));
     return r ? { ...m, id: r.id, hasImage: !!r.hasImage } : m;
   });
   return { configured: true, updated: stored ? stored.updated : null, meals };

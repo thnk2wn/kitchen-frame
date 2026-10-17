@@ -9,8 +9,11 @@
   import { shown, busy, expectFor } from '../lib/pending.svelte.js';
   import { nowList, playlistOf } from '../lib/playlist.svelte.js';
   import { coverColor } from '../lib/tint.js';
+  import { fakeMedia as fake, demoMedia, nm } from '../lib/demo-media.svelte.js';
 
-  // Demo mode: an invented Spotify player on invented speakers; taps change it locally only.
+  // Demo mode without Home Assistant (a laptop, screenshots): an invented Spotify player on invented
+  // speakers; taps change it locally only. With Home Assistant, demo mode is the real player with
+  // public playlists and names fit to show (lib/demo-media.svelte.js).
   const DEMO_TRACKS = [['Golden Hour', 'The Lanterns', 'Porch Light Sessions', 214], ['Saturday Pancakes', 'Maple & Co.', 'Kitchen Radio', 188], ['Slow River', 'Juniper Lane', 'Evening Songs', 241]];
   let demoTrack = $state(0);
   const demo = $state({
@@ -29,7 +32,7 @@
     demo.media_position_updated_at = new Date().toISOString();
   }
   // Shown as asked for while HA catches up (lib/pending.svelte.js).
-  const players = () => (ui.demo ? [demoPlayer] : ha.players.filter((p) => !p.tv).map(shown)); // TVs: the TV view
+  const players = () => (fake() ? [demoPlayer] : ha.players.filter((p) => !p.tv).map(shown)); // TVs: the TV view
 
   // Two modes. With Home Assistant's Spotify integration, its player is what we control and its
   // Spotify Connect devices (Echos, Nest Hubs…) are the speakers: tapping one moves playback there.
@@ -68,7 +71,7 @@
     return deviceOf.get(echo.entity_id) || null;
   }
   async function startOn(name, words) {
-    if (ui.demo) { demo.source = name; return demoRun('media_play'); }
+    if (fake()) { demo.source = name; return demoRun('media_play'); }
     error = null;
     try {
       const device_id = await echoFor(name);
@@ -82,7 +85,7 @@
   // a tap, ask it to check now, a few times while Spotify catches up.
   let nudges = [];
   function nudge() {
-    if (ui.demo || !spotify) return;
+    if (fake() || !spotify) return;
     nudges.forEach(clearTimeout);
     nudges = [1500, 3500, 6000, 10000].map((ms) => setTimeout(() => {
       if (spotify) callService('homeassistant', 'update_entity', {}, { entity_id: spotify.entity_id }).catch(() => {});
@@ -152,14 +155,17 @@
   // Our playlists, from the Spotify integration's media browser. It only browses while a session is
   // active, so the list is kept (titles, ids, cover URLs) and shown from the copy when idle.
   const BROWSE = 131072;
-  let playlists = $state(ui.demo ? DEMO_LISTS : JSON.parse(localStorage.getItem('frame-spotify-playlists') || '[]'));
+  let playlists = $state(fake() ? DEMO_LISTS : ui.demo ? demoMedia.playlists : JSON.parse(localStorage.getItem('frame-spotify-playlists') || '[]'));
   let spotifyPlayed = $state((() => { try { return JSON.parse(localStorage.getItem('frame-spotify-played') || '{}'); } catch { return {}; } })());
   // First choice: the Worker's own Spotify connection (SPOTIFY_* settings), which lists every playlist
   // even while nothing is playing. Without it, Home Assistant's browser (first 48 playlists, only
   // during a session).
   let direct = $state(localStorage.getItem('frame-spotify-direct') === 'on');
   $effect(() => {
-    if (ui.demo || !spotify) return;
+    if (fake()) return;
+    if (ui.demo) { playlists = demoMedia.playlists; return; } // public ones, never ours
+    untrack(() => { if (playlists === demoMedia.playlists) playlists = JSON.parse(localStorage.getItem('frame-spotify-playlists') || '[]'); }); // back from demo
+    if (!spotify) return;
     const load = () => api('/api/spotify/playlists').then((r) => {
       direct = !!r.configured && !r.error;
       try { localStorage.setItem('frame-spotify-direct', direct ? 'on' : 'off'); } catch {}
@@ -176,12 +182,12 @@
     return () => clearInterval(t);
   });
   // The playlist playing now (lib/playlist.svelte.js); it counts as just played for Recent.
-  let fromList = $derived(ui.demo ? 'Sunday Morning' : playlistOf(spotify));
+  let fromList = $derived(fake() ? 'Sunday Morning' : playlistOf(spotify));
   // What the shown song plays from, said whatever it is: a playlist, an album, an artist, Liked Songs,
   // or nothing (a song started on its own, or autoplay after a playlist ends).
   let mine = $derived(!!spotify && player === spotify && nowList.entity === spotify.entity_id);
   let source = $derived.by(() => {
-    if (ui.demo) return { lead: 'From', name: 'Sunday Morning' };
+    if (fake()) return { lead: 'From', name: 'Sunday Morning' };
     const f = mine ? nowList.from : null;
     if (!f) return fromList ? { lead: 'From', name: fromList } : null;
     if (f.kind === 'playlist') return { lead: 'From', name: fromList || f.name || 'a playlist' };
@@ -193,14 +199,14 @@
   // Up next (Spotify's queue), as many rows as fit between the song and the controls.
   const DEMO_QUEUE = [['Porch Swing', 'The Lanterns'], ['Sunday Paper', 'Maple & Co.'], ['Long Way Home', 'Juniper Lane'], ['Lemonade', 'The Lanterns'], ['Fireflies', 'Juniper Lane'], ['Back Roads', 'Maple & Co.']]
     .map(([title, artist], i) => ({ title, artist, hue: 20 + i * 55 }));
-  let upNext = $derived(ui.demo ? DEMO_QUEUE : mine && nowList.queue ? nowList.queue : []);
+  let upNext = $derived(fake() ? DEMO_QUEUE : mine && nowList.queue ? nowList.queue : []);
   let midH = $state(0);
   let rows = $derived(Math.max(0, Math.min(Math.ceil(upNext.length / 2), Math.floor((midH - 34) / 66))));
   // The card is tinted with the cover's main colour, like Spotify and Apple Music do.
   let tint = $state(null);
   $effect(() => {
-    const url = ui.demo ? null : mine ? nowList.image : null;
-    if (ui.demo) { tint = '217, 72, 107'; return; }
+    const url = fake() ? null : mine ? nowList.image : null;
+    if (fake()) { tint = '217, 72, 107'; return; }
     let live = true;
     coverColor(url).then((c) => { if (live) tint = c ? c.join(', ') : null; });
     return () => { live = false; };
@@ -235,7 +241,7 @@
     localStorage.setItem('frame-music-player', p.entity_id);
   }
   async function run(domain, service, data = {}, on = player) {
-    if (ui.demo) return demoRun(service, data);
+    if (fake()) return demoRun(service, data);
     error = null;
     expectFor(on, service, data);
     try { await callService(domain, service, data, { entity_id: on.entity_id }); if (on === spotify && service !== 'volume_set') nudge(); }
@@ -274,9 +280,9 @@
 </script>
 
 <div class="wrap" class:compact={spotify && playlists.length} style="--art:calc(100vh - {spotify && playlists.length ? 374 : 224}px)">
-  {#if !ui.demo && ha.status === 'off'}
+  {#if !fake() && ha.status === 'off'}
     <div class="sheet empty">Music isn’t set up on this frame yet.</div>
-  {:else if !ui.demo && ha.status === 'error'}
+  {:else if !fake() && ha.status === 'error'}
     <div class="sheet empty">{ha.error}</div>
   {:else if !player}
     <div class="sheet empty">{ha.status === 'connected' ? 'No speakers found in Home Assistant.' : 'Connecting to Home Assistant…'}</div>
@@ -290,16 +296,16 @@
         {:else if player.entity_picture}
           <img src={haUrl(player.entity_picture)} alt="" />
         {:else}
-          <span class="noart" class:demo={ui.demo}><Icon name="music" size={96} /></span>
+          <span class="noart" class:demo={fake()}><Icon name="music" size={96} /></span>
         {/if}
       </div>
 
       <section class="sheet now" class:tinted={!!tint} style={tint ? '--tint:' + tint : ''}>
-        <div class="where"><Icon name="speaker" size={20} />{spotify ? (target || 'Spotify') : player.label}</div>
+        <div class="where"><Icon name="speaker" size={20} />{spotify ? nm(target) || 'Spotify' : nm(player.label)}</div>
         {#if starting}
           <!-- While a tap starts music: what was asked for, until Spotify reports it playing. -->
           <h1 class="pending">{starting.title || 'Starting…'}</h1>
-          <p class="artist starting-on"><span class="spin small" aria-hidden="true"></span>Starting on {target || 'the speaker'}…</p>
+          <p class="artist starting-on"><span class="spin small" aria-hidden="true"></span>Starting on {nm(target) || 'the speaker'}…</p>
         {:else if player.media_title}
           <h1>{player.media_title}</h1>
           <p class="artist">{player.media_artist || ''}</p>
@@ -307,7 +313,7 @@
           {#if player.media_album_name && source?.lead !== 'From the album'}<p class="album">{player.media_album_name}</p>{/if}
         {:else}
           <h1 class="idle">{player.state === 'off' ? 'Off' : 'Nothing playing'}</h1>
-          {#if playing}<p class="artist">Playing on {playing.label}</p>{/if}
+          {#if playing}<p class="artist">Playing on {nm(playing.label)}</p>{/if}
         {/if}
 
         <div class="mid" bind:clientHeight={midH}>
@@ -342,11 +348,11 @@
           <button class="ctl" class:busy={busy(player, 'title')} onclick={() => run('media_player', 'media_next_track')} aria-label="Next"><Icon name="skipForward" size={34} /></button>
         </div>
 
-        <div class="vol" class:none={!volPlayer && !ui.demo}>
+        <div class="vol" class:none={!volPlayer && !fake()}>
           <Icon name="volume" size={24} />
           <input type="range" min="0" max="100" step="1" bind:value={volume}
             onpointerdown={() => (dragging = true)} onpointerup={() => (dragging = false)} onpointercancel={() => (dragging = false)}
-            oninput={onVolume} disabled={!volPlayer && !ui.demo} aria-label="Volume" style="--pct:{volume}%" />
+            oninput={onVolume} disabled={!volPlayer && !fake()} aria-label="Volume" style="--pct:{volume}%" />
           <span class="num">{volume}</span>
         </div>
         {#if error}<p class="err">{error}</p>{/if}
@@ -361,7 +367,7 @@
           {@const on = !!fromList && (nowList.uri ? pl.media_content_id === nowList.uri : pl.title === fromList)}
           <button class="pl sheet" class:on class:starting={starting && starting.id === pl.media_content_id} onclick={() => playList(pl)} use:reveal={on}>
             {#if starting && starting.id === pl.media_content_id}<span class="spin" aria-label="Starting"></span>{/if}
-            {#if pl.thumbnail}<img src={pl.thumbnail} alt="" loading="lazy" decoding="async" />{:else}<span class="noart" class:demo={ui.demo} style={ui.demo ? '--h:' + (i * 47 + 10) % 360 : ''}><Icon name="music" size={26} /></span>{/if}
+            {#if pl.thumbnail}<img src={pl.thumbnail} alt="" loading="lazy" decoding="async" />{:else}<span class="noart" class:demo={fake()} style={fake() ? '--h:' + (i * 47 + 10) % 360 : ''}><Icon name="music" size={26} /></span>{/if}
             <span>{pl.title}</span>
           </button>
         {/each}
@@ -373,7 +379,7 @@
       {#if spotify}
         {#each devices as d (d)}
           <button class="spk" class:on={d === target} onclick={() => pickSpeaker(d)}>
-            <span class="dot" class:live={spotify.state === 'playing' && spotify.source === d}></span>{d}
+            <span class="dot" class:live={spotify.state === 'playing' && spotify.source === d}></span>{nm(d)}
           </button>
         {:else}
           <span class="hint">Spotify sees no speakers yet. Play something once on an Echo or Nest Hub from the Spotify app.</span>
@@ -381,7 +387,7 @@
       {:else}
       {#each players() as p (p.entity_id)}
         <button class="spk" class:on={p.entity_id === player.entity_id} onclick={() => choose(p)}>
-          <span class="dot" class:live={p.state === 'playing'}></span>{p.label}
+          <span class="dot" class:live={p.state === 'playing'}></span>{nm(p.label)}
         </button>
       {/each}
       {#if playing && player.state !== 'playing' && player.ma && playing.ma}

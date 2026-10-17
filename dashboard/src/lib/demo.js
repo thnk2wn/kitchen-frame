@@ -109,15 +109,38 @@ export function demoHouse() {
 }
 
 // Demo meal plan: an invented week (text-only entries, so no recipe pages or photos).
-export function demoMeals(now) {
+// Demo mode's meal plan: real recipes from the Paprika library (its Paprika tab shows them in demo
+// mode too), picked by date, so a day keeps its dish and the frame and Alexa (worker/alexa.js) agree.
+// Breakfasts and dinners by Paprika category (or name). Without a library: TheMealDB dishes, which
+// open in Explore.
+const hash = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+const isBreakfast = (r) => /breakfast|brunch/i.test((r.categories || []).join(' ')) || /pancake|waffle|french toast|muffin|omelet|frittata|granola|oatmeal|scone/i.test(r.title);
+const isDinner = (r) => /dinner|main|entr[eé]e|supper/i.test((r.categories || []).join(' '))
+  || !/dessert|cookie|cake|brownie|bar|frosting|sauce|dressing|drink|smoothie|cocktail|bread|side|snack|dip/i.test((r.categories || []).join(' ') + ' ' + r.title);
+export function demoMeals(now, recipes) {
   const day = (n) => dayKey(addDays(now, n));
+  const pool = (recipes || []).filter((r) => r && r.id && r.hasImage).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const breakfasts = pool.filter(isBreakfast);
+  const dinners = pool.filter((r) => !isBreakfast(r) && isDinner(r));
+  if (dinners.length >= 6) {
+    const pick = (list, key) => { const r = list[hash(key) % list.length]; return { title: r.title, id: r.id, hasImage: true }; };
+    const out = [];
+    for (let n = 0; n < 7; n++) {
+      const d = day(n);
+      if (n === 3) { out.push({ date: d, type: 'Dinner', title: 'Leftovers' }); continue; }
+      if (n === 4 && breakfasts.length) out.push({ date: d, type: 'Breakfast', ...pick(breakfasts, d + 'b') });
+      out.push({ date: d, type: 'Dinner', ...pick(dinners, d) });
+    }
+    return out;
+  }
+  const mdb = (id, file) => ({ id: 'mdb:' + id, thumb: 'https://www.themealdb.com/images/media/meals/' + file + '/small' });
   return [
-    { date: day(0), type: 'Dinner', title: 'Blackened shrimp bowls' },
-    { date: day(1), type: 'Dinner', title: 'One-pot taco tortellini' },
-    { date: day(2), type: 'Dinner', title: 'Garlic parmesan baked flounder' },
+    { date: day(0), type: 'Dinner', title: 'Cajun spiced fish tacos', ...mdb(52819, 'uvuyxu1503067369.jpg') },
+    { date: day(1), type: 'Dinner', title: 'Shrimp chow fun', ...mdb(52953, '1529445434.jpg') },
+    { date: day(2), type: 'Dinner', title: 'Fish pie', ...mdb(52802, 'ysxwuq1487323065.jpg') },
     { date: day(3), type: 'Dinner', title: 'Leftovers' },
-    { date: day(4), type: 'Breakfast', title: 'Blueberry pancakes' },
-    { date: day(4), type: 'Dinner', title: 'Tacos' },
-    { date: day(5), type: 'Dinner', title: 'Pizza and a movie' },
+    { date: day(4), type: 'Breakfast', title: 'Pancakes', ...mdb(52854, 'rwuyqx1511383174.jpg') },
+    { date: day(4), type: 'Dinner', title: 'Crock pot chicken baked tacos', ...mdb(52830, 'ypxvwv1505333929.jpg') },
+    { date: day(5), type: 'Dinner', title: 'Margherita pizza', ...mdb(53014, 'x0lk931587671540.jpg') },
   ];
 }

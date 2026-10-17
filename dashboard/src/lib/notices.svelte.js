@@ -14,6 +14,7 @@
 import { ui } from './state.svelte.js';
 import { subscribeTo, callService, onHAConnect } from './ha.svelte.js';
 import { api } from './api.js';
+import { time, dayKey, dow } from './format.js';
 
 const PREFIX = 'frame_';
 const real = $state({ list: [] }); // [{ id, title, message, created, tone }], alerts first, then newest
@@ -151,3 +152,12 @@ setInterval(() => {
   const cutoff = Date.now() - past.infoHours * 3600000;
   for (const n of real.list) if (n.tone === 'info' && Date.parse(n.created) < cutoff) dismissNotice(n.id, 'expired');
 }, 60000);
+
+// When a notice started, for the banners on Home and the clock screen: "3:42 PM", or "Fri 3:42 PM"
+// when it wasn't today.
+export function startedAt(n, now = new Date()) {
+  if (!n || !n.created) return '';
+  const d = new Date(n.created);
+  if (isNaN(d)) return '';
+  return (dayKey(d) !== dayKey(now) ? dow(dayKey(d)) + ' ' : '') + time(d);
+}

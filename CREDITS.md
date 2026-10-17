@@ -25,6 +25,11 @@ description of that work.
 - Weather data by [Open-Meteo](https://open-meteo.com) (CC BY 4.0).
 - Forecast text and alerts from the US [National Weather Service](https://www.weather.gov) (public domain).
 - Recipes from [TheMealDB](https://www.themealdb.com) (free API key for personal use).
+- Demo mode's slideshow photos from [Lorem Picsum](https://picsum.photos), photos from [Unsplash](https://unsplash.com) under the Unsplash License.
+- Demo mode's camera pictures: public-domain photos on Flickr, found through
+  [Openverse](https://openverse.org): "Front Entry" by Paul Pakozdi, "Spring Lake" by satguru,
+  "Home Garage with Epoxy Coatings" by Nolan V. and "The beginnings of a Garden for the Buddha" by Wonderlane.
+- Demo mode's Music row: public Spotify playlists, by their makers and Spotify.
 - Maps: tiles and place lookups from [OpenStreetMap](https://www.openstreetmap.org/copyright)
   (© OpenStreetMap contributors, ODbL) through its tile servers and
   [Nominatim](https://operations.osmfoundation.org/policies/nominatim/), within their usage

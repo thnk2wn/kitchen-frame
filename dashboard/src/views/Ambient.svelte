@@ -5,7 +5,7 @@
   import { clockTime, longDate, weatherInfo, time, eventsOn } from '../lib/format.js';
   import { src, takeSlide, lightOf, asVideo, takeVideo, videoSrc } from '../lib/slides.js';
   import { nowPlaying } from '../lib/ha.svelte.js';
-  import { notices, iconOf } from '../lib/notices.svelte.js';
+  import { notices, iconOf, startedAt } from '../lib/notices.svelte.js';
   import { night as nightMode } from '../lib/night.svelte.js';
 
   // StandBy-style idle screen: the iCloud album as a slideshow behind the clock, in the text colour
@@ -135,7 +135,7 @@
       {/if}
       {#if notices().length}
         {@const n = notices()[0]}
-        <div class="notice tone-{n.tone}"><Icon name={iconOf(n.tone)} size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span></div>
+        <div class="notice tone-{n.tone}"><Icon name={iconOf(n.tone)} size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span>{#if startedAt(n, clock.now)}<small class="at">{startedAt(n, clock.now)}</small>{/if}</div>
       {/if}
       {#if next}
         <div class="next"><span><Txt text={next.title} /></span><span class="num">{time(new Date(next.start))}</span></div>
@@ -162,6 +162,7 @@
      classes are prefixed: a bare "info" would pick up the .info layout above. */
   .notice { align-self: flex-start; display: flex; align-items: center; gap: 10px; max-width: 560px; padding: 8px 16px; border-radius: 16px; background: #ff9500; color: #fff; font-size: 22px; font-weight: 700; }
   .notice.tone-alert { background: #ff3b30; }
+  .notice .at { flex: none; font-size: 17px; font-weight: 600; opacity: .85; }
   .notice.tone-info { background: #007aff; }
   .notice span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* After sunset: same colour, dimmer, and photos dimmed, so the kitchen isn't lit up. */

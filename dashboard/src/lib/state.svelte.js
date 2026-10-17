@@ -5,7 +5,7 @@ import { log } from './log.svelte.js';
 import { dayKey, recipeTitle, setCalendarColors } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
 import { DEMO_ROTATIONS } from './rotations.js';
-import { ha } from './ha.svelte.js';
+import { ha, haConfigured } from './ha.svelte.js';
 import { say, speaker, speak } from './announce.svelte.js';
 import { timers } from './timers.svelte.js';
 import { presence, presenceArea, onArrive } from './presence.svelte.js';
@@ -32,9 +32,10 @@ const TAB_IDS = ['home', 'calendar', 'groceries', 'todo', 'recipes', 'music', 'h
 export const ui = $state({
   tab: TAB_IDS.includes(q.get('tab')) ? q.get('tab') : 'home', idle: false,
   // { id, title } for Recipes to open on arrival (a meal tapped on Home, or ?open=<recipe id>).
-  openRecipe: q.get('open') ? { id: q.get('open'), title: '' } : null, theme: 'light', settingsOpen: q.has('settings'), // ?settings=<tab> opens Settings (screenshots)
+  openRecipe: q.get('open') ? { id: q.get('open'), title: '' } : null, openMeals: false, theme: 'light', settingsOpen: q.has('settings'), // ?settings=<tab> opens Settings (screenshots)
   // Index into weather.data.days while its detail sheet is open (?weather=<n> opens it, for screenshots).
   noticesOpen: false,                        // the Home Assistant notices sheet (lib/notices.svelte.js)
+  // openMeals: Recipes opens on Meals once (Alexa's "what's for dinner" with several meals planned).
   // The event whose details are showing ({ uid, start }); ?event=<uid> opens one, for screenshots.
   event: q.get('event') ? { uid: q.get('event'), start: null } : null,
   media: ['tv', 'videos'].includes(q.get('media')) ? q.get('media') : 'music', // the Media tab's view (?media=tv or videos)
@@ -67,7 +68,9 @@ export function setSetting(key, value) {
     localStorage.setItem('frame-demo', value ? 'on' : 'off');
     lists.groceries.items = lists.todo.items = null; // demo lists are rebuilt fresh each time it's switched on
     forget('calendar', 'photos', 'todo', 'groceries', 'todo-meta', 'groceries-meta'); // real data must redraw
-    loadCalendar(); loadList('todo'); loadList('groceries'); loadPhotos();
+    loadCalendar(); loadList('todo'); loadList('groceries'); loadPhotos(); loadVideos();
+    if (value) loadPaprika(); // demo meals are picked from the library
+    import('./checkin.js').then((c) => c.reportDemo());
   }
 }
 export const clock = $state({ now: new Date() });
@@ -81,7 +84,7 @@ export const photos = $state({ items: ui.demo ? [] : cached('photos') || [], sto
 export const nowVideo = $state({ list: null, index: 0, shared: false });
 
 // YouTube videos for Media → Videos (worker/youtube.js): groups of chosen videos and playlists.
-export const videos = $state({ groups: ui.demo ? [] : cached('youtube') || [] });
+export const videos = $state({ groups: ui.demo && !haConfigured() ? [] : cached('youtube') || [] });
 // When each video last played on this frame (id -> ms), for Videos' "recently played" order, and each
 // group's order there (name -> 'recent' | 'az'). Kept on the frame.
 const readJSON = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { return {}; } };
@@ -98,7 +101,9 @@ export function setVideoSort(group, how) {
   try { localStorage.setItem('frame-video-sort', JSON.stringify(videoSort)); } catch {}
 }
 export function loadVideos() {
-  if (ui.demo) return Promise.resolve();
+  // Demo mode shows the real groups on a frame with Home Assistant (lib/demo-media.svelte.js renames
+  // them), none without.
+  if (ui.demo && !haConfigured()) { videos.groups = []; return Promise.resolve(); }
   return api('/api/youtube').then((d) => { const g = d.groups || []; if (changed('youtube', g)) videos.groups = g; }, () => {});
 }
 // Recipes saved by agents or from Explore (GET /api/recipes).
@@ -115,7 +120,7 @@ export function loadRecipes() {
 // Paprika meal plan around today (GET /api/meals): [{ date, type, title, id?, hasImage? }].
 export const meals = $state({ items: cached('meals') || [], configured: null });
 // What the screen shows: the real plan, or an invented week in demo mode.
-export const mealItems = () => (ui.demo ? demoMeals(clock.now) : meals.items);
+export const mealItems = () => (ui.demo ? demoMeals(clock.now, paprika.recipes) : meals.items);
 export function loadMeals() {
   return single('meals', async () => {
     try {
@@ -248,11 +253,13 @@ function loadWeather() {
 }
 
 export function loadPhotos() {
-  if (ui.demo) { photos.items = []; return Promise.resolve(); } // demo mode never shows family photos
+  // Demo mode never shows family photos: stock ones instead (worker/demo-photos.js), not cached as real.
+  if (ui.demo) return single('demo-photos', () => api('/api/photos?demo').then((d) => { if (ui.demo) photos.items = d.photos || []; }, () => {}));
   return single('photos', async () => {
     try {
       const data = await api('/api/photos');
       const items = data.photos || [];
+      if (ui.demo) return; // switched to demo while this was loading
       if (changed('photos', items)) photos.items = items;
       photos.storage = data.storage || null; // Cloudflare storage the album uses (through the Mac bridge)
     } catch {}
@@ -290,6 +297,20 @@ function connectMessages() {
         Object.assign(nowVideo, { list: [{ id: d.id, title: d.title || '' }], index: 0, shared: true });
         log('youtube.shared', { video: d.id });
       }
+      // From Alexa (worker/alexa.js): show a tab, start the slideshow, wake, play a Videos group.
+      if (['show', 'wake', 'playgroup', 'recipe', 'meals', 'close'].includes(d.command)) {
+        lastTouch = Date.now(); // as if someone had tapped: the clock screen stays away a while
+        if (ui.idle) exitIdle();
+      }
+      if (d.command === 'show') showTab(d.tab);
+      if (d.command === 'slideshow') startSlideshow();
+      if (d.command === 'playgroup') playGroup(d.group);
+      // "What's for dinner": tonight's recipe, or Recipes → Meals when there are several.
+      if (d.command === 'recipe' && d.id) { ui.settingsOpen = false; ui.openRecipe = { id: d.id, title: d.title || '' }; ui.tab = 'recipes'; }
+      if (d.command === 'meals') { ui.settingsOpen = false; ui.openMeals = true; ui.tab = 'recipes'; }
+      // "Hide notifications", "close that": whatever sheet is over the screen.
+      if (d.command === 'close') { ui.noticesOpen = false; ui.settingsOpen = false; ui.event = null; ui.task = null; ui.weatherDay = null; }
+      if (['show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close'].includes(d.command)) log('alexa.command', { command: d.command, tab: d.tab, group: d.group });
       if (d.messages) showMessages(d.messages);
     } catch {}
   };
@@ -502,6 +523,7 @@ function applyTheme() {
 }
 
 export function start() {
+  if (ui.demo) loadPaprika(); // demo meals are picked from the recipe library
   // Clock aligned to the minute boundary.
   (function tick() {
     clock.now = new Date();
@@ -583,6 +605,21 @@ export function startSlideshow() {
   ui.tab = 'home';
   ui.idle = true;
   loadPhotos();
+}
+
+// Alexa's "show the calendar": a tab, one of Media's views (music, tv, videos), or the notices sheet.
+function showTab(tab) {
+  ui.settingsOpen = false;
+  if (tab === 'notices') { ui.noticesOpen = true; return; }
+  if (tab === 'music' || tab === 'tv' || tab === 'videos') { ui.tab = 'music'; ui.media = tab; return; }
+  if (TAB_IDS.includes(tab)) ui.tab = tab;
+}
+// Alexa's "play Sam's videos": the group, the ones least recently played here first.
+function playGroup(name) {
+  const g = videos.groups.find((x) => x.name === name);
+  if (!g || !g.videos || !g.videos.length) return log('alexa.command', { command: 'playgroup', missing: name }, 'warn');
+  const list = g.videos.map((v, i) => ({ v, i })).sort((a, b) => (videoPlays[a.v.id] || 0) - (videoPlays[b.v.id] || 0) || a.i - b.i).map((x) => x.v);
+  Object.assign(nowVideo, { list, index: 0, shared: true });
 }
 
 export function exitIdle() {

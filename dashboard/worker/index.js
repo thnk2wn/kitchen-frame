@@ -8,6 +8,8 @@
 //   POST /api/lists/:list/:id/done   completes an item
 //   GET  /api/photos                 idle-screen photo list from the iCloud shared album (see photos.js)
 //   GET  /api/photos/:id             one photo, passed through from iCloud
+//   GET  /api/photos?demo, /api/photos/demo-:n   demo mode's stock photos (demo-photos.js)
+//   GET  /api/demo                   demo mode's Media: shown names (DEMO_NAMES), public playlists (demo-media.js)
 //   POST /api/messages               an agent posts a full-screen message (AGENT_TOKEN; see messages.js)
 //   GET  /api/messages               pending messages for the frame
 //   GET  /api/messages/live          WebSocket: messages pushed the moment they change
@@ -17,6 +19,7 @@
 //   POST /api/frame/status           the kiosk checks in: version, screen, and its settings (frame.js)
 //   GET  /api/frame/status           its last check-in;  GET /api/frame/settings  the settings backup
 //   POST /api/frame/checkin          asks the frame to check in now, over the messages socket
+//   POST /api/frame/demo             the frame's demo mode on or off, for Alexa (alexa.js)
 //   POST /api/frame/reload           asks it to reload the dashboard (it sends its events first)
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
@@ -48,6 +51,10 @@
 //   AGENT_TOKEN    lets AI agents post messages and save recipes; it can't read anything.
 //   SHARE_TOKEN    optional: lets a phone's share sheet play a YouTube video on the frame
 //                  (POST /api/share/play), and nothing else.
+//   DEMO_NAMES     optional: JSON of real -> shown names for demo mode's live Media tab (demo-media.js),
+//                  with DEMO_PLAYLISTS (public Spotify playlist links) for its Music row.
+//   ALEXA_SKILL_ID optional: the id of your own Alexa skill (POST /api/alexa, alexa.js, docs/alexa.md),
+//                  with ALEXA_USER_IDS to allow only those Amazon accounts.
 //   PAPRIKA_EMAIL, PAPRIKA_PASSWORD  optional: a Paprika Cloud Sync account to show our recipes.
 //   GROCERIES_SOURCE, TODO_SOURCE  optional: "reminders" to show that list from Apple Reminders
 //                  through a Mac at home instead of Todoist (bridge.js, docs/lists.md), with
@@ -64,7 +71,11 @@ import { room } from './messages.js';
 import { listNotices, addNotice } from './notices.js';
 import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
 import { opsSummary } from './ops.js';
-import { listVideos, thumbResponse, videoIdOf, videoTitle } from './youtube.js';
+import { listVideos, thumbResponse, videoIdOf, videoTitle, parseSetting } from './youtube.js';
+import { handleAlexa } from './alexa.js';
+import { demoPhotos, demoPhotoResponse, demoCamResponse } from './demo-photos.js';
+import { demoMedia } from './demo-media.js';
+const DEMO_KEY = 'frame:demo'; // { on, at }: the frame's demo mode (POST /api/frame/demo)
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage, moveToPaprika } from './recipes.js';
@@ -186,6 +197,22 @@ async function handle(req, env, ctx) {
       const { sent = 0 } = await r.json().catch(() => ({}));
       return json({ ok: sent > 0, title, sent, ...(sent ? {} : { error: 'the frame isn\'t connected right now' }) });
     }
+    // Alexa ("Alexa, ask Frame to…": docs/alexa.md). Amazon signs each request; alexa.js checks that,
+    // the skill id and (optionally) the Amazon account, and nothing else reaches it.
+    if (url.pathname === '/api/alexa' && req.method === 'POST') {
+      return handleAlexa(req, env, {
+        command: async (command, data = {}) => {
+          const r = await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command, ...data }) });
+          return ((await r.json().catch(() => ({}))).sent) || 0;
+        },
+        calendar: async () => (await env.CALENDAR.get(KEY, 'json')) || updateCalendar(env, null),
+        videoGroups: () => parseSetting(env.YOUTUBE_VIDEOS).map((g) => g.name),
+        meals: () => listMeals(env),
+        recipes: () => listPaprika(env),
+        rotations: () => rotations(env),
+        demo: async () => ((await env.CALENDAR.get(DEMO_KEY, 'json')) || {}).on === true,
+      });
+    }
     // Agents may also save recipes with their token (the frame saves with its own key).
     const agent = env.AGENT_TOKEN && req.headers.get('Authorization') === 'Bearer ' + env.AGENT_TOKEN;
     if (url.pathname === '/api/recipes' && req.method === 'POST' && agent) {
@@ -225,6 +252,12 @@ async function handle(req, env, ctx) {
       }
       const t = /^\/api\/tiles\/(\d+)\/(\d+)\/(\d+)$/.exec(url.pathname);
       if (t) return tile(+t[1], +t[2], +t[3], ctx);
+      // Demo mode's Media on a frame with Home Assistant: names fit to show, public playlists (demo-media.js).
+      if (url.pathname === '/api/demo') return json(await demoMedia(env), 200, 'private, max-age=300');
+      // Demo mode's stock slideshow (demo-photos.js), never the album.
+      if (url.pathname === '/api/photos' && url.searchParams.has('demo')) return json(demoPhotos(), 200, 'private, max-age=86400');
+      if (url.pathname.startsWith('/api/photos/demo-cam-')) return demoCamResponse(url.pathname.slice('/api/photos/demo-cam-'.length), ctx);
+      if (url.pathname.startsWith('/api/photos/demo-')) return demoPhotoResponse(url.pathname.slice('/api/photos/'.length), ctx);
       if (url.pathname === '/api/photos') {
         if (!env.ALBUM_URL) return json({ photos: [], error: 'Add ALBUM_URL to show photos' });
         return json(await listPhotos(env, ctx));
@@ -240,6 +273,12 @@ async function handle(req, env, ctx) {
         return json(body, status);
       }
       // Ask the frame to check in now, over its live connection (scripts/frame-status.sh --now).
+      // The frame's demo mode, for Alexa to read the same invented day (alexa.js).
+      if (url.pathname === '/api/frame/demo' && req.method === 'POST') {
+        const { on } = await req.json().catch(() => ({}));
+        await env.CALENDAR.put(DEMO_KEY, JSON.stringify({ on: on === true, at: new Date().toISOString() }));
+        return json({ ok: true });
+      }
       if (url.pathname === '/api/frame/checkin' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'checkin' }) });
       if (url.pathname === '/api/frame/reload' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'reload' }) });
       if (url.pathname === '/api/frame/status') return json(await getStatus(env));

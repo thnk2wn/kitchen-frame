@@ -1,6 +1,7 @@
 <script>
   import Icon from './Icon.svelte';
   import { haUrl, callService } from '../lib/ha.svelte.js';
+  import { nm } from '../lib/demo-media.svelte.js';
   import { ui } from '../lib/state.svelte.js';
   import { busy, expectFor } from '../lib/pending.svelte.js';
   import { playlistOf } from '../lib/playlist.svelte.js';
@@ -27,9 +28,9 @@
     <div class="txt">
       <div class="title">{player.media_title}</div>
       {#if slim}
-        <div class="sub">{player.media_artist || player.label}{#if from}{' · From ' + from}{/if}</div>
+        <div class="sub">{player.media_artist || nm(player.label)}{#if from}{' · From ' + from}{/if}</div>
       {:else}
-        <div class="sub">{player.media_artist || player.label}</div>
+        <div class="sub">{player.media_artist || nm(player.label)}</div>
         {#if from}<div class="from">From {from}</div>{/if}
       {/if}
     </div>
