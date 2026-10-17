@@ -182,6 +182,7 @@ export async function handleAlexa(req, env, { command, calendar, videoGroups, me
         const list = intent.name === 'AddTaskIntent' ? 'todo' : 'groceries';
         if (!item) return Response.json(say('What should I add?', false));
         await add(env, list, item.slice(0, 200));
+        await sent('show', { tab: list }).catch(() => false); // the frame shows the list it went on
         return Response.json(say('Added ' + item + ' to ' + (list === 'todo' ? 'Tasks' : 'Groceries') + '.'));
       }
       case 'ShowTabIntent': {

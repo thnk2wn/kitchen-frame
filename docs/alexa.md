@@ -23,8 +23,8 @@ same and give the same advice. (Use two words for the name; Amazon discourages o
 
 | Say | What happens |
 | --- | --- |
-| add eggs to groceries · put eggs on the shopping list · add milk | Adds to Groceries (also when no list is named), in Todoist or Reminders as the list is set up ([lists](lists.md)) |
-| add call the dentist to my tasks · remind us to call the dentist | Adds to Tasks |
+| add eggs to groceries · put eggs on the shopping list · add milk | Adds to Groceries (also when no list is named), in Todoist or Reminders as the list is set up ([lists](lists.md)), and shows Groceries on the frame |
+| add call the dentist to my tasks · remind us to call the dentist | Adds to Tasks and shows it |
 | show the calendar · go to recipes · switch to videos · show the house | The frame switches to that tab (or Media's music, TV or videos view), waking from the slideshow |
 | show notifications · show notices | Opens the notices sheet over whatever is showing |
 | hide notifications · close that | Closes whatever sheet is open (notices, an event, a task, the weather, Settings) |

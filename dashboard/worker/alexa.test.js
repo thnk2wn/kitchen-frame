@@ -168,3 +168,13 @@ test('demo meals: picked from the recipe library by date, the same every time', 
   assert.equal(a.find((m) => m.type === 'Breakfast').title, 'Blueberry Pancakes');
   assert.equal(demoMeals(now, [])[0].id, 'mdb:52819'); // no library: TheMealDB dishes
 });
+
+test('alexa: adding to a list shows that list on the frame', async () => {
+  stub(amazon);
+  const sent = [];
+  const deps = { command: async (name, data) => { sent.push([name, data]); return 1; }, calendar: async () => ({}), videoGroups: () => [], meals: async () => ({}), rotations: () => [] };
+  const listEnv = { ...env, TODO_SOURCE: 'reminders', BRIDGE: { idFromName: () => 'home', get: () => ({ fetch: async () => new Response('{}') }) } };
+  const res = await handleAlexa(signed({ type: 'IntentRequest', intent: { name: 'AddTaskIntent', slots: { item: { value: 'call the dentist' } } } }).req, listEnv, deps);
+  assert.equal(await speech(res), 'Added call the dentist to Tasks.');
+  assert.deepEqual(sent, [['show', { tab: 'todo' }]]);
+});

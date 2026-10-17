@@ -613,6 +613,7 @@ function showTab(tab) {
   if (tab === 'notices') { ui.noticesOpen = true; return; }
   if (tab === 'music' || tab === 'tv' || tab === 'videos') { ui.tab = 'music'; ui.media = tab; return; }
   if (TAB_IDS.includes(tab)) ui.tab = tab;
+  if (tab === 'groceries' || tab === 'todo') loadList(tab); // an item just added by voice shows at once
 }
 // Alexa's "play Sam's videos": the group, the ones least recently played here first.
 function playGroup(name) {
