@@ -6,6 +6,11 @@ locks, covers, scenes), thermostats get setpoint buttons, sensors show their val
 (including the view header) are rendered live by HA, and cameras show a snapshot. Edit the dashboard
 in HA and the frame follows within a second or two.
 
+**Needs:** Home Assistant, reachable from the frame on the home network, and a dashboard in it to
+mirror. Without the HA settings below the frame has no House tab (and no Media tab); everything else
+works as before. Cameras need nothing more for pictures; live video needs a camera HA can stream over
+WebRTC.
+
 ![House tab](images/house-light.jpg)
 
 ## Setup
@@ -21,7 +26,7 @@ Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `TH
   remote address, and give HA a fixed IP (a router reservation, or a static address in HA outside
   the router's DHCP range). Then `HA_TOKEN` can belong to a **non-admin** HA user marked **Can only
   log in from the local network**, so the token is useless outside the house
-  ([frame.md → Security](frame.md#security)).
+  ([SECURITY.md](../SECURITY.md)).
 
 ## Devices
 
@@ -38,7 +43,8 @@ Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `TH
 
 ## Cameras
 
-Each camera tile shows a snapshot. Pictures change when the tab opens, on **Refresh** by the
+Any camera on the mirrored dashboard works: Ring, Reolink, UniFi Protect, Nest or anything else Home
+Assistant has. Each camera tile shows a snapshot. Pictures change when the tab opens, on **Refresh** by the
 heading, on a tap, and on the schedule in **Settings → Home → Camera pictures** (every minute by
 default, every 5 minutes, or off): the newest picture the camera's add-on already took, and at most
 every 5 minutes a new one from a camera whose picture is older than that, since asking a battery
@@ -53,14 +59,24 @@ and **Sharper** switches back.
 
 ### Live video, and what the frame can decode
 
-**The short version:** some Ring cameras send a picture bigger than the frame's video decoder can
-handle, so it arrives and never shows. Those cameras go through a Mac at home that shrinks the
-picture first. Everything else plays as it comes.
+**The short version:** a camera whose picture is wider than the frame's video decoder handles
+arrives but never shows. Most cameras play as they come and need nothing below. For the ones that
+don't (here, some Ring cameras), a Mac at home can shrink the picture first.
 
-A camera can reach the frame three ways. The full-screen view tries them in this order and falls
-back on its own:
+Which parts of this you need:
 
-1. **The camera relay** (below), for cameras too big for the frame: shrunk on a Mac, with sound.
+- **Any camera HA streams over WebRTC:** nothing; the full-screen view plays it, else shows pictures.
+- **Ring cameras:** paths 2 and 3 below are Ring's (through the
+  [ring-mqtt](https://github.com/tsightler/ring-mqtt) add-on and HA's Ring integration). Other
+  cameras have only HA's own stream and skip them.
+- **The camera relay** (a Mac, go2rtc, a token gate, `CAMERA_RELAY`): only if you want live video
+  from a camera your frame can't decode. Without it those cameras show pictures, as before.
+
+A Ring camera can reach the frame three ways. The full-screen view tries them in this order and
+falls back on its own:
+
+1. **The camera relay** (below, optional), for cameras too big for the frame: shrunk on a Mac,
+   with sound.
 2. **`camera.<name>_stream`**: a **Generic Camera** in Home Assistant on the camera's
    [ring-mqtt](https://github.com/tsightler/ring-mqtt) stream, played through Home Assistant. No sound.
 3. **`camera.<name>_live_view`**: Ring's own live view through Home Assistant's Ring integration,
@@ -76,9 +92,10 @@ For path 2, add a Generic Camera (Settings → Devices & Services → Add → Ge
 those are set in ring-mqtt), and name its entity `camera.<name>_stream`, where `<name>` matches the
 camera's `camera.<name>_live_view`.
 
-**Which cameras need the relay.** The frame's RK3326 decodes H.264 up to 1920 wide. A picture wider
-than that arrives but never decodes: the event log shows `camera.not_playing` with bytes received but
-0 frames. Measured here:
+**Which cameras need the relay.** It depends on your frame's video decoder and your cameras' size.
+The Pastigio FRAME156's RK3326 decodes H.264 up to 1920 wide; other frames differ. A picture wider
+than the decoder handles arrives but never decodes: the event log shows `camera.not_playing` with
+bytes received but 0 frames. That's the sign a camera needs the relay. Measured here, on a FRAME156:
 
 | Camera | Ring sends | On the frame |
 |---|---|---|
@@ -86,15 +103,19 @@ than that arrives but never decodes: the event log shows `camera.not_playing` wi
 | Doorbell Pro 2 | 1536×1536 | plays only now and then: use the relay |
 | Spotlight Cam Pro | 2624×1472 ("2K") or 1968×1104 ("1080p") | never: use the relay |
 
-There's no way to ask Ring for less: ring-mqtt passes the camera's size through, and Ring ignored
+For Ring there's no way to ask for less: ring-mqtt passes the camera's size through, and Ring ignored
 both the bandwidth cap and the frame-size limit the frame can put in its WebRTC offer (both tried).
 The Ring app's **Video Quality** setting doesn't go below 1968 wide on a Spotlight Cam Pro.
 
 ### Cameras the frame can't decode: the camera relay
 
-An always-on Mac on the home network (here the one that runs the Reminders bridge) shrinks those
-cameras to 1280 wide on its video hardware, adds their sound, and the frame plays them straight from
-it:
+Optional, and only for cameras your frame can't decode (above). It needs an always-on Mac on the
+home network (here the one that runs the Reminders bridge), which shrinks those cameras to 1280
+wide on its video hardware, adds their sound, and the frame plays them straight from it. The setup
+below is for Ring cameras through ring-mqtt, the only cameras tried here. Another camera should work
+the same way in principle (go2rtc reads most cameras' RTSP streams), but untested: its stream in the
+relay's config, and a Generic Camera named `camera.<name>_stream` in Home Assistant, since that's
+the name the frame looks for to know a camera has a relay stream:
 
 ```
 Ring → ring-mqtt (Home Assistant add-on) → go2rtc on the Mac (shrink, add sound) → the frame
@@ -121,7 +142,7 @@ clocks are unrelated (sync froze the picture the moment sound was turned on).
 
 **Setup** (files in [`bridge/camera-relay/`](../bridge/camera-relay/)):
 
-1. **ring-mqtt:** in the add-on's options set a livestream user and password, and in its Network
+1. **ring-mqtt** (Ring cameras only): in the add-on's options set a livestream user and password, and in its Network
    section expose port 8554 on the home network. Restart the add-on. **This puts a password on every
    ring-mqtt stream**, so update any Generic Camera that used the bare address (path 2 above) to the
    one with the user and password, or it stops playing (Home Assistant logs `401 Unauthorized`).

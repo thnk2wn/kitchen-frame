@@ -4,8 +4,8 @@ Household rotations on Home: who's up early with the kids, who puts whom to bed.
 `switchAt` is today's at the top of Today until then, and after it tomorrow's, under Tomorrow in
 Upcoming (getting ready for the next day). One without (bedtime) is today's, last in Today.
 
-Nothing shows until you set them, and there's no Setting for them: they're a Worker secret, so the
-names stay out of the repo.
+**Needs:** nothing; it's optional, for households with turns to share. Nothing shows until you set
+them, and there's no Setting for them: they're a Worker secret, so the names stay out of the repo.
 
 ```sh
 printf '%s' '[

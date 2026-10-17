@@ -3,6 +3,10 @@
 Any AI agent or script can put a message on the kitchen frame. It covers the whole screen
 (dashboard or slideshow) until someone taps its X. Several messages queue up, oldest first.
 
+**Needs:** only an `AGENT_TOKEN`, and only if you want agents or scripts to post; without it the
+frame simply never gets messages. Reading them aloud also needs Home Assistant and a speaker
+([announcements](announcements.md)).
+
 ```sh
 curl -X POST https://photo-frame-dashboard.<your-subdomain>.workers.dev/api/messages \
   -H "Authorization: Bearer $AGENT_TOKEN" \

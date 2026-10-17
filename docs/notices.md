@@ -2,6 +2,9 @@
 
 <img src="images/notices-light.jpg" alt="Two notices under the clock on Home: a red garage freezer alert and a blue thermostat change" width="404" align="right">
 
+**Needs:** Home Assistant on the frame, and automations of your own that post them (below, with
+blueprints for common ones). Without HA there are simply none.
+
 Short, glanceable notices that clear themselves: a banner in Home's left column (red, orange or
 blue) and a line on the clock screen. The bell in the top bar counts what's new since you last
 looked, in the most urgent one's colour. It opens the notices sheet: **New**, then **Earlier**, the

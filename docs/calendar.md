@@ -3,6 +3,11 @@
 The Worker merges any number of calendar feeds (iCal links) into one agenda for the frame: Home's
 Today and Upcoming, the Calendar tab's week and month, and the next event on the clock screen.
 
+**Needs:** at least one calendar's iCal link (Google, Fastmail, Outlook, iCloud or a subscribed
+schedule) in `CALENDAR_URLS`; without any, the calendar views are empty. The Mac bridge is optional,
+and only for Apple calendars: to have their alerts announced, or to share them without a public
+link.
+
 ## Getting a calendar's link
 
 Each link is effectively a password: anyone with it can read that calendar. They go in
@@ -25,9 +30,11 @@ to the Worker as a secret with `scripts/push-secrets.sh`; they're never in the r
 
 ### Apple calendars through the Mac
 
-With the [Mac bridge](lists.md#apple-reminders-through-a-mac) set up, put `bridge:<name>` in
-`CALENDAR_URLS` instead of a link, where `<name>` is the calendar's name in Apple Calendar on that Mac
-(`bridge:Family`). The bridge reads the calendar as you, through Apple's EventKit, and sends its
+Optional, for iCloud calendars only: if you have the [Mac bridge](mac-bridge.md)
+set up (or would set it up for this), put `bridge:<name>` in `CALENDAR_URLS` instead of a link, where
+`<name>` is the calendar's name in Apple Calendar on that Mac (`bridge:Family`, say). A Google,
+Fastmail or Outlook calendar doesn't need this: its link already includes its alerts, or the
+service has none to give. The bridge reads the calendar as you, through Apple's EventKit, and sends its
 events to the Worker whenever they change (and hourly), repeats already expanded:
 
 - **Alerts come along.** In Apple Calendar an alert belongs to each person, not to the event, so a

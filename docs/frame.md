@@ -1,7 +1,12 @@
 # Our frame: Pastigio FRAME156 (15.6", Frameo)
 
+The record of one frame: what it is, how it was rooted, every change made to it with its undo, and
+how it's run. Much of it (ADB, the kiosk app, the status page, troubleshooting) applies to any
+Android frame; the identity, firmware quirks and measurements are this model's. For another frame,
+see [A different frame](#a-different-frame) at the end.
+
 Same model and firmware as Wes's unit, so
-`reference/photo-frame-dashboard/docs/pastigio-frame156.md` applies directly. Serial number, MAC
+[upstream's FRAME156 guide](https://github.com/wesbos/photo-frame-dashboard/blob/main/docs/pastigio-frame156.md) applies directly. Serial number, MAC
 and IP address are deliberately not recorded here.
 
 ## Identity (read over ADB, 2026-10-12)
@@ -66,7 +71,7 @@ change). Redone over USB:
 **Firmware backup (2026-10-14).** Every eMMC partition except `userdata`, plus the 8 MiB before
 `uboot` (partition table and loader area) and `mmcblk2boot0/1`, each verified against a SHA-256 taken
 on the frame: 527 MB compressed, kept off the repo (it holds device identifiers). Method from
-`reference/photo-frame-dashboard/docs/pastigio-frame156.md`, with two traps found here: this `dd`
+[upstream's FRAME156 guide](https://github.com/wesbos/photo-frame-dashboard/blob/main/docs/pastigio-frame156.md), with two traps found here: this `dd`
 rejects `bs=1M` (use `bs=1048576`), and the USB link can drop mid-copy, so check every checksum and
 retry the parts that fail. Restoring would need Rockchip loader mode, still untested on this model.
 
@@ -101,35 +106,8 @@ boots into the kiosk, Frameo and the updaters not installed or running.
 
 ## Security
 
-What each secret opens, and what to do if one leaks or the frame is lost.
-
-| Secret | Kept in | Opens |
-| --- | --- | --- |
-| `DASHBOARD_KEY` | Worker secret; the frame's storage; `.dev.vars` | the Worker's API: calendars (details too), lists (read and change), photos, messages, the frame's status and settings backup |
-| The frame's Home Assistant token | the frame's storage | what the HA user it belongs to may do. Use a **non-admin** user for the frame, and tick **Can only log in from the local network** for it once the frame reaches HA by its LAN address (not Nabu Casa), so a copied token is useless outside the house |
-| `AGENT_TOKEN` | wherever agents run | posting messages (which may be read aloud) and saving recipes |
-| `BRIDGE_TOKEN` | the Mac (`bridge/mac/`) | the Reminders lists |
-
-The key travels only as a header. Images and the live messages socket, which can't send headers,
-use an HttpOnly cookie the Worker sets: an HMAC of the key, not the key, valid only for those paths.
-So the key never appears in a URL, a request log or a cache.
-
-**Unlock PIN** (Settings → Home, lib/pin.svelte.js): stops someone at the screen unlocking a door,
-like the PIN Alexa asks for. It's kept as a salted PBKDF2 hash, never the digits, and five misses
-start a wait that doubles up to 15 minutes. It doesn't protect the device itself: whoever can root
-the frame can read its token and unlock without the dashboard, which is what the steps below are for.
-
-**Settings changes** are logged as `settings.changed` events (what changed, from what to what) and
-the 10 versions before the current backup are kept: `GET /api/frame/settings?history`.
-
-**If the frame is lost, stolen or sent off for repair** (or a secret leaks):
-1. In Home Assistant: the frame's user → its long-lived token → **Delete** (or deactivate the user).
-2. A new dashboard key: `cd dashboard && npx wrangler secret put DASHBOARD_KEY`, and put the same
-   value in `.dev.vars`. The old key, and every cookie made from it, stop working at once.
-3. On the frame (or its replacement): a new HA token in `.frame.vars`, then the setup link
-   (`scripts/frame-url.sh`, README → The frame). Its settings come back from the Worker's backup.
-4. `AGENT_TOKEN` and `BRIDGE_TOKEN` only if they leaked: `wrangler secret put` each, then update
-   the agents and the Mac.
+What each secret opens, the unlock PIN, and what to do if the frame is lost or a secret leaks are in
+[SECURITY.md](../SECURITY.md).
 
 ## Music (Home Assistant)
 
@@ -187,6 +165,12 @@ missing.
 ## A different frame
 
 To set up a different frame, start from the upstream device guides in
-`reference/photo-frame-dashboard/docs/devices.md` (ADB, root, WebView 106, disabling the vendor app;
+[upstream's device guides](https://github.com/wesbos/photo-frame-dashboard/blob/main/docs/devices.md) (ADB, root, WebView 106, disabling the vendor app;
 some vendor apps accept root commands from the vendor's server), set its time zone (event times
 render in it), and measure it with `?diag`.
+
+Its video decoder decides whether cameras need the camera relay ([house.md](house.md)): open each
+camera full screen and watch the event log. `camera.live` with a size means it plays; `camera.not_playing`
+with bytes received but 0 frames means the picture is bigger than the decoder takes (this FRAME156's
+RK3326 stops at 1920 wide; its `camera.decoder` line claims more, which proved wrong). A frame with a
+newer chip may play every camera as it comes, and need no relay.

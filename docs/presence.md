@@ -4,6 +4,10 @@ The dashboard is most useful when it's simply there to glance at, so the frame t
 behind the clock screen while people are around. This page explains how it decides, how to point it
 at your motion sensors, and what to expect from different kinds of sensor.
 
+**Needs:** nothing to start: without sensors the clock screen follows touches alone. Motion sensors
+are optional and come through Home Assistant. Photos behind the clock are optional too: an iCloud
+shared album (below); without one the clock shows on its own.
+
 ## Without sensors
 
 Settings → **Clock screen after** sets how long the frame waits without a touch: 15 minutes,
@@ -114,9 +118,28 @@ later.
 
 After a while untouched (Settings → Display → Clock screen after: 30 minutes by default, up to two
 hours, or never) the frame shows a clock over the photo slideshow, and any tap brings the dashboard
-back. It never switches while a recipe is open or a timer is running. The clock's colour is chosen
+back. Swipe right to left for the next photo, left to right for the one before (the last 20); a
+swipe doesn't wake the dashboard, and the photo you picked stays its full 30 seconds. **Settings →
+Display → Photo details** (off to start) puts when and where each photo was taken in its top
+corner, small: "October 3, 2026 · Asheville, NC". The place comes only through the Mac bridge,
+which looks it up on the Mac with Apple's geocoder: a place of interest when there is one ("Golden Gate
+Park"), else the town. Close to what Photos shows, though not always the same (Photos has
+its own place names it doesn't share). Only the name reaches the Worker, never coordinates, and
+photos taken at home can say just "Home" ([mac-bridge.md](mac-bridge.md#photos-taken-at-home)). A
+public album link gives the date alone.
+
+**Videos** in the album play in the slideshow, muted, for the same 30 seconds as a photo (a shorter
+one loops), when they come through the Mac bridge; **Settings → Display → Videos in the slideshow**
+turns them off (their stills show instead). Each loads in the background while the slide before it
+shows, and one that isn't ready in a minute shows its still that time. The Mac sends the first 30
+seconds of the picture, without sound and not re-encoded: a shared album keeps videos at 720p H.264,
+which the FRAME156 plays smoothly under the clock (measured: 0 dropped frames, ready in about a
+second). Each such clip is about 12 MB of the Worker's storage (the free plan has 1 GB, room for
+roughly 75 clips beside a few hundred photos), and a public album link gives only the stills. How
+much is used shows under that setting and on the status page (Mac bridge → Storage), amber past
+70% and red past 90%; past 100%, uploads fail and the status page says so. It never switches while a recipe is open or a timer is running. The clock's colour is chosen
 in Settings → Display, and the slideshow uses an iCloud shared album (album videos show as a still).
-With the [Mac bridge](lists.md#apple-reminders-through-a-mac), set `ALBUM_URL=bridge:<album name>`:
+With the [Mac bridge](mac-bridge.md), set `ALBUM_URL=bridge:<album name>`:
 the Mac reads the album as you and uploads each photo sized for the screen (a landscape 1920 wide, a
 portrait 960, as they show in pairs) about 15 seconds after iCloud brings it to the Mac (seconds
 to a minute or two), checking every 10 minutes as well; photos taken out of the album are deleted

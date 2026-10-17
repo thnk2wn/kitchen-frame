@@ -10,6 +10,10 @@ switch. The theme follows the same feed's sunrise and sunset.
 
 ## Setup
 
+**Needs:** just your location; no accounts or keys. Without it Home says "Weather isn't set up yet." The written
+forecast, alerts and part of the radar are US-only (National Weather Service); elsewhere those parts
+are left out.
+
 Set `WEATHER_LAT` and `WEATHER_LON` (plus `WEATHER_UNIT="celsius"` if you want it) as secrets
 (`npx wrangler secret put`, as this deployment does) or `vars` in `dashboard/wrangler.jsonc`, and in
 `.dev.vars` locally. [Open-Meteo](https://open-meteo.com) needs no key. In the US the same location

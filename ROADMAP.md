@@ -9,7 +9,8 @@ The dashboard was built and tested in a browser at the frame's size. On a real f
 
 - Measure with `?diag` (fps, jank, DOM count, image megapixels, heap) on each tab, especially
   Recipes, the slideshow and the event map.
-- Doorbell live video over the frame's Wi-Fi (WebRTC from Home Assistant), and the chime.
+- The doorbell pop-up and chime on a real ring (live video itself was worked through on the frame
+  2026-10-15/16: docs/house.md).
 - The on-screen keyboard in Lists and recipe search.
 - Presence: the clock screen coming on and going away with real comings and goings.
 - Real-world notices: a weather alert, a freezer warming, a thermostat change.
@@ -55,8 +56,8 @@ Thoughts to try in a branch and measure on the frame, not plans:
 
 ## Lists
 
-- **Aisles for Groceries, by AI:** group the grocery list into sections (Produce, Dairy, Spices…)
-  like Reminders does on the iPhone, which Apple doesn't share with other apps. Ask a small model
+- **Aisles for Groceries from Todoist, by AI:** group the list into sections (Produce, Dairy,
+  Spices…). A Reminders list already brings its own sections through the Mac bridge (extras). Ask a small model
   through Cloudflare Workers AI, which has a free daily allowance far beyond a household's list,
   once per new item, and remember the answer. No keyword lists.
 
@@ -76,18 +77,15 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
 - **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).
 - **A PIN for Settings:** unlocking has one (Settings → Home). Settings changes are logged and the
   last 10 versions kept, so a PIN there waits until a change slips by unnoticed.
-- **Drop the old `?key=` URLs:** images and the messages socket now use the auth cookie; once the
-  Worker's "key in URL" log lines stop, remove that fallback.
+- **Calmer calendar blips on the status page:** a feed that fails once (a sports site refusing a
+  cloud server now and then) shows red "failing" until the next fetch. Amber "last fetch failed,
+  showing the copy from 12 min ago" instead, and red only after a few hours without a good fetch.
 
 ## Home Assistant
 
-- **Live video from the 2K cameras, by transcoding.** The frame's RK3326 decodes H.264 up to 1920
-  wide; Ring's Spotlight Cam Pro sends 2624×1472 ("2K") or 1968×1104 ("1080p") on every path, and
-  Ring ignores the offer's bandwidth (`b=AS`) and frame-size (`max-fs`) hints (tried 2026-10-15).
-  So those cameras fall back to pictures. The fix is shrinking the video before it reaches the frame:
-  go2rtc with an `ffmpeg:…#width=1280` stream and hardware encoding. Done 2026-10-16 on the
-  always-on Mac (docs/house.md → Transcoding on a Mac); an Intel N100/N150 box running Home
-  Assistant OS would do the same on the HA side with QuickSync, and speed up everything else.
+- **The camera relay on Home Assistant's box.** Cameras too big for the frame now play through a
+  relay on an always-on Mac (docs/house.md). An Intel N100/N150 box running Home Assistant OS could
+  transcode with QuickSync instead, one less thing on the Mac, and speed up everything else.
 - **More notice blueprints:** garage door left open, a bedtime check (doors unlocked, lights on).
 - **Pop-in for red alerts:** an alert notice briefly takes over the screen, like the doorbell,
   instead of only a banner.
@@ -95,10 +93,17 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
 
 ## Screen and slideshow
 
+- **A way back to the dashboard from Android settings.** The frame has no navigation bar, so after
+  opening Android's own settings (to change the volume, say) the only way back was a restart. A
+  gesture or a button in the kiosk app that brings it to the front.
 - **Screen fully off at night**, through the kiosk app (backlight off), as an alternative to night
   mode's lowest brightness, for a frame in a bedroom.
-- **Videos in the slideshow** (short clips from the shared album; needs a look at what the frame's
-  CPU can decode).
+
+- **Room for more videos, when storage climbs** (Settings → Display and the status page show it;
+  3% used on 2026-10-16). Options: a rotating set (the Mac sends, say, 30 videos and swaps a few
+  each day; storage stays capped); Cloudflare R2 (10 GB free, needs a payment method on the
+  account); or videos served from the Mac on the home network (nothing in the cloud, but only while
+  the Mac is on).
 
 ## Access
 

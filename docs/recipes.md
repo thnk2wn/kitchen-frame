@@ -1,5 +1,9 @@
 # Recipes
 
+**Needs:** nothing for **Explore** and **Saved** (TheMealDB is free, and saved recipes live in the
+Worker). A [Paprika](https://www.paprikaapp.com) account (`PAPRIKA_EMAIL`, `PAPRIKA_PASSWORD`) is
+optional; it adds the **Meals** and **Paprika** views and saving into your Paprika library.
+
 The Recipes tab has four views:
 
 - **Meals:** the Paprika meal plan for the week (see the README's Paprika section).

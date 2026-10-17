@@ -2,6 +2,10 @@
 
 ![Settings → Announcements: on, the Kitchen speaker, announcement and alert volumes, Test, and event reminders with Family and Tennessee Football picked](images/settings-light.jpg)
 
+**Needs:** Home Assistant on the frame and a speaker in it that can talk (a `media_player`: an
+Echo, a Nest speaker, anything with text-to-speech). The `script.frame_announce` below is optional but better. Without HA, Settings has
+no speaker to pick and nothing is said.
+
 **Settings → Announcements** (off until you turn it on) sets what the frame says out loud, on one
 speaker from Home Assistant (an Echo, a Nest speaker, anything with text-to-speech): the speaker, an
 announcement volume and a louder **alert volume** for red alerts, a **Test** for each, **event

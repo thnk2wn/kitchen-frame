@@ -2,7 +2,9 @@
 
 The **Music** tab plays Spotify on the house's speakers (Echos, Nest speakers, a computer: anything
 Spotify Connect can reach), controlled through Home Assistant. This page covers how it works and how
-to set it up. There are three parts; only the first is required.
+to set it up. There are three parts; only the first is required. Without Home Assistant on the
+frame there's no Media tab; without HA's Spotify integration it controls your other HA media
+players, without Spotify's playlists and speaker switching (the TV view doesn't need Spotify).
 
 | Part | What it gives you | Needs |
 | --- | --- | --- |

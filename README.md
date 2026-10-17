@@ -86,81 +86,86 @@ Each feature links to its page in [`docs/`](docs/), which has the setup and the 
 ## How it fits together
 
 ```mermaid
-flowchart LR
-  subgraph frame["Photo frame (Android kiosk app)"]
-    app["Dashboard web app<br/>(Svelte)"]
-  end
-
-  subgraph cf["Cloudflare"]
-    worker["Worker<br/>serves the app + /api"]
-    kv[("KV<br/>calendar, recipes, meals,<br/>photos, saved recipes")]
-    room["Durable Object<br/>messages"]
-    worker --- kv
-    worker --- room
-  end
-
+flowchart TB
   subgraph home["Home network"]
-    ha["Home Assistant"]
-    speakers["Speakers<br/>(Echo, Nest, Sonos…)"]
-    ha --> speakers
-    mac["Mac (optional)<br/>bridge: Reminders, Apple<br/>calendars, shared album;<br/>camera relay"]
+    frame["Photo frame<br/>dashboard in a kiosk app"]
+    ha["Home Assistant<br/>(optional)"]
+    mac["Mac (optional)<br/>bridge, camera relay"]
   end
-  mac -- "bridge token<br/>(lists, calendars, photos)" --> worker
-  app -- "token (camera relay)" --> mac
-
-  app -- "HTTPS + dashboard key" --> worker
-  app -- "WebSocket + HA token<br/>(House, Music, read-aloud,<br/>doorbell + live video)" --> ha
-
-  worker -- iCal links --> cal["Calendars<br/>(Fastmail, Exchange, Google, iCloud)"]
-  worker -- API token --> todoist["Todoist"]
-  worker -- "sync (cron); saves" --> paprika["Paprika<br/>recipes + meal plan"]
-  worker --> mealdb["TheMealDB"]
-  worker --> weather["Open-Meteo<br/>+ NWS (US)"]
-  worker -. "public album link<br/>(without the Mac)" .-> icloud["iCloud shared album"]
-  worker -- "read-only (optional)" --> spotifyapi["Spotify<br/>playlists, what's playing"]
-  worker --> osm["OpenStreetMap<br/>event maps, radar"]
-  ha -- integrations --> spotify["Spotify, Alexa Devices,<br/>thermostats, locks, cameras…"]
-  agents["AI agents, HA automations"] -- "agent token" --> worker
+  worker["Cloudflare Worker<br/>the app, its API, every service's credentials"]
+  services["Calendars, Todoist, Paprika,<br/>weather, maps, Spotify, iCloud"]
+  frame -- "HTTPS, dashboard key" --> worker
+  worker --> services
+  frame -- "the house: devices, music,<br/>doorbell, cameras" --> ha
+  mac -- "Reminders, calendars, photos" --> worker
+  frame -. "camera video" .-> mac
 ```
 
-- **The frame** holds only the dashboard key and its Home Assistant token (a non-admin HA user that
-  can only log in from the home network).
-- **The Worker** holds every other credential as Cloudflare secrets and caches what it fetches in
-  KV, so the frame never talks to Todoist, Paprika, iCloud or calendar servers itself. A cron
-  refreshes calendars every 10 minutes and syncs Paprika every 15.
-- **Home Assistant** is reached directly on the home network, never through Cloudflare. Doorbell
-  and camera live video comes over WebRTC, set up through that same connection.
-- **Secrets** go from `dashboard/.dev.vars` (gitignored) to Cloudflare with
-  `dashboard/scripts/push-secrets.sh`; frame settings go to the frame with
-  `dashboard/scripts/frame-url.sh`.
+The frame talks to the Worker for everything but the house, and to Home Assistant directly on the
+home network. The Worker holds every service's credentials, so the frame never does. Details,
+with a diagram for each side: [docs/architecture.md](docs/architecture.md).
 
 ## Getting started
 
 **Status:** this fork runs on a Pastigio FRAME156 (Android 8.1, WebView 106, 1920×1080). Its device
 record, every change made to it and how to undo each one are in [docs/frame.md](docs/frame.md).
-The developer wiki is in [openwiki/](openwiki/quickstart.md).
 
-**Layout:**
+### What you need
 
-- `dashboard/src/`: the web app (Svelte 5, no SvelteKit). Tabs: Home, Calendar, Lists, Recipes,
-  Media and House; the doorbell pop-up over every screen; the clock screen after a set time
-  untouched. The frame loads it full screen in a kiosk WebView.
-- `dashboard/worker/`: the Cloudflare Worker that serves the app and its API (calendar, weather,
-  lists, photos, recipes, notices, the frame's check-ins and agent messages). Tokens and links for
-  those services stay on the server.
-- `dashboard/ops/`: the optional status page, a second Worker.
-- `bridge/mac/`: the optional Mac app that keeps Apple Reminders lists in step with the frame, and can send Apple calendars (with their alerts) and a shared album without public links
-  (Swift, EventKit). See [docs/lists.md](docs/lists.md).
-- `bridge/camera-relay/`: the optional camera relay for a Mac, which shrinks cameras too big for
-  the frame's video decoder (go2rtc, plus a small token gate). See
-  [docs/house.md](docs/house.md#cameras-the-frame-cant-decode-the-camera-relay).
-- `kiosk/`: the Android app the frame boots into (one full-screen WebView). `kiosk/build.sh` builds
-  it without Gradle; see [docs/frame.md](docs/frame.md).
-- `homeassistant/`: the announce script and notice blueprints to import into Home Assistant.
-- `docs/research.md`: what we learned from the upstream repo and the video, plus performance
-  constraints. `reference/photo-frame-dashboard/` is the upstream clone, gitignored.
+**Required**
 
-**Run:**
+- A frame running the [kiosk app](kiosk/README.md) (or any browser, to try it).
+- A Cloudflare account (the free plan). The Worker is written for Cloudflare Workers: it keeps its
+  data in Cloudflare's storage (KV and Durable Objects), holds the live connections to the frame and
+  the Mac there, and runs the calendar and Paprika on Cloudflare's schedules. Running it elsewhere
+  would mean porting those (untried).
+- At least one calendar link, for Home and the Calendar tab to have something to show.
+
+**Optional**
+
+Each is independent, and only if you want what it gives; leave any out and the rest works as before.
+
+- **Home Assistant**, if you want the house on the frame: the House tab, Music and TV, the doorbell
+  pop-up, notices, spoken announcements and timer alerts, and a clock screen that follows motion.
+  Without it those tabs and features don't show.
+- **Todoist or Apple Reminders**, if you want the Groceries and Tasks lists. Todoist needs only a
+  token; Reminders needs the Mac bridge (below). Without either, the lists say they aren't connected.
+- **Paprika**, if you keep your recipes and meal plan there. Without it, Recipes still has Explore
+  (TheMealDB) and Saved.
+- **Spotify** (the Worker's own connection), if you want every playlist on the Music tab, not just
+  what Home Assistant offers.
+- **An iCloud shared album**, if you want photos behind the clock screen. Without one, the clock
+  shows on its own.
+- **An always-on Mac**, if you want any of: Apple Reminders lists; iCloud calendars with their
+  alerts, or iCloud calendars and the album without public links (the
+  [Mac bridge](docs/mac-bridge.md)); live video from Home Assistant cameras too big for your frame's
+  video decoder (the [camera relay](bridge/camera-relay/README.md)).
+- **An agent token**, if you want AI agents or scripts to post messages to the frame or save
+  recipes.
+
+### Layout
+
+Each part has a short README of its own: what it is, when you need it, how to build or install it.
+
+- [`dashboard/`](dashboard/README.md): the web app the frame shows ([`src/`](dashboard/src)), the
+  Cloudflare Worker behind it ([`worker/`](dashboard/worker)), the optional status page
+  ([`ops/`](dashboard/ops)) and the day-to-day [`scripts/`](dashboard/scripts). Always needed.
+- [`kiosk/`](kiosk/README.md): the Android app the frame boots into (one full-screen WebView). For an
+  Android frame.
+- [`bridge/mac/`](bridge/mac/README.md): the optional Mac bridge, for Apple Reminders lists, and
+  iCloud calendars (with alerts) and a shared album without public links
+  ([docs/mac-bridge.md](docs/mac-bridge.md)).
+- [`bridge/camera-relay/`](bridge/camera-relay/README.md): the optional camera relay for a Mac, for
+  cameras too big for your frame's video decoder.
+- [`homeassistant/`](homeassistant/README.md): the announce script and notice blueprints to import
+  into Home Assistant.
+- [`docs/`](docs): a page per feature (setup, settings, what happens when), plus
+  [architecture](docs/architecture.md) and the frame's own record ([frame.md](docs/frame.md)).
+- [`docs/research.md`](docs/research.md): what we learned from the upstream repo and the video, plus performance
+  constraints. Clone [upstream](https://github.com/wesbos/photo-frame-dashboard) into
+  `reference/photo-frame-dashboard/` (gitignored) to have its device guides at hand.
+
+### Run
 
 ```sh
 cd dashboard
@@ -173,7 +178,9 @@ Local settings: `cp dashboard/.dev.vars.example dashboard/.dev.vars` and fill it
 `http://localhost:5173/?key=<DASHBOARD_KEY>` once (the page remembers the key). `npm test` runs the
 Worker and parser tests.
 
-**Deploy** from `dashboard/` (after `npx wrangler login`):
+### Deploy
+
+From `dashboard/` (after `npx wrangler login`):
 
 ```sh
 # In a fork, first remove the CALENDAR KV namespace "id" from wrangler.jsonc: it's this deployment's.
@@ -187,7 +194,9 @@ Point the kiosk at the Worker's address with `?key=<key>`, or build the full set
 up the new version by itself within about 10–20 minutes, at a quiet moment, or at once with
 `scripts/frame-status.sh --reload`.
 
-**Cost:** it runs on Cloudflare's **free** Workers plan: the frame makes roughly 1,500–2,000 Worker
+### Cost
+
+It runs on Cloudflare's **free** Workers plan: the frame makes roughly 1,500–2,000 Worker
 requests a day against a 100,000 allowance, KV writes stay well under the 1,000 a day (the calendar
 is only rewritten when it changes), and photo resizing is within the Images binding's free 5,000 a
 month. Nothing here costs money beyond the frame.
@@ -239,10 +248,10 @@ alternating daily. Optional, and set as a Worker secret so names stay out of the
 Mirrors one Home Assistant dashboard, live: tap to toggle, thermostats with setpoint buttons, HA's
 markdown cards, camera pictures and live video. Give the frame HA's **home-network address** and a
 **non-admin, local-only** HA user's token (its token is then useless outside the house). Unlocking a
-lock takes two taps or a PIN. Cameras: live video plays where the frame's decoder can handle the
-picture (this frame: up to 1920 wide): 720p streams through ring-mqtt for the cameras that offer
-them, the larger ones shrunk to 1280 wide by go2rtc on the always-on Mac, and refreshing pictures
-with their time otherwise. Setup, what each device does,
+lock takes two taps or a PIN. Cameras: live video plays when the frame's decoder can handle the
+picture (the FRAME156's: up to 1920 wide), and refreshing pictures with their time otherwise. A
+camera that sends more than your frame decodes can go through an optional relay on a Mac that
+shrinks it; Ring cameras have extra steps (ring-mqtt). Setup, what each device does,
 and the camera measurements are in [docs/house.md](docs/house.md).
 
 ### Media: music and TV
@@ -256,13 +265,15 @@ connection for every playlist) in [docs/music.md](docs/music.md).
 ### Timers
 
 Tap a time, then a name; times in recipe directions are buttons; up to three run, with a chip on
-every screen, a chime, a full-screen alert and an Echo announcement. Names per frame with
+every screen, a chime, a full-screen alert, and with Home Assistant a spoken announcement on a speaker
+(an Echo's, say). Names per frame with
 `TIMER_NAMES`. [docs/timers.md](docs/timers.md).
 
 ### Clock screen, night and presence
 
-After a while untouched the frame shows a clock over the photo slideshow (never during a recipe or
-a timer). **Night** gives a dim red clock that motion doesn't wake. With motion sensors in an HA
+After a while untouched the frame shows a clock over the photo slideshow, from an iCloud shared
+album if you set one (never during a recipe or a timer). **Night** gives a dim red clock that motion
+doesn't wake. Optionally, with Home Assistant and motion sensors in an HA
 area (`PRESENCE_AREA`), the clock waits until nobody has been seen for a while and the dashboard
 comes back when someone walks in; Settings → Home lists the sensors, and occupancy sensors start
 left out since they hold "occupied" too long. The theme follows the sun (`?theme=` pins it).
@@ -270,14 +281,14 @@ left out since they hold "occupied" too long. The theme follows the sun (`?theme
 
 ### Doorbell
 
-A ring covers the screen with that doorbell's camera for 90 seconds: snapshot first, live video when
+With Home Assistant and a doorbell in it, a ring covers the screen with that doorbell's camera for 90 seconds: snapshot first, live video when
 it streams. Every HA event entity with device class `doorbell` is watched, with its device's camera,
 so there's nothing to configure in the usual case (`DOORBELL` / `DOORBELL_CAMERA` override it).
 [docs/doorbell.md](docs/doorbell.md).
 
 ### Notices
 
-Short banners from Home Assistant automations that clear themselves ("Garage freezer is 18°F"), red,
+With Home Assistant: short banners from its automations that clear themselves ("Garage freezer is 18°F"), red,
 orange or blue, with a bell that counts new ones and a sheet of the last 24 hours. Any HA persistent
 notification whose id starts with `frame_` shows, so the device-specific logic stays in your
 automations; `frame_alert_…` is red, `frame_info_…` blue. Blueprints for temperature limits and
@@ -285,7 +296,7 @@ thermostat changes are in `homeassistant/blueprints/`. [docs/notices.md](docs/no
 
 ### Announcements
 
-Settings → Announcements (off until you turn it on): the speaker, an announcement volume and a
+With Home Assistant and a speaker it can talk through. Settings → Announcements (off until you turn it on): the speaker, an announcement volume and a
 louder alert volume, **event reminders** per calendar ("In 30 minutes: Swim lesson"), red alerts
 said aloud (at night too, if you choose), optionally orange ones, and agent messages. It speaks
 through `script.frame_announce` from `homeassistant/scripts/`, which sets the volume and puts the
@@ -309,8 +320,8 @@ anywhere, `--now` asks the frame to check in first, and `--reload` has it reload
 optional **status page** shows the same, plus the backend's health, behind GitHub sign-in.
 
 [docs/frame.md](docs/frame.md) has getting ADB working, every change made to the device with its
-undo command, security (what each secret opens, and what to do if the frame is lost), day-to-day
-operation, troubleshooting, the status page, and setting up a different frame.
+undo command, day-to-day operation, troubleshooting, the status page, and setting up a different
+frame. [SECURITY.md](SECURITY.md) has what each secret opens and what to do if the frame is lost.
 
 ## Contributing
 
