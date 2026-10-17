@@ -1,44 +1,90 @@
-# Copy to .dev.vars for local dev. In production use `npx wrangler secret put <NAME>`.
-# Google: Settings → your calendar → Integrate calendar → "Secret address in iCal format".
-# iCloud: Calendar app → right-click the calendar → Share Calendar → Public Calendar → copy link.
+# Copy to .dev.vars for local dev. In production use `npx wrangler secret put <NAME>`
+# (or scripts/push-secrets.sh). Grouped by what they're for; only Required is needed.
+
+# ---- Required ----------------------------------------------------
+# iCal links, separated by spaces (docs/calendar.md): Google "Secret address in iCal format",
+# an iCloud public link, Fastmail, Outlook; or bridge:<name> for an Apple calendar through the Mac.
 CALENDAR_URLS="https://calendar.google.com/calendar/ical/.../basic.ics webcal://p00-caldav.icloud.com/published/2/..."
-# Optional: names for the Calendars show/hide list, comma-separated, in the same order as the links.
-# CALENDAR_NAMES="Personal, Family, Work"
-# Optional colours, same order: red, orange, yellow, green, teal, blue, indigo, purple, pink, brown,
-# gray, or #rrggbb. Unset calendars rotate through red, blue, green, purple, orange, teal.
-# CALENDAR_COLORS="blue, yellow, green"
-# Optional, same order: yes for calendars whose events open with their details and notes when
-# tapped. Notes are only kept for these; leave work calendars out.
-# CALENDAR_DETAILS="yes, yes, no"
-# Any long random string. The frame opens the dashboard once with ?key=<this>.
+# Any long random string (openssl rand -hex 24). The frame opens the dashboard once with ?key=<this>.
 DASHBOARD_KEY=""
-# Optional: IANA zone for event times that carry no zone at all (rare). Defaults to the feed's own.
+
+# ---- Agents ------------------------------------------------------
+# Optional: AI agents and scripts that post messages and save recipes (docs/messages.md).
+# AGENT_TOKEN=""
+
+# ---- Calendar ----------------------------------------------------
+# Optional, each in the same order as CALENDAR_URLS (docs/calendar.md).
+# Colours: red, orange, yellow, green, teal, blue, indigo, purple, pink, brown, gray or #rrggbb.
+# CALENDAR_COLORS="blue, yellow, green"
+# yes for calendars whose events open with their details and notes when tapped.
+# CALENDAR_DETAILS="yes, yes, no"
+# Names for the Calendars show/hide list.
+# CALENDAR_NAMES="Personal, Family, Work"
+# IANA zone for event times that carry no zone at all (rare). Defaults to the feed's own.
 # DISPLAY_TZ="America/Chicago"
+
+# ---- Development -------------------------------------------------
+# Local only: with no DASHBOARD_KEY, 1 lets the API answer without one. Never in production.
+# ALLOW_NO_KEY="1"
+
+# ---- Lists -------------------------------------------------------
+# Groceries and Tasks (docs/lists.md): Todoist by default, or a list from Apple Reminders through
+# the Mac bridge ("reminders"; list names as in Reminders).
+# GROCERIES_SOURCE="reminders"
+# Sections, flags and assignees from the Reminders database (Full Disk Access on the Mac).
+# REMINDERS_EXTRAS="on"
+# REMINDERS_GROCERIES_LIST="Groceries"
+# REMINDERS_TODO_LIST="To Do"
 # Todoist → Settings → Integrations → Developer → API token.
 TODOIST_TOKEN=""
-# Optional: weather location (rounded is fine) and unit.
-# WEATHER_LAT="40.71"
-# WEATHER_LON="-74.01"
-# WEATHER_UNIT="celsius"
-# Optional: iCloud Shared Album with "Public Website" on, for the idle slideshow.
-# ALBUM_URL="https://photos.icloud.com/shared/album/<token>"
-# Optional: token AI agents use to post messages and save recipes (any long random string).
-# AGENT_TOKEN=""
-# Optional: a Paprika Cloud Sync account, to show your own recipes (read-only).
-# PAPRIKA_EMAIL=""
-# PAPRIKA_PASSWORD=""
-# Optional: a Spotify developer app (developer.spotify.com → Create app; add the redirect URI
-# http://127.0.0.1:8888/callback), so the Music tab lists every playlist, not just the first 48, and
-# sorts them by what was last played on any device. Then run: node scripts/spotify-auth.mjs
+# TODO_SOURCE="reminders"
+
+# ---- Mac bridge and camera relay ---------------------------------
+# Optional: a Mac at home (docs/mac-bridge.md, docs/house.md).
+# The bridge's token: any long random string; set the same on the Mac.
+# BRIDGE_TOKEN=""
+# The camera relay's address(es) with its token, space-separated (bridge/camera-relay/).
+# CAMERA_RELAY="http://<mac>:1985/<token>/?cameras=<name>,<name>"
+
+# ---- Music and videos --------------------------------------------
+# Optional (docs/music.md).
+# A phone's share sheet plays a YouTube video on the frame with this (and nothing else).
+# SHARE_TOKEN=""
+# A Spotify developer app (redirect URI http://127.0.0.1:8888/callback), for every playlist and
+# what was last played; then node scripts/spotify-auth.mjs fills in the refresh token.
 # SPOTIFY_CLIENT_ID=""
 # SPOTIFY_CLIENT_SECRET=""
 # SPOTIFY_REFRESH_TOKEN=""
-# Optional: Groceries and/or Tasks from Apple Reminders through a Mac at home instead of Todoist
-# (bridge/mac/, docs/lists.md). "reminders" switches that list; the list names are as in Reminders.
-# GROCERIES_SOURCE="reminders"
-# REMINDERS_GROCERIES_LIST="Groceries"
-# TODO_SOURCE="reminders"
-# REMINDERS_TODO_LIST="To Do"
-# BRIDGE_TOKEN=""
-# Sections, flags and assignees too, read from the Reminders database (needs Full Disk Access on the Mac).
-# REMINDERS_EXTRAS="on"
+# YouTube Data API v3 key, restricted to that API: whole playlists (without it, 15 newest each).
+# YOUTUBE_API_KEY=""
+# Media → Videos: groups of video and playlist links, separated by |.
+# YOUTUBE_VIDEOS="Songs: https://www.youtube.com/playlist?list=PL... | Trucks: https://youtu.be/... https://youtu.be/..."
+
+# ---- Notices -----------------------------------------------------
+# Optional (docs/notices.md); the defaults suit most.
+# Blue info notices still on after this many hours are dismissed (default 24; 0 = never).
+# NOTICES_INFO_HOURS="24"
+# How long ended notices are kept (default 24, up to 168).
+# NOTICES_KEEP_HOURS="24"
+# How many at most (default 50, up to 200).
+# NOTICES_KEEP_MAX="50"
+
+# ---- Photos ------------------------------------------------------
+# Optional: the slideshow's iCloud shared album (docs/presence.md).
+# Its link with Public Website on, or bridge:<album name> through the Mac (no public link).
+# ALBUM_URL="https://photos.icloud.com/shared/album/<token>"
+
+# ---- Recipes -----------------------------------------------------
+# Optional: a Paprika Cloud Sync account, for your own recipes and meal plan (docs/recipes.md).
+# PAPRIKA_EMAIL=""
+# PAPRIKA_PASSWORD=""
+
+# ---- Rotations ---------------------------------------------------
+# Optional: who's up early, whose bedtime, as JSON (docs/rotations.md has the format).
+# ROTATIONS='[{"name":"Bedtime","icon":"moon","alternate":{"from":"2026-10-15","who":["Alex","Sam"]}}]'
+
+# ---- Weather -----------------------------------------------------
+# Optional: the location (rounded is fine) and unit.
+# WEATHER_LAT="40.71"
+# WEATHER_LON="-74.01"
+# WEATHER_UNIT="celsius"
