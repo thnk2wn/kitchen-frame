@@ -1,7 +1,8 @@
-// Kitchen Frame Reminders bridge: keeps chosen Apple Reminders lists in step with the frame.
+// Kitchen Frame Mac bridge: sends the Worker the Apple things a server can't reach without a public
+// link, each only if the Worker's settings ask for it (docs/mac-bridge.md).
 //
-// Runs in the background on a Mac signed in to iCloud (a LaunchAgent; see install.sh and
-// docs/lists.md). It reads and changes Reminders with Apple's EventKit, the only supported way in:
+// Runs in the background on a Mac signed in to iCloud (a LaunchAgent; see install.sh). For Reminders
+// lists it reads and changes Reminders with Apple's EventKit, the only supported way in:
 //   - whenever a chosen list changes (Siri, a phone, the watch), it sends the list to the Worker;
 //   - the Worker pushes the frame's changes (an item ticked off, added or edited) over a WebSocket, and
 //     this applies them to Reminders, then reports which ones it applied;
@@ -20,6 +21,8 @@
 //
 // Run with --check to ask for Reminders access and log the lists it can see, then exit.
 import AppKit
+import AVFoundation
+import CoreLocation
 import EventKit
 import Foundation
 import Photos
@@ -35,7 +38,10 @@ func log(_ s: String) {
   else { try? line.write(to: logURL, atomically: true, encoding: .utf8) }
 }
 
-struct Config: Decodable { let worker: String; let token: String }
+// home (optional, opt-in): photos taken within radius metres of it show "Home" instead of a place
+// name. Kept only in this file on the Mac, so the Worker never learns where home is.
+struct Home: Decodable { let lat: Double; let lon: Double; let radius: Double? }
+struct Config: Decodable { let worker: String; let token: String; let home: Home? }
 
 final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeObserver {
   let store = EKEventStore()
@@ -50,11 +56,17 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
   var sentCalendars = ""              // what was last sent, to send only changes
   var sentCalendarsAt = Date.distantPast
   var photoCfg: (album: String, landscape: Int, portrait: Int)? // the shared album to send, from the Worker
+  var clipSeconds = 32.0              // seconds of each video to send (the Worker's photos.clip)
   var photosAccess = false
   var photosSyncing = false
   var sentPhotos = ""                 // the photo list last confirmed complete, to skip unchanged runs
   var sentPhotosAt = Date.distantPast
   var photosWatched = false
+  var withPlace = -1                  // photos with a place, last logged
+  var lastLookup: Date?
+  // Place names by ~10 m square ("35.6012,-82.5543" -> "Asheville, NC"; "" for none), so each place
+  // is looked up once; kept across restarts.
+  lazy var places: [String: String] = (try? JSONDecoder().decode([String: String].self, from: Data(contentsOf: supportDir.appendingPathComponent("places.json")))) ?? [:]
   var photosSoon: DispatchWorkItem?
   var problems: [String: String] = [:] // what's wrong now, by area, sent with each check-in for the status page
 
@@ -186,6 +198,7 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
     if let p = r["photos"] as? [String: Any], let album = p["album"] as? String {
       if photoCfg?.album != album { log("Photos from the Worker: the shared album \"\(album)\"") }
       photoCfg = (album, p["landscape"] as? Int ?? 1920, p["portrait"] as? Int ?? 960)
+      clipSeconds = (p["clip"] as? Double) ?? Double(p["clip"] as? Int ?? 32)
       if !photosAccess {
         photosAccess = await requestPhotosAccess()
         problem("photos-access", photosAccess ? nil : "No access to Photos. Allow it in System Settings > Privacy & Security > Photos > KitchenFrameBridge.")
@@ -211,12 +224,17 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
       return
     }
     let iso = ISO8601DateFormatter()
-    let list: [[String: Any]] = assets.map { a in
+    var list: [[String: Any]] = []
+    for a in assets {
       var p: [String: Any] = ["id": photoId(a), "w": a.pixelWidth, "h": a.pixelHeight]
       if let d = a.creationDate { p["date"] = iso.string(from: d) }
-      return p
+      if let name = await place(of: a) { p["place"] = name }
+      if a.mediaType == .video { p["video"] = true; p["seconds"] = Int(a.duration.rounded()) }
+      list.append(p)
     }
-    let ids = list.compactMap { $0["id"] as? String }.joined(separator: ",")
+    let placed = list.filter { $0["place"] != nil }.count
+    if placed != withPlace { log("Places: \(placed) of \(list.count) photos in \"\(pc.album)\" have one"); withPlace = placed }
+    let ids = list.map { "\($0["id"] ?? "")|\($0["place"] ?? "")" }.joined(separator: ",")
     if ids == sentPhotos && Date().timeIntervalSince(sentPhotosAt) < 3600 { return }
     log("Album \"\(pc.album)\" changed: \(list.count) photos; sending")
     do {
@@ -236,6 +254,7 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
         missing = try await postPhotos(list)
       }
       if missing.isEmpty { sentPhotos = ids; sentPhotosAt = Date() }
+      Task { await self.syncVideos() }
       problem("photos", missing.isEmpty ? nil : "\(missing.count) photo(s) from \"\(pc.album)\" couldn't be uploaded; trying again in 10 minutes")
     } catch {
       problem("photos", "Photos sync failed: \(error.localizedDescription)")
@@ -255,8 +274,82 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
 
   func postPhotos(_ list: [[String: Any]]) async throws -> [String] {
     let data = try await request("/api/bridge/photos", method: "POST", body: try JSONSerialization.data(withJSONObject: ["photos": list]))
-    return ((try JSONSerialization.jsonObject(with: data) as? [String: Any])?["missing"] as? [String]) ?? []
+    let r = (try JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+    // Videos the Worker doesn't have yet (an experiment: video in the slideshow). Sent after the
+    // stills, one at a time, so they never hold up photos.
+    if let videos = r["missingVideos"] as? [String], !videos.isEmpty { pendingVideos = videos }
+    return (r["missing"] as? [String]) ?? []
   }
+
+  // MARK: Videos (experimental)
+
+  var pendingVideos: [String] = []
+  var videosSyncing = false
+
+  // Sends each album video the Worker asks for as an MP4 with its index at the front, so playback can
+  // start before the whole file has arrived. Logs the original's format, for comparing.
+  @MainActor func syncVideos() async {
+    guard !videosSyncing, !pendingVideos.isEmpty, let pc = photoCfg, let assets = albumAssets(pc.album) else { return }
+    videosSyncing = true
+    defer { videosSyncing = false }
+    let byId = Dictionary(assets.map { (photoId($0), $0) }, uniquingKeysWith: { a, _ in a })
+    for id in pendingVideos {
+      guard let a = byId[id], a.mediaType == .video else { continue }
+      if let info = await videoInfo(a) { log("Video \(id): original \(info)") }
+      let started = Date()
+      guard let file = await exportVideo(a) else { log("Video \(id): couldn't re-encode it"); continue }
+      defer { try? FileManager.default.removeItem(at: file) }
+      guard let data = try? Data(contentsOf: file) else { continue }
+      log("Video \(id): prepared, \(data.count / 1024) KB, in \(Int(Date().timeIntervalSince(started))) s")
+      do {
+        _ = try await request("/api/bridge/videos/" + id, method: "PUT", body: data, contentType: "video/mp4")
+        log("Video \(id): uploaded")
+      } catch { log("Video \(id) not uploaded: \(error.localizedDescription)") }
+    }
+    pendingVideos = []
+  }
+
+  func videoInfo(_ a: PHAsset) async -> String? {
+    let o = PHVideoRequestOptions()
+    o.isNetworkAccessAllowed = true
+    let asset: AVAsset? = await withCheckedContinuation { cont in PHImageManager.default().requestAVAsset(forVideo: a, options: o) { av, _, _ in cont.resume(returning: av) } }
+    guard let av = asset, let track = try? await av.loadTracks(withMediaType: .video).first else { return nil }
+    let size = (try? await track.load(.naturalSize)) ?? .zero
+    let rate = (try? await track.load(.estimatedDataRate)) ?? 0
+    let fmt = (try? await track.load(.formatDescriptions))?.first
+    let codec = fmt.map { f -> String in
+      let c = CMFormatDescriptionGetMediaSubType(f)
+      return String(bytes: [24, 16, 8, 0].map { UInt8((c >> $0) & 0xff) }, encoding: .ascii) ?? "?"
+    } ?? "?"
+    return "\(Int(size.width))x\(Int(size.height)) \(codec) \(Int(rate / 1000)) kbit/s \(Int(a.duration)) s"
+  }
+
+  // The first clipSeconds (from the Worker) of the video's picture, without its sound: the slideshow
+  // shows a video muted and moves on after its slide time, so the rest would only cost storage and the frame's Wi-Fi, and it
+  // keeps any video under the Worker's size limit however long it is. Not re-encoded: the shared
+  // album's copy is already H.264 at 720p (Apple's own presets re-encoded it larger).
+  func exportVideo(_ a: PHAsset) async -> URL? {
+    let o = PHVideoRequestOptions()
+    o.isNetworkAccessAllowed = true
+    o.deliveryMode = .highQualityFormat
+    let asset: AVAsset? = await withCheckedContinuation { cont in PHImageManager.default().requestAVAsset(forVideo: a, options: o) { av, _, _ in cont.resume(returning: av) } }
+    guard let av = asset, let track = try? await av.loadTracks(withMediaType: .video).first else { return nil }
+    let length = (try? await av.load(.duration)) ?? .zero
+    let range = CMTimeRange(start: .zero, duration: CMTimeMinimum(length, CMTime(seconds: clipSeconds, preferredTimescale: 600)))
+    let comp = AVMutableComposition()
+    guard let out = comp.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else { return nil }
+    do { try out.insertTimeRange(range, of: track, at: .zero) } catch { log("Video clip: \(error.localizedDescription)"); return nil }
+    out.preferredTransform = (try? await track.load(.preferredTransform)) ?? .identity
+    guard let s = AVAssetExportSession(asset: comp, presetName: AVAssetExportPresetPassthrough) else { return nil }
+    let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mp4")
+    s.outputURL = file
+    s.outputFileType = .mp4
+    s.shouldOptimizeForNetworkUse = true
+    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in s.exportAsynchronously { cont.resume() } }
+    if s.status != .completed { log("Video export: \(s.error?.localizedDescription ?? "status \(s.status.rawValue)")"); return nil }
+    return file
+  }
+
 
   // The album's photos, newest first (at most 500). Shared albums are albums to Photos, too.
   func albumAssets(_ name: String) -> [PHAsset]? {
@@ -291,6 +384,37 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
       if let d = rep.representation(using: .jpeg, properties: [.compressionFactor: q]), d.count <= 900 * 1024 { return d }
     }
     return nil
+  }
+
+  // Where a photo was taken: the place of interest Apple's geocoder knows there, with its town
+  // ("Golden Gate Park, San Francisco"), else the town ("Asheville, NC"), with the country when it
+  // isn't this Mac's. Close to what Photos shows, though Photos has its own place names it doesn't share.
+  // Looked up from the photo's own location (a place of interest needs it), and cached by ~10 m;
+  // only the name leaves the Mac, never the coordinates. nil for a photo with no location.
+  func place(of a: PHAsset) async -> String? {
+    guard let loc = a.location else { return nil }
+    if let h = cfg.home, loc.distance(from: CLLocation(latitude: h.lat, longitude: h.lon)) <= (h.radius ?? 150) { return "Home" }
+    let key = String(format: "%.4f,%.4f", loc.coordinate.latitude, loc.coordinate.longitude)
+    if let known = places[key] { return known.isEmpty ? nil : known }
+    // Apple's geocoder allows about one lookup a second; new places only, so this is rare.
+    if let last = lastLookup, Date().timeIntervalSince(last) < 1.2 { try? await Task.sleep(nanoseconds: 1_200_000_000) }
+    lastLookup = Date()
+    // Not cached when the lookup fails (offline, rate-limited): tried again next time.
+    guard let mark = try? await CLGeocoder().reverseGeocodeLocation(loc).first else { return nil }
+    let town = mark.locality ?? mark.subAdministrativeArea
+    var parts: [String]
+    if let poi = mark.areasOfInterest?.first, !poi.isEmpty, poi.caseInsensitiveCompare(town ?? "") != .orderedSame {
+      // The town only when the name doesn't already say it ("Riverside Springfield", not "…, Springfield").
+      parts = [poi] + (town.map { poi.localizedCaseInsensitiveContains($0) ? [] : [$0] } ?? [])
+    } else {
+      // No place of interest, or it's the town itself ("Key West"): the town and state.
+      parts = [town, mark.administrativeArea].compactMap { $0 }
+    }
+    if let c = mark.isoCountryCode, c != Locale.current.region?.identifier, let country = mark.country { parts.append(country) }
+    let name = parts.joined(separator: ", ")
+    places[key] = name
+    if let data = try? JSONEncoder().encode(places) { try? data.write(to: supportDir.appendingPathComponent("places.json"), options: .atomic) }
+    return name.isEmpty ? nil : name
   }
 
   // A photo's id on the frame: its Photos id plus when it was last edited, so an edit is a new photo.
@@ -648,7 +772,7 @@ Task { @MainActor in
   if check {
     do { try await bridge.loadConfig(); log("Worker reachable.") } catch { log("Worker check failed: \(error.localizedDescription)") }
     if bridge.lists.isEmpty && bridge.calendars.isEmpty && bridge.photoCfg == nil {
-      log("Nothing is set to come from this Mac yet (lists, calendars or photos); see docs/lists.md.")
+      log("Nothing is set to come from this Mac yet (lists, calendars or photos); see docs/mac-bridge.md.")
     }
     if !bridge.lists.isEmpty {
       log(bridge.remindersAccess ? "Reminders access OK. Lists on this Mac: " + bridge.store.calendars(for: .reminder).map { $0.title }.sorted().joined(separator: ", ") : "Reminders access NOT granted.")

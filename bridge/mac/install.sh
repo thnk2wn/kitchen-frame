@@ -1,5 +1,5 @@
 #!/bin/bash
-# Installs the Reminders bridge on this Mac and starts it at login (docs/lists.md walks through it).
+# Installs the Mac bridge (Reminders lists, Apple calendars, a shared album: whichever the Worker asks for) on this Mac and starts it at login (docs/mac-bridge.md walks through it).
 #   1. builds the app into ~/Applications
 #   2. asks for the Worker address and BRIDGE_TOKEN (first time only; kept in
 #      ~/Library/Application Support/KitchenFrameBridge/config.json, readable only by you)

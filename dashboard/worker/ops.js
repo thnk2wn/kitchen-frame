@@ -6,6 +6,7 @@ import { getStatus } from './frame.js';
 import { listNotices } from './notices.js';
 import { listPaprika } from './paprika.js';
 import { BRIDGE_LISTS, fromReminders, bridge } from './bridge.js';
+import { mediaStorage } from './photos.js';
 import { spotifyConfigured } from './spotify.js';
 
 async function lists(env) {
@@ -39,7 +40,8 @@ async function mac(env) {
     relay: (status && status.relay) || null,
     version: (status && status.version) || null,
     calendars: cals.length ? { names: cals, sent: calAt || null } : null,
-    photos: album ? { album, showing: photos ? photos.photos.length : 0, changed: photos && photos.fetched ? new Date(photos.fetched).toISOString() : null } : null,
+    photos: album ? { album, showing: photos ? photos.photos.length : 0, changed: photos && photos.fetched ? new Date(photos.fetched).toISOString() : null,
+      storage: await mediaStorage(env).catch(() => null) } : null,
   };
 }
 

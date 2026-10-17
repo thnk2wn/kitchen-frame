@@ -10,7 +10,7 @@ mkdir -p "$app/Contents/MacOS"
 cp Info.plist "$app/Contents/Info.plist"
 # The frame's mark from its boot animation (icon/make-icon.sh), shown in System Settings and Finder.
 mkdir -p "$app/Contents/Resources" && cp AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
-swiftc -O -swift-version 5 -framework EventKit -framework Photos -framework AppKit KitchenFrameBridge.swift -o "$app/Contents/MacOS/KitchenFrameBridge"
+swiftc -O -swift-version 5 -framework EventKit -framework Photos -framework AppKit -framework CoreLocation -framework AVFoundation -framework CoreMedia KitchenFrameBridge.swift -o "$app/Contents/MacOS/KitchenFrameBridge"
 
 # Signed with the same certificate every build, so macOS keeps its permissions (Reminders, Calendar,
 # Photos, Full Disk Access) across rebuilds: it knows an app by its identifier and certificate, and an

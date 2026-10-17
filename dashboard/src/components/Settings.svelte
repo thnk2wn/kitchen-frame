@@ -1,4 +1,9 @@
 <script>
+  // "42 MB of 1 GB (4%)": Cloudflare's free storage, which photos and videos from the Mac bridge use.
+  const storageText = (st) => {
+    const mb = (b) => (b >= 1024 ** 3 ? (b / 1024 ** 3).toFixed(1) + ' GB' : Math.round(b / 1024 ** 2) + ' MB');
+    return mb(st.bytes) + ' of ' + mb(st.limit) + ' (' + Math.round((st.bytes / st.limit) * 100) + '%) · ' + st.videos + (st.videos === 1 ? ' video' : ' videos');
+  };
   import Icon from './Icon.svelte';
   import { ui, calendar, photos, paprika, loadPaprika, setSetting, calendarNames } from '../lib/state.svelte.js';
   import { calColorVars } from '../lib/format.js';
@@ -139,6 +144,22 @@
       <div class="seg">
         <button class:on={ui.nightPhotos} onclick={() => setSetting('nightPhotos', true)}>Dimmed</button>
         <button class:on={!ui.nightPhotos} onclick={() => setSetting('nightPhotos', false)}>Off</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <span>Videos in the slideshow<small>Muted, up to 30 seconds each; off shows their stills{#if photos.storage}<br /><b class:warn={photos.storage.bytes / photos.storage.limit > 0.7} class:bad={photos.storage.bytes / photos.storage.limit > 0.9}>Storage: {storageText(photos.storage)}</b>{/if}</small></span>
+      <div class="seg">
+        <button class:on={ui.slideVideos} onclick={() => setSetting('slideVideos', true)}>On</button>
+        <button class:on={!ui.slideVideos} onclick={() => setSetting('slideVideos', false)}>Off</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <span>Photo details<small>When and where each photo was taken, small, in its corner</small></span>
+      <div class="seg">
+        <button class:on={ui.photoDetails} onclick={() => setSetting('photoDetails', true)}>On</button>
+        <button class:on={!ui.photoDetails} onclick={() => setSetting('photoDetails', false)}>Off</button>
       </div>
     </div>
 
@@ -430,6 +451,10 @@
   .seg button.on { background: var(--thumb); font-weight: 600; }
   .seg button:not(.on):active { opacity: .5; }
   .row small { display: block; font-size: 15px; color: var(--secondary); margin-top: 2px; }
+  /* Storage under the videos setting: amber past 70% of Cloudflare's free 1 GB, red past 90%. */
+  .row small b { font-weight: 600; }
+  .row small b.warn { color: var(--orange-text, #b25000); }
+  .row small b.bad { color: var(--red-text, #d70015); }
   /* A setting's name never wraps; its controls take the rest of the row. */
   .row > span:first-child { flex: none; white-space: nowrap; }
   /* Its description may wrap, so a row with wide controls (Night) still fits. */

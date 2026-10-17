@@ -66,6 +66,7 @@
   const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); Object.assign(e, props); for (const k of kids) e.append(k); return e; };
   const ago = (t) => { const m = Math.round((Date.now() - Date.parse(t)) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
   const at = (t) => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+  const mb = (b) => (b >= 1024 ** 3 ? (b / 1024 ** 3).toFixed(1) + ' GB' : Math.round(b / 1024 ** 2) + ' MB');
   const dl = (rows) => { const d = el('dl'); for (const [k, v, cls] of rows) d.append(el('dt', { textContent: k }), el('dd', { textContent: v ?? '—', className: cls || '' })); return d; };
   let filter = 'all';
   let last = null;
@@ -116,6 +117,9 @@
       if (m.calendars) rows.push(['Calendars', m.calendars.names.join(', ') + ' · sent ' + (m.calendars.sent ? ago(m.calendars.sent) : 'never'),
         !m.calendars.sent || Date.now() - Date.parse(m.calendars.sent) > 3 * 3600000 ? 'warn' : '']);
       if (m.photos) rows.push(['Photos', m.photos.album + ' · ' + m.photos.showing + ' showing' + (m.photos.changed ? ' · changed ' + ago(m.photos.changed) : ''), m.photos.showing ? '' : 'warn']);
+      // Cloudflare's free storage (1 GB): amber past 70%, red past 90%, when uploads are near failing.
+      const st = m.photos && m.photos.storage;
+      if (st) { const f = st.bytes / st.limit; rows.push(['Storage', mb(st.bytes) + ' of ' + mb(st.limit) + ' (' + Math.round(f * 100) + '%) · ' + st.photos + ' photos, ' + st.videos + ' videos', f > 0.9 ? 'bad' : f > 0.7 ? 'warn' : '']); }
       if (m.relay) rows.push(['Camera relay', Object.entries(m.relay).map(([k, v]) => k + (v ? ' running' : ' DOWN')).join(' · '), Object.values(m.relay).every(Boolean) ? '' : 'bad']);
       // Problems the Mac reports (a permission lost, an album not found), each its own row, not nested.
       for (const p of m.problems || []) rows.push(['Problem', p, 'bad']);

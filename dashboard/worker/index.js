@@ -55,7 +55,7 @@ import { expand, fromBridge, merge, splitNotes } from './calendar.js';
 import { getWeather } from './weather.js';
 import { getRadar } from './radar.js';
 import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js';
-import { listPhotos, photoResponse, bridgeAlbum, bridgePhotoList, bridgePhotoUpload } from './photos.js';
+import { listPhotos, photoResponse, bridgeAlbum, bridgePhotoList, bridgePhotoUpload, bridgeVideoUpload, videoResponse } from './photos.js';
 import { room } from './messages.js';
 import { listNotices, addNotice } from './notices.js';
 import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
@@ -135,9 +135,15 @@ async function handle(req, env, ctx) {
           ...(cals.length ? { calendars: Object.fromEntries(cals.map((c) => [c.name, { notes: c.notes }])), window: { back: DAYS_BACK, ahead: DAYS_AHEAD } } : {}),
           // photos: the shared album to send, and the sizes to send it at (a landscape fills the
           // 1920-wide screen, a portrait half of it, as they show in pairs).
-          ...(bridgeAlbum(env) ? { photos: { album: bridgeAlbum(env), landscape: 1920, portrait: 960 } } : {}) });
+          // clip: seconds of each video to send, a little over the frame's slide (SLIDE_MS in
+          // src/views/Ambient.svelte, 30 s), which is all the slideshow ever shows of one.
+          ...(bridgeAlbum(env) ? { photos: { album: bridgeAlbum(env), landscape: 1920, portrait: 960, clip: 32 } } : {}) });
       }
       if (what === 'photos' && req.method === 'POST') return json(await bridgePhotoList(env, await req.json().catch(() => ({}))));
+      if (what.startsWith('videos/') && req.method === 'PUT') {
+        const { status, body } = await bridgeVideoUpload(env, what.slice(7), await req.arrayBuffer());
+        return json(body, status);
+      }
       if (what.startsWith('photos/') && req.method === 'PUT') {
         const { status, body } = await bridgePhotoUpload(env, what.slice(7), await req.arrayBuffer());
         return json(body, status);
@@ -203,6 +209,7 @@ async function handle(req, env, ctx) {
         return json(await listPhotos(env, ctx));
       }
       if (url.pathname.startsWith('/api/photos/')) return photoResponse(env, url.pathname.slice('/api/photos/'.length), ctx);
+      if (url.pathname.startsWith('/api/videos/')) return videoResponse(env, url.pathname.slice('/api/videos/'.length), req);
       if (url.pathname === '/api/messages' && req.method === 'GET') return room(env).fetch('https://room/list');
       if (url.pathname === '/api/notices' && req.method === 'GET') return json(await listNotices(env));
       if (url.pathname === '/api/frame/status' && req.method === 'POST') {

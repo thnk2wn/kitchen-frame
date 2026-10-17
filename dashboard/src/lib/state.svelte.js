@@ -46,6 +46,8 @@ export const ui = $state({
   idleMinutes: Number(pref('idle', '30')) === 5 ? 30 : Number(pref('idle', '30')),
   recipeOpen: false,                         // a recipe page is showing (Recipes sets it); holds off the clock screen
   nightPhotos: pref('night-photos', 'on') === 'on', // slideshow after sunset (dimmed)
+  photoDetails: pref('photo-details', 'off') === 'on', // each photo's date and place, small, on the slideshow
+  slideVideos: pref('slide-videos', 'on') === 'on', // album videos play in the slideshow (muted); off: their stills
   demo: pref('demo', 'off') === 'on',          // sample data instead of real calendars, lists, photos
   clockColor: pref('clock-color', '#ffffff'),  // clock-screen text colour (dimmed at night)
   cameraRefresh: Number(pref('camera-refresh', '1')), // House camera pictures: minutes between refreshes; 0 = off
@@ -57,6 +59,8 @@ export function setSetting(key, value) {
   if (key === 'cameraRefresh') { ui.cameraRefresh = value; localStorage.setItem('frame-camera-refresh', String(value)); }
   if (key === 'clockColor') { ui.clockColor = value; localStorage.setItem('frame-clock-color', value); }
   if (key === 'nightPhotos') { ui.nightPhotos = value; localStorage.setItem('frame-night-photos', value ? 'on' : 'off'); }
+  if (key === 'slideVideos') { ui.slideVideos = value; localStorage.setItem('frame-slide-videos', value ? 'on' : 'off'); }
+  if (key === 'photoDetails') { ui.photoDetails = value; localStorage.setItem('frame-photo-details', value ? 'on' : 'off'); }
   if (key === 'demo') {
     ui.demo = value;
     localStorage.setItem('frame-demo', value ? 'on' : 'off');
@@ -69,7 +73,7 @@ export const clock = $state({ now: new Date() });
 // In demo mode nothing real is shown at boot, even briefly, and nothing demo is cached as real.
 export const calendar = $state({ data: null, raw: null, offline: false }); // filled by showCalendar below
 export const weather = $state({ data: cached('weather'), error: null });
-export const photos = $state({ items: ui.demo ? [] : cached('photos') || [] });
+export const photos = $state({ items: ui.demo ? [] : cached('photos') || [], storage: null });
 // Recipes saved by agents or from Explore (GET /api/recipes).
 export const recipes = $state({ saved: cached('recipes') || null, error: null });
 export function loadRecipes() {
@@ -220,8 +224,10 @@ export function loadPhotos() {
   if (ui.demo) { photos.items = []; return Promise.resolve(); } // demo mode never shows family photos
   return single('photos', async () => {
     try {
-      const items = (await api('/api/photos')).photos || [];
+      const data = await api('/api/photos');
+      const items = data.photos || [];
       if (changed('photos', items)) photos.items = items;
+      photos.storage = data.storage || null; // Cloudflare storage the album uses (through the Mac bridge)
     } catch {}
   });
 }

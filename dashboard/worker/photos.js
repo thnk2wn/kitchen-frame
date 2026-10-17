@@ -171,7 +171,8 @@ export async function getAlbum(env, { force = false, ctx } = {}) {
 // What the frame sees: ids and sizes only, no Apple URLs.
 export async function listPhotos(env, ctx) {
   const album = await getAlbum(env, { ctx });
-  return { photos: album.photos.map(({ url, ...p }) => p), updated: new Date(album.fetched).toISOString(), ...(album.error ? { error: album.error } : {}) };
+  const storage = bridgeAlbum(env) ? await mediaStorage(env).catch((e) => { console.error('storage tally failed: ' + (e && e.message)); return null; }) : null;
+  return { photos: album.photos.map(({ url, ...p }) => p), updated: new Date(album.fetched).toISOString(), ...(album.error ? { error: album.error } : {}), ...(storage ? { storage } : {}) };
 }
 
 const PHOTO_TTL_S = 30 * 24 * 3600; // keep each image's bytes in KV for 30 days
@@ -217,7 +218,11 @@ const MAX_UPLOAD = 1024 * 1024;
 // The frame's list becomes the photos sent that are here; any missing join it once uploaded.
 export async function bridgePhotoList(env, body) {
   const sent = (Array.isArray(body && body.photos) ? body.photos : []).filter((p) => p && PHOTO_ID.test(p.id) && p.w > 0 && p.h > 0).slice(0, MAX_PHOTOS)
-    .map((p) => ({ id: p.id, w: Math.round(p.w), h: Math.round(p.h), date: typeof p.date === 'string' ? p.date.slice(0, 40) : null }));
+    .map((p) => ({ id: p.id, w: Math.round(p.w), h: Math.round(p.h), date: typeof p.date === 'string' ? p.date.slice(0, 40) : null,
+      // where it was taken, as a town name the Mac looked up ("Asheville, NC"); never coordinates
+      ...(typeof p.place === 'string' && p.place.trim() ? { place: p.place.trim().slice(0, 80) } : {}),
+      // A video: its still shows as a photo, and the clip (uploaded separately) plays in the slideshow.
+      ...(p.video === true ? { video: true, ...(Number.isFinite(p.seconds) ? { seconds: Math.round(p.seconds) } : {}) } : {}) }));
   const prev = (await env.CALENDAR.get(BRIDGE_KEY, 'json')) || { photos: [] };
   const had = new Set(prev.photos.map((p) => p.id));
   const missing = [];
@@ -226,10 +231,15 @@ export async function bridgePhotoList(env, body) {
   const keep = new Set(sent.map((p) => p.id));
   const gone = prev.photos.filter((p) => !keep.has(p.id)).map((p) => p.id);
   for (const id of gone) await env.CALENDAR.delete('photo:' + id);
+  if (gone.length) await forgetSizes(env, gone);
   if (gone.length || JSON.stringify(photos) !== JSON.stringify(prev.photos)) {
     await env.CALENDAR.put(BRIDGE_KEY, JSON.stringify({ fetched: Date.now(), photos }));
   }
-  return { missing, removed: gone.length, showing: photos.length };
+  for (const id of gone) await env.CALENDAR.delete('video:' + id);
+  // Videos whose clip isn't here yet, for the Mac to re-encode and upload after the stills.
+  const missingVideos = [];
+  for (const p of photos) if (p.video && !(await env.CALENDAR.get('video:' + p.id, 'stream'))) missingVideos.push(p.id);
+  return { missing, missingVideos, removed: gone.length, showing: photos.length };
 }
 
 // PUT a photo's JPEG (sized by the Mac).
@@ -239,5 +249,70 @@ export async function bridgePhotoUpload(env, id, bytes) {
   if (b.byteLength > MAX_UPLOAD) return { status: 413, body: { error: 'over 1 MB: size it for the screen first' } };
   if (b[0] !== 0xff || b[1] !== 0xd8) return { status: 415, body: { error: 'not a JPEG' } };
   await env.CALENDAR.put('photo:' + id, bytes);
+  await noteSize(env, 'photo:' + id, b.byteLength);
   return { status: 200, body: { ok: true } };
+}
+
+// ---- Videos from the Mac bridge, for the slideshow
+// The Mac re-encodes each album video for the frame (H.264, 960x540) and uploads it here; the frame
+// streams it from GET /api/videos/:id, in pieces (Range), as <video> asks.
+const MAX_VIDEO = 24 * 1024 * 1024; // a KV value can be 25 MB
+
+export async function bridgeVideoUpload(env, id, bytes) {
+  if (!PHOTO_ID.test(id)) return { status: 400, body: { error: 'bad video id' } };
+  const b = new Uint8Array(bytes);
+  if (b.byteLength > MAX_VIDEO) return { status: 413, body: { error: 'over 24 MB' } };
+  if (String.fromCharCode(...b.slice(4, 8)) !== 'ftyp') return { status: 415, body: { error: 'not an MP4' } };
+  await env.CALENDAR.put('video:' + id, bytes);
+  await noteSize(env, 'video:' + id, b.byteLength);
+  return { status: 200, body: { ok: true, bytes: b.byteLength } };
+}
+
+export async function videoResponse(env, id, req) {
+  if (!PHOTO_ID.test(id)) return new Response('not found', { status: 404 });
+  const all = await env.CALENDAR.get('video:' + id, 'arrayBuffer');
+  if (!all) return new Response('not found', { status: 404 });
+  const headers = { 'Content-Type': 'video/mp4', 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=604800, immutable' };
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get('Range') || '');
+  if (!m) return new Response(all, { headers: { ...headers, 'Content-Length': String(all.byteLength) } });
+  let start = m[1] ? Number(m[1]) : all.byteLength - Number(m[2]);
+  let end = m[1] && m[2] ? Number(m[2]) : all.byteLength - 1;
+  start = Math.max(0, start); end = Math.min(end, all.byteLength - 1);
+  if (start > end) return new Response(null, { status: 416, headers: { 'Content-Range': 'bytes */' + all.byteLength } });
+  return new Response(all.slice(start, end + 1), { status: 206, headers: { ...headers, 'Content-Range': `bytes ${start}-${end}/${all.byteLength}`, 'Content-Length': String(end - start + 1) } });
+}
+
+// ---- How much of Cloudflare's storage the album uses
+// KV can't report its own size, and listing keys is limited on the free plan (1,000 a day), so the
+// Worker keeps a tally: each photo's and video's size as it's uploaded, in one record. Photos and
+// videos are nearly all of the storage (calendars and settings are small). The free plan has 1 GB;
+// past that, uploads fail (and the Mac reports it on the status page).
+const SIZES_KEY = 'media-sizes';
+export const STORAGE_LIMIT = 1024 * 1024 * 1024;
+async function noteSize(env, key, bytes) {
+  const sizes = (await env.CALENDAR.get(SIZES_KEY, 'json')) || {};
+  sizes[key] = bytes;
+  await env.CALENDAR.put(SIZES_KEY, JSON.stringify(sizes));
+}
+async function forgetSizes(env, ids) {
+  const sizes = (await env.CALENDAR.get(SIZES_KEY, 'json')) || {};
+  for (const id of ids) { delete sizes['photo:' + id]; delete sizes['video:' + id]; }
+  await env.CALENDAR.put(SIZES_KEY, JSON.stringify(sizes));
+}
+// { bytes, limit, photos, videos } for the album as it is now. Media stored before the tally began
+// are measured once here (a handful of reads), then counted.
+export async function mediaStorage(env) {
+  const album = (await env.CALENDAR.get(BRIDGE_KEY, 'json')) || { photos: [] };
+  const sizes = (await env.CALENDAR.get(SIZES_KEY, 'json')) || {};
+  let added = false;
+  const keys = album.photos.flatMap((p) => ['photo:' + p.id, ...(p.video ? ['video:' + p.id] : [])]);
+  for (const k of keys.filter((k) => !(k in sizes)).slice(0, 50)) {
+    const v = await env.CALENDAR.get(k, 'arrayBuffer');
+    if (v) { sizes[k] = v.byteLength; added = true; }
+  }
+  // Saved for next time; a clash with another save (KV takes one write a second per key) only means
+  // measuring again next time, so it's not an error.
+  if (added) await env.CALENDAR.put(SIZES_KEY, JSON.stringify(sizes)).catch(() => {});
+  const bytes = keys.reduce((n, k) => n + (sizes[k] || 0), 0);
+  return { bytes, limit: STORAGE_LIMIT, photos: album.photos.length, videos: album.photos.filter((p) => p.video && sizes['video:' + p.id]).length };
 }
