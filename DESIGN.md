@@ -192,7 +192,7 @@ The frame uses the iOS widget and grouped-list language selected in the directio
 
 The built system uses flat fills and a system sans stack. Light mode has a pale grey ground and white sheets. Dark mode has a black ground and charcoal sheets. State and source colours carry meaning; they are not decorative borders. StandBy replaces the dashboard with a black clock screen after inactivity.
 
-Recorded from `dashboard/src/style.css`, `App.svelte`, all four views, `TaskRow.svelte`, `EventRow.svelte`, `Icon.svelte`, and `lib/state.svelte.js` / `lib/format.js`. The direction contract is `.impeccable/surfaces/dashboard-src-app-svelte.md`; durable hardware and use constraints come from `PRODUCT.md`. This records the replacement visual world after the reported ship verdict. It is a source-based record, not a new device verification.
+Recorded from `dashboard/src/style.css`, `App.svelte`, all four views, `TaskRow.svelte`, `EventRow.svelte`, `Icon.svelte`, and `lib/state.svelte.js` / `lib/format.js`. Hardware and performance constraints are in `CLAUDE.md`. This records the replacement visual world after the reported ship verdict. It is a source-based record, not a new device verification.
 
 **Key Characteristics:**
 

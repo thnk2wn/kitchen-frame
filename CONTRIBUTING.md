@@ -13,7 +13,7 @@ npm run dev                      # open http://localhost:5173/?key=<DASHBOARD_KE
 ```
 
 No accounts? Turn on **Settings → Demo mode**: invented calendar, tasks and groceries, nothing
-reaches Todoist. The developer wiki starts at [openwiki/quickstart.md](openwiki/quickstart.md).
+reaches Todoist.
 
 ## Before you open a pull request
 

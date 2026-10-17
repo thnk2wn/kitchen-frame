@@ -12,3 +12,5 @@ kiosk/build/
 .prod.vars
 .frame.vars
 kiosk/bootanimation/build/
+# A design-review tool's working files (Impeccable); not part of the project.
+.impeccable/

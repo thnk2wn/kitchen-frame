@@ -26,11 +26,3 @@ A dashboard web app for a rooted Android photo frame. Read `docs/research.md` be
 
 `reference/photo-frame-dashboard/` is the upstream repo (gitignored). The device guides are in its
 `docs/`. Our kiosk app is in `kiosk/` (upstream's is in its `dashboard/kiosk/`).
-
-<!-- OPENWIKI:START -->
-
-## OpenWiki
-
-@AGENTS.md
-
-<!-- OPENWIKI:END -->
