@@ -61,7 +61,7 @@ Each feature links to its page in [`docs/`](docs/), which has the setup and the 
 | **[Notices](docs/notices.md)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves; a bell counts new ones and keeps the last 24 hours. Blueprints for temperature limits and thermostat changes. |
 | **[Announcements](docs/announcements.md)** | New | Said out loud on a speaker from HA (an Echo's Announce, or text-to-speech): event reminders for the calendars you pick ("In 30 minutes: Swim lesson"), red alerts such as a leak at a louder volume and at night, optionally orange ones, and agent messages. Off until turned on. |
 | **[Presence](docs/presence.md)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
-| **[Media](docs/music.md)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist, what's playing from, Up next, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. |
+| **[Media](docs/music.md)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist, what's playing from, Up next, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. **Videos**: chosen YouTube videos and playlists as big thumbnails for kids, played full screen. |
 
 ### In the kitchen
 
@@ -254,13 +254,16 @@ camera that sends more than your frame decodes can go through an optional relay 
 shrinks it; Ring cameras have extra steps (ring-mqtt). Setup, what each device does,
 and the camera measurements are in [docs/house.md](docs/house.md).
 
-### Media: music and TV
+### Media: music, TV and videos
 
 **Music** is Spotify on the house's speakers through Home Assistant, with controls that answer at
 once and a Now Playing card everywhere. **TV** is any TV HA knows: what's playing, controls, apps and
 an on-screen remote; behind a soundbar, `TV_AUDIO` sends volume to the speaker that actually plays
 the sound. Setup (HA's Spotify integration, optionally Alexa Devices and the Worker's own Spotify
 connection for every playlist) in [docs/music.md](docs/music.md).
+
+**Videos** shows chosen YouTube videos and playlists (`YOUTUBE_VIDEOS`) as big thumbnails a kid can
+tap, played full screen in YouTube's own player; it needs no Home Assistant. [docs/music.md](docs/music.md#videos-youtube-for-the-kids).
 
 ### Timers
 

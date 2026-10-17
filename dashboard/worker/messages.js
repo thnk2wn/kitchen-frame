@@ -46,10 +46,13 @@ export class MessageRoom {
     // dashboard again, e.g. to pick up a deploy at once), pushed to
     // every connected frame; nothing is stored.
     if (path === '/command') {
-      const { command } = await req.json().catch(() => ({}));
-      if (!['checkin', 'reload'].includes(command)) return json({ error: 'unknown command' }, 400);
+      const { command, id, title } = await req.json().catch(() => ({}));
+      // play: a YouTube video shared from a phone (index.js /api/share/play), with its id and title.
+      if (!['checkin', 'reload', 'play'].includes(command)) return json({ error: 'unknown command' }, 400);
+      if (command === 'play' && !/^[\w-]{11}$/.test(id || '')) return json({ error: 'a YouTube video id' }, 400);
+      const msg = JSON.stringify({ command, ...(command === 'play' ? { id, title: String(title || '').slice(0, 200) } : {}) });
       let sent = 0;
-      for (const ws of this.ctx.getWebSockets()) { try { ws.send(JSON.stringify({ command })); sent++; } catch {} }
+      for (const ws of this.ctx.getWebSockets()) { try { ws.send(msg); sent++; } catch {} }
       return json({ sent });
     }
     const dismiss = /^\/dismiss\/([\w-]+)$/.exec(path);

@@ -8,6 +8,10 @@
   import Settings from './components/Settings.svelte';
   import Music from './views/Music.svelte';
   import TV from './views/TV.svelte';
+  import Videos from './views/Videos.svelte';
+  import YouTubePlayer from './components/YouTubePlayer.svelte';
+  // YouTube's player script, loaded early once videos are set up, so a video shared from a phone starts fast.
+  import { loadYouTube } from './lib/youtube.js';
   import Recipes from './views/Recipes.svelte';
   import Message from './components/Message.svelte';
   import Timers from './components/Timers.svelte';
@@ -26,11 +30,12 @@
   import { timers } from './lib/timers.svelte.js';
   import { connectHA, haConfigured, haDashboard, nowPlaying } from './lib/ha.svelte.js';
   import House from './views/House.svelte';
-  import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible } from './lib/state.svelte.js';
+  import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible, videos, loadVideos, nowVideo } from './lib/state.svelte.js';
   import { noteAlbum, prepare } from './lib/slides.js';
   import { time, clockTime, weatherInfo } from './lib/format.js';
 
-  const TABS = [
+  // Reactive: Media also appears when YouTube videos are set up (Media → Videos needs no Home Assistant).
+  let TABS = $derived([
     { id: 'home', label: 'Home' },
     { id: 'calendar', label: 'Calendar' },
     // Groceries and Tasks share one tab with a switch inside; it reopens the list used last.
@@ -38,16 +43,16 @@
     { id: 'recipes', label: 'Recipes' },
     // Media (music, and TVs when Home Assistant has any) appears once the frame has a Home Assistant
     // token (see docs/frame.md). Its id stays 'music' so older links and settings keep working.
-    ...(haConfigured() || ui.demo ? [{ id: 'music', label: 'Media' }] : []), // demo: an invented player
+    ...(haConfigured() || ui.demo || videos.groups.length ? [{ id: 'music', label: 'Media' }] : []), // demo: an invented player
     // House mirrors a Home Assistant dashboard, once the frame has its URL path (frame-ha-dashboard).
     ...((haConfigured() && haDashboard()) || ui.demo ? [{ id: 'house', label: 'House' }] : []), // demo: an invented house
-  ];
+  ]);
   let wx = $derived(weather.data);
   let info = $derived(wx ? weatherInfo(wx.code, wx.day) : null);
 
   // Speculative photo downloads wait until the first screen's data has had the slow Wi-Fi to itself.
   let warm = $state(false);
-  onMount(() => { start(); connectHA(); setTimeout(() => (warm = true), 15000); });
+  onMount(() => { start(); loadVideos().then(() => { if (videos.groups.length) setTimeout(() => loadYouTube().catch(() => {}), 20000); }); connectHA(); setTimeout(() => (warm = true), 15000); });
 
   // Keep the next slideshow slide downloaded in the background, so play/idle shows photos at once.
   $effect(() => {
@@ -101,7 +106,7 @@
     {#if !ui.idle}
     {#if ui.tab === 'home'}<Home {playing} />
     {:else if ui.tab === 'calendar'}<Week />
-    {:else if ui.tab === 'music'}{#if ui.media === 'tv'}<TV />{:else}<Music />{/if}
+    {:else if ui.tab === 'music'}{#if ui.media === 'tv'}<TV />{:else if ui.media === 'videos' || !haConfigured()}<Videos />{:else}<Music />{/if}
     {:else if ui.tab === 'house'}<House />
     {:else if ui.tab === 'recipes'}<Recipes />
     {:else if ui.tab === 'groceries'}<List name="groceries" title="Groceries" accent="var(--orange)" accentText="var(--orange-text)" />
@@ -122,6 +127,8 @@
   <TimerAlert />
   <PinPad />
   <DoorbellAlert />
+  <!-- A YouTube video, over every screen: from Media → Videos, or shared from a phone. -->
+  {#if nowVideo.list}{#key nowVideo.list}<YouTubePlayer list={nowVideo.list} index={nowVideo.index} startMuted={nowVideo.shared} onclose={() => (nowVideo.list = null)} />{/key}{/if}
 </div>
 
 <style>

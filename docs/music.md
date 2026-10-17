@@ -157,3 +157,69 @@ soundbar's level, so Home Assistant takes it as 0 and volume down does nothing, 
 with its own integration (Alexa built in, Sonos) steps both ways and shows its level. A **Soundbar |
 TV speakers** switch under the controls sends volume back to the TV on nights its own speakers are
 on. Nothing about the household's TVs is in the code.
+
+## Videos: YouTube for the kids
+
+**Needs:** only the `YOUTUBE_VIDEOS` setting; no Home Assistant, no YouTube account. Without it
+there's no Videos view (and without Home Assistant either, no Media tab at all).
+
+Media → **Videos** shows chosen YouTube videos and playlists as rows of big thumbnails, a group per
+row ("Blippi", "Diggers"), each with its length, for kids to pick from. A tap plays it nearly full
+screen in YouTube's own embedded player, with sound, and goes on to the next in the group when it
+ends. Under the video is our own bar: big volume **−** and **+** with a level (remembered on the
+frame), pause, next, and **Close**; YouTube's own volume slider is small and hides while playing.
+The volume tops out at the frame's Android media volume.
+
+Each group has a sort button beside its name: **most recently played** on this frame first (the
+default; the rest in playlist order), or **A–Z**, remembered per group. **Find a video** in the
+bottom bar narrows every group to titles with all the words typed.
+
+Set in `dashboard/.dev.vars`, then `scripts/push-secrets.sh` (a secret, since what a household watches
+is its own business): groups separated by `|`, each a name, a colon and links to videos or
+playlists, in any mix:
+
+```
+YOUTUBE_VIDEOS="Blippi: https://www.youtube.com/playlist?list=PL… | Diggers: https://youtu.be/… https://youtu.be/…"
+```
+
+- **Playlists** must be public or unlisted (an unlisted playlist in your own account is the usual
+  choice). Without a key the Worker reads YouTube's public feed, which has a playlist's **15 newest**
+  videos; with `YOUTUBE_API_KEY` (free from Google Cloud: a project, the YouTube Data API v3
+  enabled, an API key) it reads whole playlists.
+- **Single videos** need no key: their titles come from YouTube's oEmbed, and lengths from each
+  video's page (kept, a few dozen looked up per refresh), or from the API with a key.
+- The list is kept for 6 hours; `GET /api/youtube?refresh` fetches it again at once.
+- A video whose channel doesn't allow playing outside YouTube is skipped when it comes up.
+
+**On this frame:** YouTube sends VP9, which the FRAME156's RK3326 decodes on its CPU, not in hardware.
+A full-size player made YouTube choose 720p, then 480p, and stalled 6 times a minute; the player is
+therefore laid out at 640×360 and scaled up, so YouTube sends less, and it plays smoothly (captions
+work). Sound comes from the frame's own speaker: this frame has no Bluetooth radio to send it to a
+speaker. YouTube's player script loads when Videos opens, so a tap starts the video in about a second.
+
+### Sharing a video from a phone
+
+From YouTube on an iPhone: **Share → Play on Kitchen Frame**, and the frame plays it at once, over
+whatever it's showing (the clock screen too), in the same player. It starts muted with a big **Tap
+for sound**: the frame's browser plays sound only after a touch, and a shared video comes without
+one. Works from anywhere; only a phone with the Shortcut (and its token) can send.
+
+**Needs:** `SHARE_TOKEN` on the Worker: any long random string (`openssl rand -hex 24`), in
+`dashboard/.dev.vars`, then `scripts/push-secrets.sh`. It opens `POST /api/share/play` and nothing
+else, so a leaked one can only play a video on the frame. Not the agent token.
+
+**The Shortcut,** once per phone, in the Shortcuts app:
+
+1. **+** → name it **Play on Kitchen Frame**. In its details (the **i**), turn on **Show in Share
+   Sheet**, and set what it receives to **URLs** (and **Text**: some apps share a link as text).
+2. Add **Get Contents of URL**:
+   - URL: `https://<your worker>/api/share/play`
+   - Method: **POST**
+   - Headers: `Authorization` = `Bearer ` followed by the `SHARE_TOKEN`
+   - Request Body: **JSON**, one field: `url` (Text) = **Shortcut Input**
+3. Add **Get Dictionary Value**: `title` from the previous step's contents, then **Show
+   Notification** with it ("Playing …"), so you know it reached the frame. If the frame isn't
+   connected, or the video can't be played outside YouTube, the reply's `error` says so instead.
+
+The Worker accepts a link in any form (youtu.be, watch, Shorts), with or without tracking
+parameters, as JSON (`url`) or plain text.

@@ -41,9 +41,13 @@
 //                  bridge (bridge/mac/) with its alerts, which iCloud's public links leave out.
 //   DASHBOARD_KEY  shared key the frame sends with every API call. Unset = no check (dev only).
 //   TODOIST_TOKEN  Todoist API token.
+//   YOUTUBE_VIDEOS optional: groups of YouTube videos and playlists for Media → Videos (youtube.js),
+//                  with YOUTUBE_API_KEY optional for whole playlists.
 //   ALBUM_URL      iCloud shared album link with Public Website on, or bridge:<album name> for the
 //                  Mac bridge to send that shared album's photos, with no public link (photos.js).
 //   AGENT_TOKEN    lets AI agents post messages and save recipes; it can't read anything.
+//   SHARE_TOKEN    optional: lets a phone's share sheet play a YouTube video on the frame
+//                  (POST /api/share/play), and nothing else.
 //   PAPRIKA_EMAIL, PAPRIKA_PASSWORD  optional: a Paprika Cloud Sync account to show our recipes.
 //   GROCERIES_SOURCE, TODO_SOURCE  optional: "reminders" to show that list from Apple Reminders
 //                  through a Mac at home instead of Todoist (bridge.js, docs/lists.md), with
@@ -60,6 +64,7 @@ import { room } from './messages.js';
 import { listNotices, addNotice } from './notices.js';
 import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
 import { opsSummary } from './ops.js';
+import { listVideos, thumbResponse, videoIdOf, videoTitle } from './youtube.js';
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage, moveToPaprika } from './recipes.js';
@@ -165,6 +170,22 @@ async function handle(req, env, ctx) {
       if (what === 'live') return bridge(env).fetch(new Request('https://bridge/live', req));
       return json({ error: 'not found' }, 404);
     }
+    // A phone shares a YouTube video to the frame (an iOS Shortcut on the share sheet: docs/music.md), with
+    // its own SHARE_TOKEN, which opens this route and nothing else: the worst a leaked one can do is
+    // play a video on the frame.
+    if (url.pathname === '/api/share/play' && req.method === 'POST') {
+      if (!env.SHARE_TOKEN || !same(req.headers.get('Authorization') || '', 'Bearer ' + env.SHARE_TOKEN)) return json({ error: 'unauthorized' }, 401);
+      const body = await req.text();
+      let text = body;
+      try { const j = JSON.parse(body); text = j.url || j.text || body; } catch {}
+      const id = videoIdOf(String(text));
+      if (!id) return json({ error: 'no YouTube video link in that' }, 400);
+      const title = await videoTitle(id).catch(() => null);
+      if (title === null) return json({ error: 'YouTube says that video can\'t be played outside YouTube (or is gone)' }, 422);
+      const r = await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'play', id, title }) });
+      const { sent = 0 } = await r.json().catch(() => ({}));
+      return json({ ok: sent > 0, title, sent, ...(sent ? {} : { error: 'the frame isn\'t connected right now' }) });
+    }
     // Agents may also save recipes with their token (the frame saves with its own key).
     const agent = env.AGENT_TOKEN && req.headers.get('Authorization') === 'Bearer ' + env.AGENT_TOKEN;
     if (url.pathname === '/api/recipes' && req.method === 'POST' && agent) {
@@ -210,6 +231,8 @@ async function handle(req, env, ctx) {
       }
       if (url.pathname.startsWith('/api/photos/')) return photoResponse(env, url.pathname.slice('/api/photos/'.length), ctx);
       if (url.pathname.startsWith('/api/videos/')) return videoResponse(env, url.pathname.slice('/api/videos/'.length), req);
+      if (url.pathname === '/api/youtube') return json(await listVideos(env, { force: url.searchParams.has('refresh') }));
+      if (url.pathname.startsWith('/api/youtube/thumb/')) return thumbResponse(url.pathname.slice('/api/youtube/thumb/'.length), ctx);
       if (url.pathname === '/api/messages' && req.method === 'GET') return room(env).fetch('https://room/list');
       if (url.pathname === '/api/notices' && req.method === 'GET') return json(await listNotices(env));
       if (url.pathname === '/api/frame/status' && req.method === 'POST') {
@@ -403,7 +426,7 @@ async function refresh(env, previous) {
 // response to a request that had the key. That keeps the key out of URLs, and so out of request
 // logs and caches. (A key in the URL, ?key=, how they used to do it, is no longer accepted.)
 const AUTH_COOKIE = 'frame_auth';
-const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/tiles/') || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
+const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/youtube/thumb/') || p.startsWith('/api/tiles/') || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
 // Constant-time comparison, so a key or cookie can't be guessed a character at a time.
 function same(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;

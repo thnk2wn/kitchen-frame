@@ -1,6 +1,7 @@
 // Shared app state and the pollers that fill it. Each feed polls only while something on screen
 // needs it (see start()), one request at a time, and unchanged results don't touch the screen.
 import { api, cached, remember, changed, forget, mediaUrl } from './api.js';
+import { log } from './log.svelte.js';
 import { dayKey, recipeTitle, setCalendarColors } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
 import { DEMO_ROTATIONS } from './rotations.js';
@@ -36,7 +37,7 @@ export const ui = $state({
   noticesOpen: false,                        // the Home Assistant notices sheet (lib/notices.svelte.js)
   // The event whose details are showing ({ uid, start }); ?event=<uid> opens one, for screenshots.
   event: q.get('event') ? { uid: q.get('event'), start: null } : null,
-  media: q.get('media') === 'tv' ? 'tv' : 'music', // the Media tab's view (?media=tv opens TV)
+  media: ['tv', 'videos'].includes(q.get('media')) ? q.get('media') : 'music', // the Media tab's view (?media=tv or videos)
   // { list, id }: the list item whose sheet is open; ?task=<id> opens a task, for screenshots.
   task: q.get('task') ? { list: 'todo', id: q.get('task') } : null,
   weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,
@@ -74,6 +75,32 @@ export const clock = $state({ now: new Date() });
 export const calendar = $state({ data: null, raw: null, offline: false }); // filled by showCalendar below
 export const weather = $state({ data: cached('weather'), error: null });
 export const photos = $state({ items: ui.demo ? [] : cached('photos') || [], storage: null });
+
+// The YouTube video playing, over every screen (components/YouTubePlayer.svelte): picked in Media →
+// Videos, or shared from a phone. shared: it came without a tap here, so it starts muted.
+export const nowVideo = $state({ list: null, index: 0, shared: false });
+
+// YouTube videos for Media → Videos (worker/youtube.js): groups of chosen videos and playlists.
+export const videos = $state({ groups: ui.demo ? [] : cached('youtube') || [] });
+// When each video last played on this frame (id -> ms), for Videos' "recently played" order, and each
+// group's order there (name -> 'recent' | 'az'). Kept on the frame.
+const readJSON = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { return {}; } };
+export const videoPlays = $state(readJSON('frame-video-played'));
+export const videoSort = $state(readJSON('frame-video-sort'));
+export function notePlay(id) {
+  videoPlays[id] = Date.now();
+  // The 300 most recent are plenty.
+  const keep = Object.entries(videoPlays).sort((a, b) => b[1] - a[1]).slice(0, 300);
+  try { localStorage.setItem('frame-video-played', JSON.stringify(Object.fromEntries(keep))); } catch {}
+}
+export function setVideoSort(group, how) {
+  videoSort[group] = how;
+  try { localStorage.setItem('frame-video-sort', JSON.stringify(videoSort)); } catch {}
+}
+export function loadVideos() {
+  if (ui.demo) return Promise.resolve();
+  return api('/api/youtube').then((d) => { const g = d.groups || []; if (changed('youtube', g)) videos.groups = g; }, () => {});
+}
 // Recipes saved by agents or from Explore (GET /api/recipes).
 export const recipes = $state({ saved: cached('recipes') || null, error: null });
 export function loadRecipes() {
@@ -257,6 +284,12 @@ function connectMessages() {
       const d = JSON.parse(e.data);
       // A command from the Worker (lib/checkin.js listens): e.g. "checkin" now.
       if (d.command) window.dispatchEvent(new CustomEvent('frame-command', { detail: d.command }));
+      // A video shared from a phone: over whatever is showing, the clock screen included.
+      if (d.command === 'play' && d.id) {
+        if (ui.idle) exitIdle();
+        Object.assign(nowVideo, { list: [{ id: d.id, title: d.title || '' }], index: 0, shared: true });
+        log('youtube.shared', { video: d.id });
+      }
       if (d.messages) showMessages(d.messages);
     } catch {}
   };
@@ -477,6 +510,7 @@ export function start() {
   })();
   every(5 * MIN, loadCalendar);
   every(30 * MIN, loadMeals);
+  every(60 * MIN, loadVideos);
   every(60 * MIN, loadRotations);
   every(15 * MIN, loadWeather);
   // Both lists show on Home; each also has its own tab (App loads a list when its tab opens).
