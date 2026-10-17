@@ -178,8 +178,9 @@ test('photos: album resolved anonymously, edited version preferred, videos skipp
   assert.equal(list.photos.length, 2);
   assert.ok(list.photos.every((p) => !('url' in p))); // Apple links never reach the frame
   assert.deepEqual(list.photos.map((p) => [p.w, p.h]), [[2048, 1536], [1536, 2048]]);
-  // Image route: key in the query string is accepted for GET, and the edited version is served.
-  const img = await worker.fetch(new Request('https://frame.test/api/photos/' + list.photos[1].id + '?key=k'), penv, {});
+  // Image route: the edited version is served. A key in the URL is no longer accepted.
+  assert.equal((await worker.fetch(new Request('https://frame.test/api/photos/' + list.photos[1].id + '?key=k'), penv, {})).status, 401);
+  const img = await worker.fetch(new Request('https://frame.test/api/photos/' + list.photos[1].id, { headers: { Authorization: 'Bearer k' } }), penv, {});
   assert.equal(img.status, 200);
   assert.equal(await img.text(), 'jpegbytes:https://cdn.test/edited/photo.jpg');
   assert.match(img.headers.get('Cache-Control'), /immutable/);
@@ -187,7 +188,7 @@ test('photos: album resolved anonymously, edited version preferred, videos skipp
   assert.equal((await worker.fetch(new Request('https://frame.test/api/photos/' + list.photos[1].id), penv, {})).status, 401);
   // The image bytes are now kept in KV: a second request doesn't go back to iCloud.
   const beforeImg = calls.length;
-  const again = await worker.fetch(new Request('https://frame.test/api/photos/' + list.photos[1].id + '?key=k'), penv, {});
+  const again = await worker.fetch(new Request('https://frame.test/api/photos/' + list.photos[1].id, { headers: { Authorization: 'Bearer k' } }), penv, {});
   assert.equal(await again.text(), 'jpegbytes:https://cdn.test/edited/photo.jpg');
   assert.equal(calls.length, beforeImg);
   // A second list call within the cache window is served from KV.
@@ -288,7 +289,8 @@ test('recipes: explore normalizes TheMealDB; saved via agent or frame; image sto
   assert.equal((await (await call('/api/recipes', { method: 'POST', body: JSON.stringify({ ...recipe, ref: recipe.id }) })).json()).existing, true);
   const { recipes } = await (await call('/api/recipes')).json();
   assert.deepEqual(recipes.map((r) => [r.title, !!r.hasImage]), [['Fried Rice', true], ['Tacos', true]]);
-  assert.equal(await (await call('/api/recipes/' + id + '/image?key=k', {}, '')).text(), 'jpg');
+  assert.equal(await (await call('/api/recipes/' + id + '/image')).text(), 'jpg');
+  assert.equal((await call('/api/recipes/' + id + '/image?key=k', {}, '')).status, 401);
   assert.equal((await call('/api/recipes/' + id + '/image', {}, '')).status, 401);
   await call('/api/recipes/' + id, { method: 'DELETE' });
   assert.equal((await (await call('/api/recipes')).json()).recipes.length, 1);
@@ -355,9 +357,9 @@ test('messages: posts and dismissals are pushed to connected frames at once; exp
   await worker.fetch(new Request('https://frame.test/api/messages/' + id + '/dismiss', { method: 'POST', headers: { Authorization: 'Bearer k' } }), menv, {});
   assert.deepEqual(sent.at(-1).messages, []);
   assert.equal(r.alarms.at(-1), null);
-  // The socket route needs the frame key (in the URL) and a WebSocket upgrade.
-  assert.equal((await worker.fetch(new Request('https://frame.test/api/messages/live?key=wrong'), menv, {})).status, 401);
-  assert.equal((await worker.fetch(new Request('https://frame.test/api/messages/live?key=k'), menv, {})).status, 426);
+  // The socket route needs the frame's key (or its cookie) and a WebSocket upgrade; not a key in the URL.
+  assert.equal((await worker.fetch(new Request('https://frame.test/api/messages/live?key=k'), menv, {})).status, 401);
+  assert.equal((await worker.fetch(new Request('https://frame.test/api/messages/live', { headers: { Authorization: 'Bearer k' } }), menv, {})).status, 426);
 });
 
 import { classicToken, pickDerivative } from './photos.js';

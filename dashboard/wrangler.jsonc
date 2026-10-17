@@ -5,7 +5,7 @@
   "compatibility_date": "2026-10-01",
   // The Vite plugin builds the dashboard into the asset bundle; the Worker only handles /api/*.
   // The Worker serves the page itself (to mark it no-store); everything else is a plain asset.
-  "assets": { "binding": "ASSETS", "run_worker_first": ["/", "/index.html"] },
+  "assets": { "binding": "ASSETS", "run_worker_first": ["/", "/index.html", "/assets/*"] },
   // Created on the first deploy (2026-10-13) as "kitchen-frame-calendar".
   "kv_namespaces": [{ "binding": "CALENDAR", "id": "c402f7fac06e4d6c9c3038dc91efc42b" }],
   // Agent messages: one SQLite-backed Durable Object holding the list and the frames' WebSockets

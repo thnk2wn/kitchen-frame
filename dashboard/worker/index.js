@@ -101,6 +101,16 @@ async function handle(req, env, ctx) {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) {
       const res = await env.ASSETS.fetch(req);
+      // A built file that isn't there must never be cached. public/_headers marks everything under
+      // /assets/ as kept forever (right for real files, whose names change with each build), and
+      // Cloudflare applied that to a 404 too: the frame asked for a new build's script a moment
+      // before it was everywhere, kept the 404, and couldn't start again until a rollback
+      // (2026-10-16). So a missing one is no-store.
+      if (url.pathname.startsWith('/assets/') && !res.ok) {
+        const miss = new Response(res.body, res);
+        miss.headers.set('Cache-Control', 'no-store');
+        return miss;
+      }
       if (!(res.headers.get('Content-Type') || '').includes('text/html')) return res;
       // Never cache the page, or the frame keeps running an old build after a deploy.
       const page = new Response(res.body, res);
@@ -384,10 +394,9 @@ async function refresh(env, previous) {
 // The frame sends its key as a header. <img> and WebSocket can't, so those GETs authenticate with a
 // cookie instead: an HMAC of the key (not the key), HttpOnly, Secure, SameSite=Strict, set on any
 // response to a request that had the key. That keeps the key out of URLs, and so out of request
-// logs and caches. The key in the URL (?key=, how they used to do it) still works for now, logged
-// so it can be removed once nothing uses it.
+// logs and caches. (A key in the URL, ?key=, how they used to do it, is no longer accepted.)
 const AUTH_COOKIE = 'frame_auth';
-const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/tiles/') || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
+const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/tiles/') || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
 // Constant-time comparison, so a key or cookie can't be guessed a character at a time.
 function same(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
@@ -412,12 +421,7 @@ async function authorized(req, env) {
   if (hasKey(req, env)) return true;
   const url = new URL(req.url);
   if (req.method !== 'GET' || !mediaPath(url.pathname)) return false;
-  if (same(cookieOf(req) || '', await cookieValue(env))) return true;
-  if (same(url.searchParams.get('key') || '', env.DASHBOARD_KEY)) {
-    console.warn({ source: 'worker', message: 'key in URL', path: url.pathname });
-    return true;
-  }
-  return false;
+  return same(cookieOf(req) || '', await cookieValue(env));
 }
 
 async function withAuthCookie(req, env, res) {
