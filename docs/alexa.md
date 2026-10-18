@@ -96,6 +96,16 @@ The Worker answers only requests that:
 
 ## When something's wrong
 
+- **Start with the status page's Alexa section.** It shows what each Echo heard and how Alexa took
+  it (from Home Assistant's Alexa Devices voice events, which the frame watches), and, for requests
+  that reached the skill, what it understood, said and sent the frame. A red row is Alexa announcing
+  a misheard request to the house ("ask kitchen friend to go home"); a request missing from the
+  skill's rows never reached it. Amazon's Review Voice History has the same words, kept longer.
+- **Announcements by mistake:** when Alexa doesn't catch the skill's name in "ask … to …", it can
+  take the request as a message and announce it on every Echo. "Alexa, open Kitchen Frame" then the
+  request can't be taken that way, and Do Not Disturb on an Echo (a child's room at nap time) blocks
+  announcements there whatever their cause.
+
 - **"There was a problem with the requested skill's response":** look at `npx wrangler tail`. A
   line starting `alexa refused:` says which check failed (most often `ALEXA_SKILL_ID` not set or not
   matching).

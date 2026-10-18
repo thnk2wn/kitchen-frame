@@ -180,3 +180,30 @@ test('alexa: adding to a list shows that list on the frame', async () => {
   assert.equal(await speech(res), 'Added call the dentist to Tasks.');
   assert.deepEqual(sent, [['show', { tab: 'todo' }]]);
 });
+
+test('alexa: "show" with the screen missing asks which, and "go home" shows Home', async () => {
+  stub(amazon);
+  const sent = [];
+  const deps = { command: async (name, data) => { sent.push([name, data]); return 1; }, calendar: async () => ({}), videoGroups: () => [], meals: async () => ({}), rotations: () => [] };
+  const ask = async (name, slots) => (await handleAlexa(signed({ type: 'IntentRequest', intent: { name, slots } }).req, env, deps)).json();
+  const r = await ask('ShowTabIntent', { tab: { name: 'tab' } });
+  assert.match(r.response.outputSpeech.text, /^Which screen\?/);
+  assert.equal(r.response.shouldEndSession, false);
+  assert.equal((await ask('AMAZON.NavigateHomeIntent')).response.outputSpeech.text, 'Okay.');
+  assert.deepEqual(sent, [['show', { tab: 'home' }]]);
+});
+
+import { skillEntry, heardEntry } from './alexa-log.js';
+test('alexa log: each request the skill answers is noted with what it understood, said and sent', async () => {
+  stub(amazon);
+  const logged = [];
+  const deps = { command: async () => 1, calendar: async () => ({}), videoGroups: () => [], meals: async () => ({}), rotations: () => [], log: (e) => logged.push(e) };
+  await handleAlexa(signed({ type: 'IntentRequest', intent: { name: 'ShowTabIntent', slots: { tab: { name: 'tab', value: 'calendar' } } } }).req, env, deps);
+  assert.deepEqual(logged[0], { source: 'skill', type: 'IntentRequest', intent: 'ShowTabIntent', slots: { tab: 'calendar' }, said: 'Okay.', directives: undefined, sent: 'show calendar', refused: undefined });
+  await handleAlexa(signed({ type: 'LaunchRequest' }, { skill: 'amzn1.ask.skill.other' }).req, env, deps);
+  assert.equal(logged[1].refused, 'another skill');
+  assert.deepEqual(heardEntry({ device: 'Kitchen Dot', heard: 'alexa ask kitchen friend to go home', intent: 'AnnounceIntent', reply: 'announcing' }),
+    { source: 'alexa', device: 'Kitchen Dot', heard: 'alexa ask kitchen friend to go home', intent: 'AnnounceIntent', reply: 'announcing', at: undefined });
+  assert.equal(heardEntry({}), null);
+  assert.equal(skillEntry({}, null, []).source, 'skill');
+});

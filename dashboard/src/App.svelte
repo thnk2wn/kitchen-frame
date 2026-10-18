@@ -35,6 +35,7 @@
   import { fakeMedia, loadDemoMedia } from './lib/demo-media.svelte.js';
   import { podcasts, loadPodcasts } from './lib/podcasts.svelte.js';
   import Podcasts from './views/Podcasts.svelte';
+  import './lib/alexa-heard.svelte.js'; // what each Echo heard, for the status page's Alexa log
   import { time, clockTime, weatherInfo } from './lib/format.js';
 
   // Reactive: Media also appears when YouTube videos are set up (Media → Videos needs no Home Assistant).

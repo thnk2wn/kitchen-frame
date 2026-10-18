@@ -79,7 +79,13 @@
             "go to {tab}",
             "go to the {tab}",
             "switch to {tab}",
-            "switch to the {tab}"
+            "switch to the {tab}",
+            "show",
+            "show me",
+            "{tab}",
+            "the {tab}",
+            "show the {tab} screen",
+            "go to the {tab} screen"
           ]
         },
         {

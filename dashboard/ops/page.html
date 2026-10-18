@@ -57,6 +57,11 @@
     <div class="filters" id="filters"></div>
     <div class="scroll"><table id="events"></table></div>
   </section>
+  <section class="card">
+    <h2>Alexa <small id="alexacount"></small></h2>
+    <p class="muted">What each Echo heard and how Alexa took it (Home Assistant's voice events), and what the Kitchen Frame skill did with what reached it. Older than 3 days drops off; Amazon keeps the rest under <a href="https://www.amazon.com/alexa-privacy/apd/rvh" target="_blank" rel="noopener">Review Voice History</a>.</p>
+    <div class="scroll"><table id="alexa"></table></div>
+  </section>
   <section class="card"><h2>Home Assistant notices (ended, last 24 hours)</h2><div id="notices"></div></section>
 </main>
 <script>
@@ -181,6 +186,33 @@
     box.append(ul);
   }
 
+  // The Alexa log, newest first. Alexa's own rows say what it heard and did (an announcement is red:
+  // a misheard "ask Kitchen Frame…"); the skill's rows say what it understood, said and sent the frame.
+  const INTENTS = { AnnounceIntent: 'announced it to the house', Unknown: 'didn’t understand it' };
+  function alexa(d) {
+    const list = (d.alexa || []).slice().reverse();
+    $('alexacount').textContent = list.length ? list.length + ' entries' : '';
+    const table = $('alexa'); table.replaceChildren();
+    for (const e of list) {
+      let who, what, result, cls = '';
+      if (e.source === 'alexa') {
+        who = e.device || 'An Echo';
+        what = 'heard “' + (e.heard || '') + '”';
+        const skill = /^(AddGroceryIntent|AddTaskIntent|ShowTabIntent|CloseIntent|SlideshowIntent|WakeIntent|PlayVideosIntent|PlayPodcastIntent|DinnerIntent|TodayIntent)$/.test(e.intent || '');
+        result = (skill ? 'sent to the skill (' + e.intent + ')' : INTENTS[e.intent] || 'Alexa: ' + (e.intent || '?')) + (e.reply ? ' · replied “' + e.reply + '”' : '');
+        cls = e.intent === 'AnnounceIntent' ? 'error' : e.intent === 'Unknown' ? 'warn' : '';
+      } else {
+        who = 'Kitchen Frame skill';
+        const slots = e.slots ? ' ' + Object.entries(e.slots).map(([k, v]) => k + ': ' + v).join(', ') : '';
+        what = (e.intent || e.type || '?') + slots;
+        result = e.refused ? 'refused: ' + e.refused : [e.said ? 'said “' + e.said + '”' : '', e.directives ? 'Echo: ' + e.directives : '', e.sent ? 'frame: ' + e.sent : ''].filter(Boolean).join(' · ') || 'no answer';
+        cls = e.refused ? 'warn' : '';
+      }
+      table.append(el('tr', { className: cls }, el('td', { className: 't', textContent: at(e.t) }), el('td', { className: 'e', textContent: who }), el('td', { textContent: what }), el('td', { textContent: result })));
+    }
+    if (!list.length) table.append(el('tr', {}, el('td', { className: 'muted', textContent: 'Nothing yet: say something to an Echo.' })));
+  }
+
   async function load() {
     try {
       const res = await fetch('/data', { cache: 'no-store' });
@@ -190,7 +222,7 @@
       // When this was last read, so a page left open shows it's live (it refreshes every minute).
       const stamp = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
       $('who').replaceChildren(document.createTextNode('Updated ' + stamp + ' · refreshes every minute · Signed in as ' + d.you + ' · '), el('a', { href: '/logout', textContent: 'Sign out' }));
-      frame(d); backend(d); timeline(d); events(d); notices(d);
+      frame(d); backend(d); timeline(d); events(d); alexa(d); notices(d);
     } catch (e) { $('frame').textContent = 'Could not load: ' + e.message; }
   }
   load();

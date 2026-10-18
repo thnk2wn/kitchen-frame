@@ -12,6 +12,7 @@ import { fromReminders, bridge } from './bridge.js';
 import { rotationLines, DEMO_ROTATIONS } from '../src/lib/rotations.js';
 import { demoCalendar, demoMeals } from '../src/lib/demo.js';
 import { parseNames } from './demo-media.js';
+import { skillEntry } from './alexa-log.js';
 import { playPodcast, audioEvent, resume, pause, playDirective, echoNow } from './podcast-audio.js';
 
 // ---- Amazon's signature
@@ -154,19 +155,33 @@ async function zoneOf(sys) {
 
 // handle(req, env, { command, calendar, videoGroups, meals, rotations }): command(name, data) reaches the frame (the
 // message room's live connection) and resolves to how many frames got it.
-export async function handleAlexa(req, env, { command, calendar, videoGroups, meals, rotations, recipes = async () => ({}), demo = async () => false, podcasts = async () => ({}) }) {
+// Every request that passes Amazon's signature check goes in the Alexa log (alexa-log.js; the status
+// page): what the skill understood, said, and sent the frame. deps.log(entry) keeps it.
+export async function handleAlexa(req, env, deps) {
+  const sent = [], note = {};
+  const command = async (name, data) => { sent.push([name, data]); return deps.command(name, data); };
+  const res = await answer(req, env, { ...deps, command }, note);
+  if (note.r && deps.log) {
+    const body = res.headers.get('Content-Type')?.includes('json') ? await res.clone().json().catch(() => null) : null;
+    deps.log(skillEntry(note.r, body, sent, note.refused));
+  }
+  return res;
+}
+
+async function answer(req, env, { command, calendar, videoGroups, meals, rotations, recipes = async () => ({}), demo = async () => false, podcasts = async () => ({}) }, note) {
   const body = await req.text();
   const problem = await verified(req, body).catch((e) => 'signature check failed: ' + e.message);
   if (problem) { console.warn('alexa refused: ' + problem); return new Response('forbidden', { status: 403 }); }
   let r;
   try { r = JSON.parse(body); } catch { return new Response('bad request', { status: 400 }); }
-  if (Math.abs(Date.now() - Date.parse(r.request && r.request.timestamp)) > 150000) return new Response('stale', { status: 400 });
+  note.r = r;
+  if (Math.abs(Date.now() - Date.parse(r.request && r.request.timestamp)) > 150000) { note.refused = 'too old'; return new Response('stale', { status: 400 }); }
   const sys = (r.context && r.context.System) || {};
   const app = (sys.application && sys.application.applicationId) || (r.session && r.session.application && r.session.application.applicationId);
-  if (!env.ALEXA_SKILL_ID || app !== env.ALEXA_SKILL_ID) { console.warn('alexa refused: skill ' + app); return new Response('forbidden', { status: 403 }); }
+  if (!env.ALEXA_SKILL_ID || app !== env.ALEXA_SKILL_ID) { console.warn('alexa refused: skill ' + app); note.refused = 'another skill'; return new Response('forbidden', { status: 403 }); }
   const user = (sys.user && sys.user.userId) || '';
   const allowed = String(env.ALEXA_USER_IDS || '').split(/[\s,]+/).filter(Boolean);
-  if (allowed.length && !allowed.includes(user)) { console.warn('alexa refused: user ' + user + ' (an id changes when the skill is turned off and on: put the new one in ALEXA_USER_IDS)'); return Response.json(say('Sorry, this frame only listens to its own household.')); }
+  if (allowed.length && !allowed.includes(user)) { note.refused = 'another Amazon account'; console.warn('alexa refused: user ' + user + ' (an id changes when the skill is turned off and on: put the new one in ALEXA_USER_IDS)'); return Response.json(say('Sorry, this frame only listens to its own household.')); }
 
   const type = r.request.type;
   const audio = (r.context && r.context.AudioPlayer) || {};
@@ -192,8 +207,11 @@ export async function handleAlexa(req, env, { command, calendar, videoGroups, me
         return Response.json(say('Added ' + item + ' to ' + (list === 'todo' ? 'Tasks' : 'Groceries') + '.'));
       }
       case 'ShowTabIntent': {
-        const tab = tabOf(slot(intent, 'tab'));
-        if (!tab) return Response.json(say('I can show home, calendar, groceries, tasks, recipes, music, videos, the house or notices.'));
+        const heard = slot(intent, 'tab');
+        const tab = tabOf(heard);
+        // "Show" with the screen missing (often Alexa not catching the last word): ask, and wait.
+        if (!heard) return Response.json(say('Which screen? Home, calendar, groceries, tasks, recipes, music, videos, podcasts, or the house?', false));
+        if (!tab) return Response.json(say('I can show home, calendar, groceries, tasks, recipes, music, videos, podcasts, the house or notices.'));
         return Response.json(say((await sent('show', { tab })) ? 'Okay.' : offline));
       }
       case 'CloseIntent': return Response.json(say((await sent('close')) ? 'Okay.' : offline));
@@ -245,7 +263,8 @@ export async function handleAlexa(req, env, { command, calendar, videoGroups, me
       // While a podcast plays, stop means pause it (and keep the place).
       case 'AMAZON.StopIntent': case 'AMAZON.CancelIntent':
         return Response.json(audio.playerActivity === 'PLAYING' || audio.playerActivity === 'BUFFER_UNDERRUN' ? pause() : say('Okay.'));
-      case 'AMAZON.NavigateHomeIntent': return Response.json(say('Okay.'));
+      // "Go home": the frame's Home.
+      case 'AMAZON.NavigateHomeIntent': return Response.json(say((await sent('show', { tab: 'home' })) ? 'Okay.' : offline));
       default: return Response.json(say('Sorry, I can\'t do that yet. Say help for what I can do.'));
     }
   } catch (e) {

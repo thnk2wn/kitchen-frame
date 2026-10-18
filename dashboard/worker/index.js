@@ -10,6 +10,7 @@
 //   GET  /api/photos/:id             one photo, passed through from iCloud
 //   GET  /api/photos?demo, /api/photos/demo-:n   demo mode's stock photos (demo-photos.js)
 //   GET  /api/podcasts               Apple Podcasts shows and episodes, through the Mac bridge (podcasts.js)
+//   POST /api/alexa/heard            what an Echo heard (Home Assistant's voice events, via the frame): alexa-log.js
 //   POST /api/podcasts/cast, GET /api/podcasts/now   an episode for an Echo, and what it's playing (podcast-audio.js)
 //   GET  /api/demo                   demo mode's Media: shown names (DEMO_NAMES), public playlists (demo-media.js)
 //   POST /api/messages               an agent posts a full-screen message (AGENT_TOKEN; see messages.js)
@@ -77,6 +78,7 @@ import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.
 import { opsSummary } from './ops.js';
 import { listVideos, thumbResponse, videoIdOf, videoTitle, parseSetting } from './youtube.js';
 import { handleAlexa } from './alexa.js';
+import { addLog, heardEntry, readLog } from './alexa-log.js';
 import { demoPhotos, demoPhotoResponse, demoCamResponse } from './demo-photos.js';
 import { demoMedia } from './demo-media.js';
 import { podcastsOn, savePodcasts, listPodcasts } from './podcasts.js';
@@ -210,6 +212,7 @@ async function handle(req, env, ctx) {
     // the skill id and (optionally) the Amazon account, and nothing else reaches it.
     if (url.pathname === '/api/alexa' && req.method === 'POST') {
       return handleAlexa(req, env, {
+        log: (entry) => ctx.waitUntil(addLog(env, entry)),
         command: async (command, data = {}) => {
           const r = await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command, ...data }) });
           return ((await r.json().catch(() => ({}))).sent) || 0;
@@ -284,6 +287,12 @@ async function handle(req, env, ctx) {
         return json(body, status);
       }
       if (url.pathname === '/api/podcasts/now') return json({ now: await echoNow(env) });
+      // What an Echo heard, from Home Assistant's voice events (the frame watches them): the Alexa log.
+      if (url.pathname === '/api/alexa/heard' && req.method === 'POST') {
+        const e = heardEntry(await req.json().catch(() => ({})));
+        if (e) ctx.waitUntil(addLog(env, e));
+        return json({ ok: !!e });
+      }
       if (url.pathname === '/api/youtube') return json(await listVideos(env, { force: url.searchParams.has('refresh') }));
       if (url.pathname.startsWith('/api/youtube/thumb/')) return thumbResponse(url.pathname.slice('/api/youtube/thumb/'.length), ctx);
       if (url.pathname === '/api/messages' && req.method === 'GET') return room(env).fetch('https://room/list');

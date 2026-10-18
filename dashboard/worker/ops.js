@@ -8,6 +8,7 @@ import { listPaprika } from './paprika.js';
 import { BRIDGE_LISTS, fromReminders, bridge } from './bridge.js';
 import { mediaStorage } from './photos.js';
 import { spotifyConfigured } from './spotify.js';
+import { readLog } from './alexa-log.js';
 
 async function lists(env) {
   const out = {};
@@ -46,19 +47,22 @@ async function mac(env) {
 }
 
 export async function opsSummary(env, calendarKey) {
-  const [frame, cal, notices, paprika, listInfo, macInfo] = await Promise.all([
+  const [frame, cal, notices, paprika, listInfo, macInfo, alexa] = await Promise.all([
     getStatus(env),
     env.CALENDAR.get(calendarKey, 'json'),
     listNotices(env).catch(() => null),
     listPaprika(env).catch((e) => ({ error: String(e.message || e) })),
     lists(env),
     mac(env).catch((e) => ({ error: String(e.message || e) })),
+    // The Alexa log is words, not counts: what was said to an Echo, for working out what went wrong.
+    readLog(env).catch(() => []),
   ]);
   const perCal = {};
   for (const e of (cal && cal.events) || []) perCal[e.cal] = (perCal[e.cal] || 0) + 1;
   return {
     now: new Date().toISOString(),
     frame,
+    alexa: alexa.slice(-100),
     calendar: cal ? { updated: cal.updated, names: cal.names || [], events: perCal, errors: cal.errors || [] } : null,
     notices: notices ? notices.items.map(({ title, tone, how, created, ended }) => ({ title, tone, how, created, ended })) : [],
     paprika: paprika.configured === false ? { configured: false }
