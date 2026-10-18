@@ -64,6 +64,8 @@ TODOIST_TOKEN=""
 # Optional (docs/music.md).
 # "bridge": Media → Podcasts from the Apple Podcasts library on the Mac bridge (Full Disk Access).
 # PODCASTS="bridge"
+# Someone else's podcasts, a row each: "Name: <Apple Podcasts links or ids> | Name: …".
+# PODCASTS_EXTRA="Sam: https://podcasts.apple.com/us/podcast/planet-money/id290783428"
 # A phone's share sheet plays a YouTube video on the frame with this (and nothing else).
 # SHARE_TOKEN=""
 # A Spotify developer app (redirect URI http://127.0.0.1:8888/callback), for every playlist and

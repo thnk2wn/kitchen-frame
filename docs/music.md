@@ -236,6 +236,11 @@ sit in the bar along the bottom; an episode keeps playing on other tabs.
 signed in with your Apple ID and **Sync Library** on (Podcasts → Settings → General), so your phone's
 library reaches it. Then `PODCASTS=bridge` on the Worker. Optional: without it there's no Podcasts view.
 
+**Someone else's shows** (optional): `PODCASTS_EXTRA` adds rows of their own, each under a name, from
+Apple Podcasts links (or their ids): `PODCASTS_EXTRA="Sam: https://podcasts.apple.com/us/podcast/planet-money/id290783428 https://podcasts.apple.com/us/podcast/political-gabfest/id158004641 | Kids: …"`.
+They come from Apple's directory, not a library, so there's no phone's play history for them; what's
+played on the frame or an Echo carries on in Continue as usual. This works without the Mac bridge too.
+
 How it works:
 
 - Apple has no API for a podcast library. The Podcasts app on the Mac keeps your phone's (through
@@ -244,7 +249,8 @@ How it works:
   changed. It keeps the Podcasts app open in the background, as it syncs only while it runs.
 - The app on the Mac refreshes a show's episodes only now and then, so the Worker adds each show's
   latest episodes from Apple's public podcast directory (no key) and keeps your progress on the ones
-  the library has. Artwork comes from the library or the same directory.
+  the library has. Apple sometimes refuses Cloudflare's servers, so the last good answer is kept, and
+  a show's own feed is read instead when there's none yet. Artwork comes from the library or the same directory.
 - Episodes play straight from the podcast's own (https) audio link. Where you stop on the frame is
   kept on the frame; it doesn't reach your phone's Podcasts app.
 - **On an Echo:** pick it with the speaker button in the bottom bar (Frame, or any Echo from Home

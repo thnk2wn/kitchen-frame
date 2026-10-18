@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanShows, rank, feedEpisodes, seconds, directoryEpisodes, mergeEpisodes, sized } from './podcasts.js';
+import { cleanShows, rank, feedEpisodes, seconds, directoryEpisodes, mergeEpisodes, sized, parseExtra } from './podcasts.js';
 
 test('podcasts: only known fields, https audio, and sizes kept in bounds', () => {
   const [s] = cleanShows([{ id: 'a', title: 'Show', extra: 'x', feed: 'http://insecure', episodes: [
@@ -69,4 +69,10 @@ test('podcasts: artwork templates filled in at 300 px', () => {
   assert.equal(sized('https://is1-ssl.mzstatic.com/image/thumb/x/mza_1.png/{w}x{h}bb.{f}'), 'https://is1-ssl.mzstatic.com/image/thumb/x/mza_1.png/300x300bb.jpg');
   assert.equal(sized('https://a/b.jpg/{w}x{h}{c}.{f}'), 'https://a/b.jpg/300x300bb.jpg');
   assert.equal(sized('https://a/600x600bb.jpg'), 'https://a/600x600bb.jpg');
+});
+
+test('podcasts: extra rows from links or ids, each with its name', () => {
+  assert.deepEqual(parseExtra('Sam: https://podcasts.apple.com/us/podcast/planet-money/id290783428?uo=4 158004641 | Kids: id123456 | Bad: nothing | : 999999'),
+    [{ name: 'Sam', ids: ['290783428', '158004641'] }, { name: 'Kids', ids: ['123456'] }]);
+  assert.deepEqual(parseExtra(''), []);
 });

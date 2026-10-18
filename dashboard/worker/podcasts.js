@@ -10,6 +10,19 @@ const ART_KEY = 'podcast-art'; // Apple directory id -> a 300 px artwork URL, lo
 const MAX_SHOWS = 60, MAX_EPISODES = 20;
 
 export const podcastsOn = (env) => String(env.PODCASTS || '').trim().toLowerCase() === 'bridge';
+// Someone else's shows, in rows of their own: PODCASTS_EXTRA, groups of Apple Podcasts links (or ids)
+// with the row's name: "Sam: https://podcasts.apple.com/us/podcast/planet-money/id290783428 158004641
+// | Kids: …". They come from Apple's directory (no library, so no play history from a phone).
+export function parseExtra(text) {
+  return String(text || '').split('|').map((g) => {
+    const i = g.indexOf(':');
+    if (i < 0) return null;
+    const name = g.slice(0, i).trim().slice(0, 40);
+    const ids = [...g.slice(i + 1).matchAll(/(?:\bid|^|\s)(\d{6,12})\b/g)].map((m) => m[1]);
+    return name && ids.length ? { name, ids: [...new Set(ids)].slice(0, 30) } : null;
+  }).filter(Boolean);
+}
+const extraOn = (env) => parseExtra(env.PODCASTS_EXTRA).length > 0;
 
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : undefined);
 const num = (v) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v)) : undefined);
@@ -114,26 +127,32 @@ export function mergeEpisodes(mac, latest, max = 14) {
   const started = mac.filter((e) => e.position && !used.has(e.id));
   return [...started, ...merged].slice(0, max);
 }
-async function directory(s) {
-  const key = new Request('https://podcast-episodes-2.local/' + s.storeId);
-  let hit = await caches.default.match(key);
-  if (!hit) {
+// Apple's directory sometimes refuses Cloudflare's servers (HTTP 403), so the last good answer is kept
+// (KV, per show) and used when it does, and a show never yet looked up falls back to its own feed.
+const DIR_MS = 6 * 3600 * 1000;
+async function directory(env, s) {
+  const k = 'podcast-dir:' + s.storeId;
+  const kept = await env.CALENDAR.get(k, 'json');
+  if (kept && Date.now() - kept.at < DIR_MS) return kept.episodes;
+  let episodes = [];
+  try {
     const r = await fetch('https://itunes.apple.com/lookup?entity=podcastEpisode&limit=12&id=' + s.storeId, { headers: { 'User-Agent': 'kitchen-frame' } });
-    const episodes = r.ok ? directoryEpisodes((await r.json()).results) : [];
-    if (!r.ok) console.warn('podcast episodes lookup: HTTP ' + r.status);
-    // Kept 6 hours; none found is tried again in 10 minutes.
-    hit = new Response(JSON.stringify(episodes), { headers: { 'Cache-Control': 'public, max-age=' + (episodes.length ? 21600 : 600) } });
-    await caches.default.put(key, hit.clone());
-  }
-  return hit.json();
+    if (r.ok) episodes = directoryEpisodes((await r.json()).results);
+    else console.warn('podcast episodes lookup: HTTP ' + r.status);
+  } catch (e) { console.warn('podcast episodes lookup: ' + e.message); }
+  if (!episodes.length && s.feed) episodes = await fromFeed(s).catch(() => []);
+  if (!episodes.length) return kept ? kept.episodes : [];
+  await env.CALENDAR.put(k, JSON.stringify({ at: Date.now(), episodes }));
+  return episodes;
 }
 // No directory entry and nothing from the Mac: the start of its feed (newest first), at most 512 KB.
 async function fromFeed(s) {
-  const key = new Request('https://podcast-feed-2.local/' + encodeURIComponent(s.feed));
+  const key = new Request('https://podcast-feed-3.local/' + encodeURIComponent(s.feed));
   let hit = await caches.default.match(key);
   if (!hit) {
     let episodes = [];
     const r = await fetch(s.feed, { headers: { 'User-Agent': 'kitchen-frame' } });
+    if (!r.ok) console.warn('podcast feed: HTTP ' + r.status + ' from ' + new URL(s.feed).host);
     if (r.ok && r.body) {
       const reader = r.body.getReader(), dec = new TextDecoder();
       let text = '';
@@ -146,20 +165,47 @@ async function fromFeed(s) {
   }
   return hit.json();
 }
-async function withEpisodes(shows) {
+async function withEpisodes(env, shows) {
   return Promise.all(shows.map(async (s) => {
     try {
       const mac = s.episodes || [];
-      if (s.storeId) return { ...s, episodes: mergeEpisodes(mac, await directory(s)) };
+      if (s.storeId) return { ...s, episodes: mergeEpisodes(mac, await directory(env, s)) };
       if (!mac.length && s.feed) return { ...s, episodes: await fromFeed(s) };
     } catch (e) { console.warn('podcast episodes: ' + e.message); }
     return s;
   }));
 }
 
+// The shows in PODCASTS_EXTRA, looked up in Apple's directory (kept a day): each with its row's name.
+const EXTRA_KEY = 'podcast-extra-shows'; // Apple id -> { id, title, author, feed, art }, kept: shows rarely change
+async function extraShows(env) {
+  const groups = parseExtra(env.PODCASTS_EXTRA);
+  const ids = [...new Set(groups.flatMap((g) => g.ids))];
+  if (!ids.length) return [];
+  const known = (await env.CALENDAR.get(EXTRA_KEY, 'json')) || {};
+  const missing = ids.filter((id) => !known[id]);
+  if (missing.length) {
+    try {
+      const r = await fetch('https://itunes.apple.com/lookup?entity=podcast&id=' + missing.join(','), { headers: { 'User-Agent': 'kitchen-frame' } });
+      if (r.ok) {
+        for (const x of (await r.json()).results || []) if (x.collectionId) known[String(x.collectionId)] = showOf(x);
+        await env.CALENDAR.put(EXTRA_KEY, JSON.stringify(known));
+      } else console.warn('podcast extras lookup: HTTP ' + r.status);
+    } catch (e) { console.warn('podcast extras lookup: ' + e.message); }
+  }
+  return groups.flatMap((g) => g.ids.map((id) => known[id]).filter(Boolean).map((x) => ({
+    id: 'apple:' + x.id, title: String(x.title || '').slice(0, 200), author: x.author, feed: x.feed, storeId: x.id, art: x.art, plays: 0, episodes: [], group: g.name,
+  })));
+}
+// One directory result as kept: its Apple id, name, maker, feed and 300 px artwork.
+export const showOf = (x) => ({ id: String(x.collectionId), title: x.collectionName, author: x.artistName, feed: x.feedUrl,
+  art: (x.artworkUrl600 || x.artworkUrl100 || '').replace(/\/\d+x\d+bb\.(jpg|png)$/, '/300x300bb.$1') || undefined });
+
 export async function listPodcasts(env) {
-  if (!podcastsOn(env)) return { configured: false, shows: [] };
-  const stored = await env.CALENDAR.get(KEY, 'json');
-  if (!stored) return { configured: true, updated: null, shows: [] };
-  return { configured: true, updated: stored.at, shows: rank(await withEpisodes(await withArt(env, stored.shows || []))) };
+  if (!podcastsOn(env) && !extraOn(env)) return { configured: false, shows: [] };
+  const stored = podcastsOn(env) ? await env.CALENDAR.get(KEY, 'json') : null;
+  const mine = stored ? rank(await withEpisodes(env, await withArt(env, stored.shows || []))) : [];
+  const extra = await withEpisodes(env, await extraShows(env).catch((e) => { console.warn('podcast extras: ' + e.message); return []; }));
+  // Each show carries its row: none for the library's own, the PODCASTS_EXTRA name for the rest.
+  return { configured: true, updated: stored ? stored.at : null, shows: [...mine, ...extra] };
 }

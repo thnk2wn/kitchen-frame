@@ -1,6 +1,6 @@
 <script>
   // Media → Podcasts: the shows followed in Apple Podcasts (through the Mac bridge; lib/podcasts.svelte.js),
-  // most listened to first. Continue: episodes half played here or on the phone. Tap a show for its
+  // most listened to first, then a row for each group in PODCASTS_EXTRA (someone else's shows). Continue: episodes half played here or on the phone. Tap a show for its
   // episodes with their descriptions; tap an episode to play it on the frame from where it was left.
   import { onMount } from 'svelte';
   import MediaSwitch from '../components/MediaSwitch.svelte';
@@ -21,6 +21,16 @@
   let show = $derived(podcasts.shows.find((s) => s.id === chosen) || podcasts.shows[0]);
   function pick(s) { chosen = s.id; try { localStorage.setItem('frame-podcast-show', s.id); } catch {} }
   let going = $derived(inProgress(podcasts.shows, positions));
+  // The library's shows first, then a row per PODCASTS_EXTRA group, under its name ("Sharon").
+  let rows = $derived.by(() => {
+    const out = [{ name: '', shows: podcasts.shows.filter((s) => !s.group) }];
+    for (const s of podcasts.shows) if (s.group) {
+      let r = out.find((x) => x.name === s.group);
+      if (!r) out.push((r = { name: s.group, shows: [] }));
+      r.shows.push(s);
+    }
+    return out.filter((r) => r.shows.length);
+  });
 
   // "1 h 12 min", "38 min"; "Oct 14" (or "Mon" within the week).
   const length = (s) => { const m = Math.round(s / 60); return m >= 60 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : m + ' min'; };
@@ -56,13 +66,16 @@
           {/each}
         </div>
       {/if}
-      <div class="row shows">
-        {#each podcasts.shows as s (s.id)}
-          <button class="show" class:on={show && s.id === show.id} onclick={() => pick(s)} aria-label={s.title}>
-            {#if ok(s)}<img src={s.art} alt="" loading="lazy" decoding="async" onerror={failed(s)} />{:else}<span class="noart big"><Icon name="podcast" size={40} /></span>{/if}
-          </button>
-        {/each}
-      </div>
+      {#each rows as r (r.name)}
+        {#if r.name}<h2 class="rowname">{r.name}</h2>{/if}
+        <div class="row shows">
+          {#each r.shows as s (s.id)}
+            <button class="show" class:on={show && s.id === show.id} onclick={() => pick(s)} aria-label={s.title}>
+              {#if ok(s)}<img src={s.art} alt="" loading="lazy" decoding="async" onerror={failed(s)} />{:else}<span class="noart big"><Icon name="podcast" size={40} /></span>{/if}
+            </button>
+          {/each}
+        </div>
+      {/each}
       {#if show}
         <div class="eps sheet">
           <div class="shead"><h2>{show.title}</h2>{#if show.author}<span class="sub">{show.author}</span>{/if}</div>
@@ -139,6 +152,7 @@
   .ct .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .prog, .track, .lvl { display: block; height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
   .prog span, .track span, .lvl span { display: block; height: 100%; background: var(--blue); transform-origin: left; }
+  .rowname { margin-top: 4px; font-size: 18px; color: var(--secondary); }
   .shows .show { flex: none; padding: 0; border-radius: 16px; }
   .shows img, .noart.big { width: 120px; height: 120px; border-radius: 16px; object-fit: cover; display: block; }
   .shows .show.on img, .shows .show.on .noart { outline: 4px solid var(--blue); outline-offset: -4px; }
