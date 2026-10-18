@@ -63,9 +63,6 @@ Thoughts to try in a branch and measure on the frame, not plans:
 
 ## Media
 
-- **Someone else's podcasts:** the Podcasts view follows one Apple account (the Mac's). Others' shows
-  could come from a list of links in a setting, or a Shortcut on their phone that sends the shows
-  they follow (Shortcuts can't see what they've played).
 - **Progress back to the phone:** where an episode stops on the frame or an Echo stays here; the
   iPhone's Podcasts app doesn't hear of it (Apple has no way in).
 
