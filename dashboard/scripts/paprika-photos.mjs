@@ -12,7 +12,9 @@
 //                                                      or --file with one pair per line); then apply <uid>
 //   node scripts/paprika-photos.mjs apply <uid>...     upload the found photos for these recipes
 //   node scripts/paprika-photos.mjs apply --all        ... for every recipe the scan found one for
-//   node scripts/paprika-photos.mjs undo <uid>...      put a recipe back as it was before apply
+//   node scripts/paprika-photos.mjs replace <uid> <url> use this photo instead of a wrong one, whatever
+//                                                      its size (an import that came with another dish's)
+//   node scripts/paprika-photos.mjs undo <uid>...      put a recipe back as it was before apply or replace
 //
 // Working files (the scan, found photos and a backup of every recipe before it's changed) go in
 // --dir (default ~/temp/paprika-photos). Keep the backups until you're happy with the result.
@@ -287,26 +289,51 @@ async function apply(uids) {
     if (!row || !row.found || !existsSync(file)) { console.log(`${uid}: not in the scan's results; run scan first`); continue; }
     const r = await recipe(uid);
     if (r.photo_large) { console.log(`${r.name}: already has a full-size photo; skipped`); continue; }
-    // Backup: the recipe as it is now, and its thumbnail's bytes, for undo.
-    const backup = join(DIR, 'backup', uid + '.json');
-    if (!existsSync(backup)) {
-      const thumb = r.photo_url ? await download(r.photo_url) : null;
-      writeFileSync(backup, JSON.stringify({ recipe: recipePayload(r), thumb: thumb ? thumb.bytes.toString('base64') : null, at: new Date().toISOString() }));
-    }
-    const { full, thumb } = prepare(readFileSync(file));
-    const photoUid = randomUUID().toUpperCase();
-    const thumbName = randomUUID().toUpperCase() + '.jpg';
-    const next = { ...recipePayload(r), photo: thumbName, photo_large: photoUid + '.jpg', photo_hash: sha256(thumb) };
-    next.hash = recipeHash(next);
-    const photo = { uid: photoUid, filename: photoUid + '.jpg', recipe_uid: uid, name: '1', order_flag: 0, hash: sha256(full), deleted: false };
-    // The Paprika app's own sequence: recipe with the thumbnail, the full photo, the recipe again.
-    await paprika('/recipe/' + uid + '/', form(next, 'data.gz', thumb, thumbName));
-    await paprika('/photo/' + photoUid + '/', form(photo, 'file', full, photo.filename));
-    await paprika('/recipe/' + uid + '/', form(next, 'data.gz'));
-    writeFileSync(backup.replace('.json', '.photo.json'), JSON.stringify(photo));
+    await upload(uid, r, readFileSync(file));
     console.log(`${r.name}: ${row.now} → ${row.found}`);
   }
   await paprika('/notify/', new FormData()).catch(() => {});
+}
+
+// Backs the recipe up (the first time, for undo), then gives it this photo.
+async function upload(uid, r, bytes) {
+  mkdirSync(join(DIR, 'backup'), { recursive: true });
+  const backup = join(DIR, 'backup', uid + '.json');
+  if (!existsSync(backup)) {
+    const thumb = r.photo_url ? await download(r.photo_url) : null;
+    writeFileSync(backup, JSON.stringify({ recipe: recipePayload(r), thumb: thumb ? thumb.bytes.toString('base64') : null, at: new Date().toISOString() }));
+  }
+  const { full, thumb } = prepare(bytes);
+  const photoUid = randomUUID().toUpperCase();
+  const thumbName = randomUUID().toUpperCase() + '.jpg';
+  const next = { ...recipePayload(r), photo: thumbName, photo_large: photoUid + '.jpg', photo_hash: sha256(thumb) };
+  next.hash = recipeHash(next);
+  const photo = { uid: photoUid, filename: photoUid + '.jpg', recipe_uid: uid, name: '1', order_flag: 0, hash: sha256(full), deleted: false };
+  // The Paprika app's own sequence: recipe with the thumbnail, the full photo, the recipe again.
+  await paprika('/recipe/' + uid + '/', form(next, 'data.gz', thumb, thumbName));
+  await paprika('/photo/' + photoUid + '/', form(photo, 'file', full, photo.filename));
+  await paprika('/recipe/' + uid + '/', form(next, 'data.gz'));
+  writeFileSync(backup.replace('.json', '.photo.json'), JSON.stringify(photo));
+}
+
+// A wrong photo (an import that came with another dish's picture): this one instead, whatever its
+// size. The old full-size photo is marked deleted; undo brings it back.
+async function replace([uid, url]) {
+  if (!uid || !url) { console.log('replace <uid> <image url>'); return; }
+  const d = await download(url);
+  if (!d) { console.log(`${uid}: couldn't download that image`); return; }
+  const r = await recipe(uid);
+  const oldUid = r.photo_large ? r.photo_large.replace(/\.\w+$/, '') : null;
+  const old = oldUid ? (await paprika('/photos/')).find((p) => p.uid === oldUid) : null;
+  const oldFile = join(DIR, 'backup', uid + '.old-photo.json');
+  await upload(uid, r, d.bytes);
+  if (old) {
+    const record = { uid: old.uid, filename: r.photo_large, recipe_uid: uid, name: old.name || '1', order_flag: old.order_flag || 0, hash: old.hash };
+    if (!existsSync(oldFile)) writeFileSync(oldFile, JSON.stringify(record));
+    await paprika('/photo/' + old.uid + '/', form({ ...record, deleted: true }, 'file'));
+  }
+  await paprika('/notify/', new FormData()).catch(() => {});
+  console.log(`${r.name}: now ${d.w}x${d.h} from ${url}`);
 }
 
 async function undo(uids) {
@@ -319,6 +346,11 @@ async function undo(uids) {
       const photo = JSON.parse(readFileSync(photoFile, 'utf8'));
       await paprika('/photo/' + photo.uid + '/', form({ ...photo, deleted: true }, 'file'));
     }
+    const oldFile = file.replace('.json', '.old-photo.json'); // replace marked it deleted
+    if (existsSync(oldFile)) {
+      const old = JSON.parse(readFileSync(oldFile, 'utf8'));
+      await paprika('/photo/' + old.uid + '/', form({ ...old, deleted: false }, 'file'));
+    }
     const back = { ...before, hash: recipeHash(before) };
     await paprika('/recipe/' + uid + '/', thumb && before.photo ? form(back, 'data.gz', Buffer.from(thumb, 'base64'), before.photo) : form(back, 'data.gz'));
     console.log(`${before.name}: back as it was`);
@@ -326,9 +358,9 @@ async function undo(uids) {
   await paprika('/notify/', new FormData()).catch(() => {});
 }
 
-const commands = { check, scan, use: () => use(rest), apply: () => apply(rest), undo: () => undo(rest) };
+const commands = { check, scan, use: () => use(rest), apply: () => apply(rest), replace: () => replace(rest), undo: () => undo(rest) };
 if (!commands[cmd]) {
-  console.log(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 20).join('\n'));
+  console.log(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(1, 22).join('\n'));
   process.exit(1);
 }
 await commands[cmd]();
