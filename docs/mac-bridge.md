@@ -37,6 +37,10 @@ frame: tick, add (lists only) ──▶ Worker queue ──WebSocket──▶ br
   calendars set to show details); album photos sized for the screen, with when each was taken and
 the town it was taken in (looked up on the Mac with Apple's geocoder; coordinates stay on the Mac);
 for a video, also its first 30 seconds, picture only, for the slideshow.
+- **Keeping iCloud current:** on that Mac, iCloud brings the phone's changes most reliably while
+  the app itself runs (Reminders once went hours without a phone's ticks until it opened). So the
+  bridge keeps Reminders (when a list comes from it) and Podcasts (`PODCASTS=bridge`) running,
+  hidden, starting either again if it quits, and asks iCloud for Reminders changes every 5 minutes.
 - **When the Mac is off** the frame keeps the last copies and says so (lists after 30 minutes,
   calendars on the status page after 3 hours); list changes made on the frame wait, up to a week.
 - **The status page** shows when the Mac last checked in and any problem it reports (a permission

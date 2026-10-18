@@ -223,21 +223,24 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
     configAt = Date()
   }
 
-  // The Podcasts app syncs the iPhone's library only while it runs: start it hidden if it isn't.
-  var podcastsLaunchedAt = Date.distantPast
-  func keepPodcastsOpen() {
-    let id = "com.apple.podcasts"
+  // iCloud brings this Mac the phone's changes more reliably while the app itself runs: the Podcasts
+  // library syncs only then, and Reminders (seen 2026-10-17) can go hours without the phone's ticks
+  // until the app opens. Each is started hidden when it isn't running (at most every 10 minutes).
+  var launchedAt: [String: Date] = [:]
+  var refreshedAt = Date.distantPast
+  func keepOpen(_ id: String, _ name: String) {
     guard NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty,
-          Date().timeIntervalSince(podcastsLaunchedAt) > 600,
+          Date().timeIntervalSince(launchedAt[id] ?? .distantPast) > 600,
           let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return }
-    podcastsLaunchedAt = Date()
+    launchedAt[id] = Date()
     let how = NSWorkspace.OpenConfiguration()
     how.activates = false
     how.hides = true
     NSWorkspace.shared.openApplication(at: url, configuration: how) { _, error in
-      log(error.map { "Couldn't start Podcasts: \($0.localizedDescription)" } ?? "Started Podcasts in the background, to keep its library in sync")
+      log(error.map { "Couldn't start \(name): \($0.localizedDescription)" } ?? "Started \(name) in the background, to keep it in sync with iCloud")
     }
   }
+  func keepPodcastsOpen() { keepOpen("com.apple.podcasts", "Podcasts") }
 
   // MARK: Photos (ALBUM_URL = bridge:<album name>)
 
@@ -502,6 +505,11 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
     var payload: [String: Any] = [:]
     var cals: [String: EKCalendar] = [:]
     let more = extras ? db.read(lists: Array(lists.values)) : [:]
+    if !lists.isEmpty && remindersAccess {
+      keepOpen("com.apple.reminders", "Reminders")
+      // And ask iCloud for changes now and then (EventKit's own nudge; harmless when nothing's new).
+      if Date().timeIntervalSince(refreshedAt) > 240 { refreshedAt = Date(); store.refreshSourcesIfNecessary() }
+    }
     for (list, name) in lists where remindersAccess {
       guard let cal = calendar(named: name) else { problem("list:" + list, "No Reminders list named \"\(name)\" (for \(list)). Check the name, and that iCloud Reminders is on."); continue }
       problem("list:" + list, nil)
