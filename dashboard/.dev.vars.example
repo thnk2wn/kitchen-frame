@@ -96,6 +96,8 @@ TODOIST_TOKEN=""
 # Optional: a Paprika Cloud Sync account, for your own recipes and meal plan (docs/recipes.md).
 # PAPRIKA_EMAIL=""
 # PAPRIKA_PASSWORD=""
+# Groceries for the week leaves out pantry staples (oil, salt, pepper, common spices); add your own.
+# PANTRY_STAPLES="fish sauce, soy sauce"
 
 # ---- Rotations ---------------------------------------------------
 # Optional: who's up early, whose bedtime, as JSON (docs/rotations.md has the format).

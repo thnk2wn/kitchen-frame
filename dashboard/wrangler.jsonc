@@ -16,6 +16,8 @@
   "triggers": { "crons": ["*/10 * * * *", "*/15 * * * *"] },
   // Resizes photos of saved recipes once, when saved (worker/recipes.js).
   "images": { "binding": "IMAGES" },
+  // Open-weight models for the week's grocery list (worker/meal-groceries.js).
+  "ai": { "binding": "AI" },
   // Todoist project names shown as the Groceries and Tasks lists.
   "vars": { "TODOIST_GROCERY_PROJECT": "Groceries", "TODOIST_TODO_PROJECT": "Family" },
   "observability": { "enabled": true }

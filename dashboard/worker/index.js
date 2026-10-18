@@ -28,6 +28,7 @@
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
+//   GET  /api/meals/groceries        a shopping list for the week's meals, made by Workers AI (see meal-groceries.js)
 //   GET  /api/rotations              who's up early, whose bedtime (ROTATIONS; src/lib/rotations.js)
 //   GET  /api/geo?q=                 an event location's coordinates, for its map (see maps.js)
 //   GET  /api/tiles/:z/:x/:y         OpenStreetMap tiles, cached
@@ -97,6 +98,7 @@ const editOf = (b) => ({
   ...(b && b.priority !== undefined ? { priority: level(b.priority) } : {}),
 });
 import { syncPaprika, listPaprika, getPaprika, paprikaImage, listMeals } from './paprika.js';
+import { mealGroceries, MODEL } from './meal-groceries.js';
 
 const KEY = 'calendar';
 const DAY = 864e5;
@@ -325,6 +327,15 @@ async function handle(req, env, ctx) {
         return json(await explore(url.searchParams), 200, random ? 'no-store' : 'private, max-age=86400');
       }
       if (url.pathname === '/api/meals' && req.method === 'GET') return json(await listMeals(env));
+      if (url.pathname === '/api/meals/groceries' && req.method === 'GET') {
+        // What's on Groceries now, from wherever that list lives, so the model leaves it out.
+        const view = fromReminders(env, 'groceries')
+          ? await (await bridge(env).fetch('https://bridge/view/groceries')).json()
+          : env.TODOIST_TOKEN ? await getList(env, 'groceries') : { items: [] };
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: env.DISPLAY_TZ || 'UTC' });
+        const model = /^@cf\/[\w.\/-]+$/.test(url.searchParams.get('model') || '') ? url.searchParams.get('model') : MODEL;
+        return json(await mealGroceries(env, (view.items || []).map((i) => i.content), { today, model }));
+      }
       if (url.pathname === '/api/rotations') return json({ rotations: rotations(env) });
       // The camera relay on the home network (bridge/camera-relay/): CAMERA_RELAY, a secret,
       // holds one or more addresses of the same relay, space-separated, each

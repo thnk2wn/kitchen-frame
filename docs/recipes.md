@@ -9,6 +9,7 @@ The Recipes tab has four views:
 - **Meals:** the Paprika meal plan for the week (see the README's Paprika section). The Worker checks
   Paprika every 15 minutes and tells the frame the moment the plan changed, so a meal moved in the
   Paprika app shows within 15 minutes of Paprika syncing it (open Paprika, or tap its Sync button).
+  **Groceries for the week** turns the week's planned recipes into one shopping list (below).
 - **Paprika:** your Paprika library, synced read-only, with its categories (A–Z, and Uncategorized
   when a recipe has none), search and an A–Z strip.
 - **Explore:** recipes from [TheMealDB](https://www.themealdb.com) (free, a few hundred curated
@@ -120,4 +121,29 @@ thumbnail, which looks soft on the frame (and in Paprika). `dashboard/scripts/pa
 run on a Mac, fixes that in Paprika itself: it finds the full photo on each recipe's source page,
 writes a before-and-after page to look over, then uploads the ones you keep the way the Paprika app
 does, saving each recipe first so `undo` can put it back. For sites that block scripts, find the
-photo in a browser and give it to `use`. Run it with no arguments for its commands.
+photo in a browser and give it to `use`. A recipe that came with another dish's photo (TheMealDB
+has a few) takes `replace <uid> <image url>`, whatever its size. Run it with no arguments for its
+commands.
+
+## Groceries for the week
+
+Meals → **Groceries for the week** makes one shopping list from the ingredients of every recipe
+planned from today through the next six days. Meals typed in without a recipe are named so you know
+they weren't counted. It leaves out pantry staples (oil, salt, pepper, flour, sugar and the common
+dried spices; fresh herbs, ginger and garlic are bought, so they stay) and anything already on
+Groceries. Nothing is added until you've looked: tap a row to leave it off, then **Add**. **Undo**
+takes back exactly the items it just added.
+
+The reading is done by an open-weight model on [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
+(Qwen3 30B, the `AI` binding in `wrangler.jsonc`), which turns each ingredient line into the thing to
+buy, a quantity and a unit ("1 ½ cups halved grape tomatoes" → Grape tomato, 1.5, cup). Adding up is
+done by the Worker, not the model (models asked to do the sums too repeat items and get the arithmetic
+wrong): the same thing across recipes becomes one row, with like units added (½ cup + 4 tbsp → ¾ cup;
+½ lemon + 1 lemon → 2 lemons, since you buy whole ones), citrus juice counted as fruit, and unlike
+units listed together ("1 lb + 200 g"). Each answer echoes the start of its ingredient line and is
+matched by that, so a model that loses count over a long list can't put a reading on the wrong line.
+A week of recipes uses well under 1% of Workers AI's free daily allowance and takes about 10 seconds;
+the result is kept for a day, so opening it again is instant until the plan, a recipe or the list
+changes. Add your own staples with `PANTRY_STAPLES` (comma-separated, for example
+`fish sauce, soy sauce`). The code is `dashboard/worker/meal-groceries.js`.
+

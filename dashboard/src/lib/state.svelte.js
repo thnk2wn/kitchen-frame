@@ -178,13 +178,38 @@ export async function removeRecipe(id) {
 // Recipe ingredients -> Todoist Grocery List, each noting which recipe it's for.
 export async function addToGroceries(recipe, ingredients) {
   const items = ingredients.map((i) => ({ content: i.measure ? i.name + ' (' + i.measure + ')' : i.name, description: 'For: ' + recipeTitle(recipe.title) }));
-  const added = ui.demo
-    ? items.map((x, n) => ({ id: 'demo-r' + Date.now() + n }))
-    : (await api('/api/lists/groceries', { method: 'POST', body: JSON.stringify({ items }) })).items;
+  return (await addGroceries(items)).length;
+}
+// Several items onto Groceries at once ({ content, description }); returns them as added, for takeBack.
+export async function addGroceries(items) {
+  let added = [];
+  if (ui.demo) added = items.map((x, n) => ({ id: 'demo-r' + Date.now() + n }));
+  else for (let i = 0; i < items.length; i += 40) { // the Worker takes 40 at a time
+    added = added.concat((await api('/api/lists/groceries', { method: 'POST', body: JSON.stringify({ items: items.slice(i, i + 40) }) })).items);
+  }
   const list = lists.groceries;
-  list.items = [...(list.items || []), ...added.map((a, n) => ({ id: a.id, content: items[n].content, note: items[n].description }))];
+  const made = added.map((a, n) => ({ id: a.id, content: items[n].content, note: items[n].description }));
+  list.items = [...(list.items || []), ...made];
   if (!ui.demo) remember('groceries', list.items);
-  return items.length;
+  return made;
+}
+// Undo for addGroceries: ticks those items off again. A Reminders item the Mac has created since has a
+// new id, so after a fresh look at the list it's found by its words (and note) instead.
+export async function takeBack(made) {
+  const list = lists.groceries;
+  if (!ui.demo) await loadList('groceries');
+  const items = list.items || [];
+  const gone = [];
+  for (const m of made) {
+    const it = items.find((i) => i.id === m.id) || items.find((i) => i.content === m.content && (i.note || '') === (m.note || '') && !gone.includes(i));
+    if (it) gone.push(it);
+  }
+  list.items = items.filter((i) => !gone.includes(i));
+  if (ui.demo) return gone.length;
+  const failed = (await Promise.all(gone.map((i) => api('/api/lists/groceries/' + encodeURIComponent(i.id) + '/done', { method: 'POST' }).then(() => 0, () => 1)))).reduce((a, b) => a + b, 0);
+  remember('groceries', list.items);
+  if (failed) { list.error = 'Couldn’t take back ' + failed + ' item' + (failed > 1 ? 's' : ''); loadList('groceries'); }
+  return gone.length - failed;
 }
 
 // Messages posted by agents (POST /api/messages); shown full-screen until dismissed.

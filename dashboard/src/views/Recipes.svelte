@@ -19,6 +19,7 @@
   import { tick } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import RecipePage from './RecipePage.svelte';
+  import MealGroceries from '../components/MealGroceries.svelte';
   import { api, cached, remember, mediaUrl } from '../lib/api.js';
   import { recipeTitle } from '../lib/format.js';
   import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui, plainTitle } from '../lib/state.svelte.js';
@@ -50,6 +51,9 @@
   }
   // No Paprika account on the Worker: fall back to Explore.
   $effect(() => { if (!oursOn() && (mode === 'ours' || mode === 'meals')) setMode('explore'); });
+
+  // Groceries for the week's meals (components/MealGroceries.svelte).
+  let shopping = $state(false);
 
   // Meals: the Paprika meal plan, today and the next six days.
   let week = $derived.by(() => {
@@ -212,6 +216,9 @@
         {#if mode === 'explore' || mode === 'ours'}
           <button class="btn tint" onclick={surprise}><Icon name="shuffle" size={20} />Surprise me</button>
         {/if}
+        {#if mode === 'meals' && !ui.demo}
+          <button class="btn tint" onclick={() => (shopping = true)}><Icon name="cart" size={20} />Groceries for the week</button>
+        {/if}
       </div>
     </header>
 
@@ -346,6 +353,8 @@
     <div class="detail"><RecipePage recipe={open} onback={() => (open = null)} /></div>
   {/if}
 </div>
+
+{#if shopping}<MealGroceries onclose={() => (shopping = false)} />{/if}
 
 <style>
   .wrap { position: relative; height: 100%; }
