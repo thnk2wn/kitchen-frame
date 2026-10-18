@@ -1,7 +1,9 @@
 // Night: between chosen hours (Settings → Night, 10:30 PM to 6:30 AM by default) the clock screen
 // comes on two minutes after the last touch, motion in the room doesn't bring the dashboard back,
 // the clock screen shows no photos, its text takes the night colour (red by default, like StandBy;
-// 'day' keeps the daytime colour), and the screen goes to its lowest brightness while it's up.
+// 'day' keeps the daytime colour), and the screen goes to its lowest brightness while it's up, or a
+// little brighter (still dim) while the room's motion sensors see someone, so it can be read with a
+// light on by anyone up late.
 // A touch brings the dashboard back at the daytime brightness; a timer alert or the doorbell does
 // too. The same hours are the quiet hours when agent messages aren't read aloud.
 //
@@ -11,10 +13,13 @@
 import { ui } from './state.svelte.js';
 import { ringing } from './timers.svelte.js';
 import { bell } from './doorbell.svelte.js';
+import { presence } from './presence.svelte.js';
 
 const KEY = 'frame-night';
 const DAY_KEY = 'frame-day-brightness';
 const NIGHT_LEVEL = 0.05;   // the kiosk's lowest (Settings' slider starts at 5%)
+const NIGHT_NEAR = 0.3;     // at night with someone in the room (never above the daytime level)
+const NEAR_MS = 3 * 60 * 1000; // that long after the last motion
 export const NIGHT_IDLE_MS = 2 * 60 * 1000;
 
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || 'null') || {}; } catch { return {}; } };
@@ -67,7 +72,10 @@ function apply() {
   const k = kiosk();
   if (!k) return;
   const alert = !!bell.ringing || ringing().length > 0;
-  const want = night.active && ui.idle && !alert ? NIGHT_LEVEL : dayBrightness();
+  const day = dayBrightness();
+  const near = presence.on.length > 0 || Date.now() - presence.lastSeen < NEAR_MS;
+  const nightLevel = near ? (day > 0 ? Math.min(NIGHT_NEAR, day) : NIGHT_NEAR) : NIGHT_LEVEL;
+  const want = night.active && ui.idle && !alert ? nightLevel : day;
   if (want === applied) return;
   applied = want;
   k.setBrightness(want);
@@ -78,7 +86,8 @@ try { if (localStorage.getItem(DAY_KEY) === null && kiosk()) localStorage.setIte
 
 $effect.root(() => {
   tick();
-  const t = setInterval(tick, 30 * 1000);
-  $effect(() => { night.active; ui.idle; bell.ringing; ringing().length; apply(); });
+  // Every 30 s: the hours, and back down once the room has been still for NEAR_MS.
+  const t = setInterval(() => { tick(); apply(); }, 30 * 1000);
+  $effect(() => { night.active; ui.idle; bell.ringing; ringing().length; presence.on.length; presence.lastSeen; apply(); });
   return () => clearInterval(t);
 });

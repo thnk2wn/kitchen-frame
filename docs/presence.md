@@ -152,7 +152,9 @@ which anyone holding it can open. The event log records each switch and why (`sc
 **Night** (Settings → Display → Night, 10:30 PM to 6:30 AM by default, or off): the clock screen
 comes on two minutes after the last touch, without photos, in red (Settings → Display → Night clock
 color: red, orange, yellow or the daytime colour) and at the screen's lowest brightness, and motion
-in the room doesn't bring the dashboard back. A tap does, at the daytime brightness, as do a timer
+in the room doesn't bring the dashboard back. Motion does lift the brightness a little (to 30%, or
+the daytime level if that's lower) for 3 minutes after the room's sensors last saw someone, so the
+clock can be read with a light on by anyone up late; an empty, dark room gets the lowest level. A tap does, at the daytime brightness, as do a timer
 alert and the doorbell. The daytime brightness (Settings → Display → Brightness) comes back each
 morning, and nothing is announced during these hours except red alerts, if they're set to speak at
 night.
