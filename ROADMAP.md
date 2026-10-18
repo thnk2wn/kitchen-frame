@@ -12,8 +12,6 @@ The dashboard was built and tested in a browser at the frame's size. On a real f
 - The doorbell pop-up and chime on a real ring (live video itself was worked through on the frame
   2026-10-15/16: docs/house.md).
 - The on-screen keyboard in Lists and recipe search.
-- Presence: the clock screen coming on and going away with real comings and goings.
-- Real-world notices: a weather alert, a freezer warming, a thermostat change.
 
 ## Performance experiments
 
@@ -51,6 +49,8 @@ Thoughts to try in a branch and measure on the frame, not plans:
   open one on your phone (tickets, a video call, a sign-up form).
 - **PIN for private calendars:** let a calendar's details open after a PIN, so work events can be
   read without being open to anyone in the kitchen.
+- **Calendars chosen on the frame:** the Mac bridge can see every calendar the Mac has (accounts and
+  subscriptions), so Settings could list them to pick and colour, instead of `CALENDAR_URLS`.
 - **Countdowns:** "12 days to the beach" for chosen events, on Home or the clock screen.
 - **Two columns per day** in Upcoming when a day is busy.
 
@@ -60,6 +60,14 @@ Thoughts to try in a branch and measure on the frame, not plans:
   Spices…). A Reminders list already brings its own sections through the Mac bridge (extras). Ask a small model
   through Cloudflare Workers AI, which has a free daily allowance far beyond a household's list,
   once per new item, and remember the answer. No keyword lists.
+
+## Media
+
+- **Someone else's podcasts:** the Podcasts view follows one Apple account (the Mac's). Others' shows
+  could come from a list of links in a setting, or a Shortcut on their phone that sends the shows
+  they follow (Shortcuts can't see what they've played).
+- **Progress back to the phone:** where an episode stops on the frame or an Echo stays here; the
+  iPhone's Podcasts app doesn't hear of it (Apple has no way in).
 
 ## Announcements
 
