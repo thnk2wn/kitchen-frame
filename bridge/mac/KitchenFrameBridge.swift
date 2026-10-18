@@ -19,6 +19,11 @@
 // With REMINDERS_EXTRAS=on on the Worker it also reads sections, flags and assignees from the
 // Reminders app's own database (RemindersDB below), which needs Full Disk Access.
 //
+// With PODCASTS=bridge on the Worker it reads the Podcasts app's library (PodcastsDB below, also Full
+// Disk Access): the shows followed, ranked by listening, with their recent and half-played episodes.
+// The library is the iPhone's, through iCloud (Podcasts → Settings → Sync Library), so it keeps the
+// Podcasts app open in the background here to stay in sync.
+//
 // Run with --check to ask for Reminders access and log the lists it can see, then exit.
 import AppKit
 import AVFoundation
@@ -99,6 +104,10 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
     return d.map { "built " + ISO8601DateFormatter().string(from: $0) } ?? "unknown"
   }()
   let db = RemindersDB()
+  let podcastsDB = PodcastsDB()
+  var podcasts = false               // PODCASTS=bridge: send the Podcasts library
+  var sentPodcasts = ""              // what was last sent, to send only changes
+  var sentPodcastsAt = Date.distantPast
   var configAt = Date.distantPast
   var toAck: [String] = []           // ops applied here, not yet reported to the Worker
   var doneOps: [String] = []         // ops applied recently, so a repeat is never applied twice
@@ -184,6 +193,9 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
       remindersAccess = await requestAccess()
       problem("reminders-access", remindersAccess ? nil : "No access to Reminders. Allow it in System Settings > Privacy & Security > Reminders > KitchenFrameBridge (Full Access).")
     }
+    let pods = r["podcasts"] as? Bool ?? false
+    if pods != podcasts { log(pods ? "Podcasts on: reading the Podcasts library" : "Podcasts off") }
+    podcasts = pods
     let more = r["extras"] as? Bool ?? false
     if more != extras { log(more ? "Extras on: reading sections, flags and assignees from the Reminders database" : "Extras off") }
     extras = more
@@ -209,6 +221,22 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
       photoCfg = nil
     }
     configAt = Date()
+  }
+
+  // The Podcasts app syncs the iPhone's library only while it runs: start it hidden if it isn't.
+  var podcastsLaunchedAt = Date.distantPast
+  func keepPodcastsOpen() {
+    let id = "com.apple.podcasts"
+    guard NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty,
+          Date().timeIntervalSince(podcastsLaunchedAt) > 600,
+          let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { return }
+    podcastsLaunchedAt = Date()
+    let how = NSWorkspace.OpenConfiguration()
+    how.activates = false
+    how.hides = true
+    NSWorkspace.shared.openApplication(at: url, configuration: how) { _, error in
+      log(error.map { "Couldn't start Podcasts: \($0.localizedDescription)" } ?? "Started Podcasts in the background, to keep its library in sync")
+    }
   }
 
   // MARK: Photos (ALBUM_URL = bridge:<album name>)
@@ -516,8 +544,21 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
       calText = String(decoding: (try? JSONSerialization.data(withJSONObject: cals, options: [.sortedKeys])) ?? Data(), as: UTF8.self)
       if calText != sentCalendars || Date().timeIntervalSince(sentCalendarsAt) > 3600 { bodyObj["calendars"] = cals }
     }
+    // Podcasts: when the library changed (something played, a new episode), or hourly.
+    var podText = ""
+    if podcasts {
+      keepPodcastsOpen()
+      let shows = podcastsDB.read()
+      problem("podcasts", podcastsDB.lastProblem.isEmpty ? nil : "Podcasts: " + podcastsDB.lastProblem)
+      podText = String(decoding: (try? JSONSerialization.data(withJSONObject: shows, options: [.sortedKeys])) ?? Data(), as: UTF8.self)
+      if !shows.isEmpty && (podText != sentPodcasts || Date().timeIntervalSince(sentPodcastsAt) > 3600) { bodyObj["podcasts"] = shows }
+    } else { problem("podcasts", nil) }
     let body = try JSONSerialization.data(withJSONObject: bodyObj)
     let data = try await request("/api/bridge/snapshot", method: "POST", body: body)
+    if bodyObj["podcasts"] != nil {
+      if podText != sentPodcasts { log("Sent podcasts: \((bodyObj["podcasts"] as? [Any])?.count ?? 0) shows") }
+      sentPodcasts = podText; sentPodcastsAt = Date()
+    }
     if bodyObj["calendars"] != nil {
       if calText != sentCalendars { log("Sent calendars: " + calendars.keys.sorted().joined(separator: ", ")) }
       sentCalendars = calText; sentCalendarsAt = Date()
@@ -739,18 +780,90 @@ final class RemindersDB {
     return (order, items)
   }
 
-  // Runs a query and returns each row's columns as text.
-  func rows(_ db: OpaquePointer?, _ sql: String, _ args: [String]) throws -> [[String?]] {
-    var st: OpaquePointer?
-    guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { throw NSError(domain: "sqlite", code: 1, userInfo: [NSLocalizedDescriptionKey: String(cString: sqlite3_errmsg(db))]) }
-    defer { sqlite3_finalize(st) }
-    let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-    for (i, a) in args.enumerated() { sqlite3_bind_text(st, Int32(i + 1), a, -1, transient) }
-    var out: [[String?]] = []
-    while sqlite3_step(st) == SQLITE_ROW {
-      out.append((0..<sqlite3_column_count(st)).map { c in sqlite3_column_text(st, c).map { String(cString: $0) } })
+  func rows(_ db: OpaquePointer?, _ sql: String, _ args: [String]) throws -> [[String?]] { try sqliteRows(db, sql, args) }
+}
+
+// Runs a query and returns each row's columns as text.
+func sqliteRows(_ db: OpaquePointer?, _ sql: String, _ args: [String]) throws -> [[String?]] {
+  var st: OpaquePointer?
+  guard sqlite3_prepare_v2(db, sql, -1, &st, nil) == SQLITE_OK else { throw NSError(domain: "sqlite", code: 1, userInfo: [NSLocalizedDescriptionKey: String(cString: sqlite3_errmsg(db))]) }
+  defer { sqlite3_finalize(st) }
+  let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+  for (i, a) in args.enumerated() { sqlite3_bind_text(st, Int32(i + 1), a, -1, transient) }
+  var out: [[String?]] = []
+  while sqlite3_step(st) == SQLITE_ROW {
+    out.append((0..<sqlite3_column_count(st)).map { c in sqlite3_column_text(st, c).map { String(cString: $0) } })
+  }
+  return out
+}
+
+// MARK: Podcasts database (PODCASTS=bridge)
+
+// Apple has no API for a podcast library. The Podcasts app keeps it (the iPhone's, through iCloud) in
+// its own SQLite database, which this reads, and only reads, with Full Disk Access. Like the Reminders
+// one it isn't an API: a macOS update can change it, and then podcasts are left out (said in the log
+// and on the status page). Times there count seconds from 2001.
+final class PodcastsDB {
+  let file = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Group Containers/243LU875E5.groups.com.apple.podcasts/Documents/MTLibrary.sqlite")
+  var lastProblem = "" // logged and shown on the status page by the bridge (problem("podcasts", …))
+  func problem(_ s: String) { lastProblem = s }
+  static let iso = ISO8601DateFormatter()
+  func date(_ s: String?) -> String? {
+    guard let s = s, let t = Double(s), t > 0 else { return nil }
+    return PodcastsDB.iso.string(from: Date(timeIntervalSinceReferenceDate: t))
+  }
+
+  // The shows followed: [{ id, title, author, feed, storeId, art, plays, lastPlayed, episodes: [...] }],
+  // each with its 12 newest episodes and any half-played ones.
+  func read() -> [[String: Any]] {
+    var db: OpaquePointer?
+    guard FileManager.default.isReadableFile(atPath: file.path),
+          sqlite3_open_v2(file.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+      sqlite3_close(db)
+      problem("can't read the Podcasts library. Give KitchenFrameBridge Full Disk Access (System Settings > Privacy & Security > Full Disk Access), and open Podcasts once with Sync Library on.")
+      return []
     }
-    return out
+    defer { sqlite3_close(db) }
+    do {
+      var stats: [String: (plays: Int, last: String?)] = [:]
+      for r in try sqliteRows(db, "select ZPODCAST, sum(ifnull(ZPLAYCOUNT, 0)) + sum(ifnull(ZPLAYHEAD, 0) > 30), max(case when ZPLAYCOUNT > 0 or ZPLAYHEAD > 30 then ZPLAYSTATELASTMODIFIEDDATE end) from ZMTEPISODE group by ZPODCAST", []) {
+        if let pk = r[0] { stats[pk] = (Int(r[1] ?? "0") ?? 0, date(r[2])) }
+      }
+      let cols = "ZUUID, ZTITLE, ZPUBDATE, ZDURATION, substr(ZITEMDESCRIPTIONWITHOUTHTML, 1, 700), ZENCLOSUREURL, ZPLAYHEAD, ZPLAYSTATE, ZPLAYSTATELASTMODIFIEDDATE, ifnull(ZVIDEO, 0)"
+      func episode(_ r: [String?]) -> [String: Any]? {
+        guard let id = r[0], let title = r[1], let url = r[5], url.hasPrefix("https://") else { return nil }
+        var e: [String: Any] = ["id": id, "title": title, "url": url]
+        if let d = date(r[2]) { e["date"] = d }
+        if let d = Double(r[3] ?? ""), d > 0 { e["seconds"] = Int(d) }
+        if let d = r[4]?.trimmingCharacters(in: .whitespacesAndNewlines), !d.isEmpty { e["description"] = d }
+        if let p = Double(r[6] ?? ""), p > 30, r[7] != "2" { e["position"] = Int(p) }
+        if r[7] == "2" { e["played"] = true }
+        if let d = date(r[8]) { e["touched"] = d }
+        if r[9] == "1" { e["video"] = true }
+        return e
+      }
+      var out: [[String: Any]] = []
+      for r in try sqliteRows(db, "select Z_PK, ZTITLE, ZAUTHOR, ZFEEDURL, ZSTORECOLLECTIONID, ZARTWORKTEMPLATEURL, ZUUID from ZMTPODCAST where ZSUBSCRIBED = 1 and ifnull(ZHIDDEN, 0) = 0", []) {
+        guard let pk = r[0], let title = r[1] else { continue }
+        var seen = Set<String>()
+        var episodes: [[String: Any]] = []
+        let recent = try sqliteRows(db, "select \(cols) from ZMTEPISODE where ZPODCAST = ? order by ZPUBDATE desc limit 12", [pk])
+        let started = try sqliteRows(db, "select \(cols) from ZMTEPISODE where ZPODCAST = ? and ZPLAYHEAD > 30 and ifnull(ZPLAYSTATE, 0) != 2 order by ZPLAYSTATELASTMODIFIEDDATE desc limit 5", [pk])
+        for row in started + recent { if let e = episode(row), let id = e["id"] as? String, !seen.contains(id) { seen.insert(id); episodes.append(e) } }
+        var show: [String: Any] = ["id": r[6] ?? pk, "title": title, "episodes": episodes, "plays": stats[pk]?.plays ?? 0]
+        if let v = r[2], !v.isEmpty { show["author"] = v }
+        if let v = r[3], !v.isEmpty { show["feed"] = v }
+        if let v = r[4], v != "0" { show["storeId"] = v }
+        if let v = r[5], !v.isEmpty { show["art"] = v.replacingOccurrences(of: "{w}x{h}{c}.{f}", with: "300x300bb.jpg").replacingOccurrences(of: "{w}x{h}bb.{f}", with: "300x300bb.jpg") }
+        if let v = stats[pk]?.last { show["lastPlayed"] = v }
+        out.append(show)
+      }
+      problem(out.isEmpty ? "no shows followed in the Podcasts library yet (is Sync Library on?)" : "")
+      return out
+    } catch {
+      problem("the Podcasts library has changed shape (\(error)); podcasts are left out")
+      return []
+    }
   }
 }
 

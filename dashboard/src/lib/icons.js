@@ -35,7 +35,6 @@ export const ICONS = {
   fan: "<path d=\"M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z\" /><path d=\"M12 12v.01\" />", // lucide: fan
   lock: "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\" /><path d=\"M7 11V7a5 5 0 0 1 10 0v4\" />", // lucide: lock
   unlock: "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\" /><path d=\"M7 11V7a5 5 0 0 1 9.9-1\" />", // lucide: lock-open
-  backspace: "<path d=\"M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z\" /><path d=\"m12 9 6 6\" /><path d=\"m18 9-6 6\" />", // lucide: delete
   thermometer: "<path d=\"M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z\" />", // lucide: thermometer
   blinds: "<path d=\"M3 3h18\" /><path d=\"M20 7H8\" /><path d=\"M20 11H8\" /><path d=\"M10 19h10\" /><path d=\"M8 15h12\" /><path d=\"M4 3v14\" /><circle cx=\"4\" cy=\"19\" r=\"2\" />", // lucide: blinds
   camera: "<path d=\"M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97\" /><path d=\"M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z\" /><path d=\"M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15\" /><path d=\"M2 21v-4\" /><path d=\"M7 9h.01\" />", // lucide: cctv
@@ -65,4 +64,5 @@ export const ICONS = {
   chevronDown: "<path d=\"m6 9 6 6 6-6\" />", // lucide: chevron-down
   home: "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\" /><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\" />", // lucide: house
   power: "<path d=\"M12 2v10\" /><path d=\"M18.4 6.6a9 9 0 1 1-12.77.04\" />", // lucide: power
+  podcast: "<path d=\"M12 17v4\" /><path d=\"M18 11a6 6 0 00-3-5.197\" /><path d=\"M2 11a10 10 0 015-8.662\" /><path d=\"M22 11a10 10 0 00-5-8.662\" /><path d=\"M6 11a6 6 0 013-5.197\" /><path d=\"M9 21h6\" /><rect x=\"10\" y=\"9\" width=\"4\" height=\"8\" rx=\"2\" />", // lucide: podcast
 };

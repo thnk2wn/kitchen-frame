@@ -1,20 +1,23 @@
 <script>
   // Music | TV | Videos, at the start of the Media tab's bottom bar: TV when Home Assistant has a TV
-  // (or in demo mode), Videos when YouTube videos are set up. The dot marks a view with something playing.
+  // (or in demo mode), Videos when YouTube videos are set up, Podcasts when the Mac bridge sends them. The dot marks a view with something playing.
   import { ha, haConfigured } from '../lib/ha.svelte.js';
   import { ui, videos } from '../lib/state.svelte.js';
+  import { podcasts, pod } from '../lib/podcasts.svelte.js';
   let hasTv = $derived(ui.demo || ha.players.some((p) => p.tv));
   let hasVideos = $derived(videos.groups.length > 0);
   let hasMusic = $derived(haConfigured() || ui.demo);
+  let hasPodcasts = $derived(podcasts.shows.length > 0);
   let tvPlaying = $derived(ha.players.some((p) => p.tv && p.state === 'playing'));
   let musicPlaying = $derived(ha.players.some((p) => !p.tv && p.state === 'playing'));
 </script>
 
-{#if [hasMusic, hasTv, hasVideos].filter(Boolean).length > 1}
+{#if [hasMusic, hasTv, hasVideos, hasPodcasts].filter(Boolean).length > 1}
   <div class="seg" role="tablist" aria-label="Media">
     {#if hasMusic}<button role="tab" aria-selected={ui.media === 'music'} class:on={ui.media === 'music'} onclick={() => (ui.media = 'music')}>Music{#if musicPlaying && ui.media !== 'music'}<i></i>{/if}</button>{/if}
     {#if hasTv}<button role="tab" aria-selected={ui.media === 'tv'} class:on={ui.media === 'tv'} onclick={() => (ui.media = 'tv')}>TV{#if tvPlaying && ui.media !== 'tv'}<i></i>{/if}</button>{/if}
     {#if hasVideos}<button role="tab" aria-selected={ui.media === 'videos'} class:on={ui.media === 'videos'} onclick={() => (ui.media = 'videos')}>Videos</button>{/if}
+    {#if hasPodcasts}<button role="tab" aria-selected={ui.media === 'podcasts'} class:on={ui.media === 'podcasts'} onclick={() => (ui.media = 'podcasts')}>Podcasts{#if pod.playing && ui.media !== 'podcasts'}<i></i>{/if}</button>{/if}
   </div>
 {/if}
 

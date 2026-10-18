@@ -12,6 +12,7 @@ import { fromReminders, bridge } from './bridge.js';
 import { rotationLines, DEMO_ROTATIONS } from '../src/lib/rotations.js';
 import { demoCalendar, demoMeals } from '../src/lib/demo.js';
 import { parseNames } from './demo-media.js';
+import { playPodcast, audioEvent, resume, pause, playDirective, echoNow } from './podcast-audio.js';
 
 // ---- Amazon's signature
 function tlv(b, i) {
@@ -94,7 +95,7 @@ const slot = (intent, name) => {
   const r = s.resolutions && s.resolutions.resolutionsPerAuthority && s.resolutions.resolutionsPerAuthority.find((a) => a.status && a.status.code === 'ER_SUCCESS_MATCH');
   return (r && r.values[0].value.name) || s.value || '';
 };
-const TABS = { home: 'home', calendar: 'calendar', lists: 'groceries', groceries: 'groceries', tasks: 'todo', 'to do': 'todo', recipes: 'recipes', media: 'music', music: 'music', tv: 'tv', videos: 'videos', house: 'house', notices: 'notices' };
+const TABS = { home: 'home', calendar: 'calendar', lists: 'groceries', groceries: 'groceries', tasks: 'todo', 'to do': 'todo', recipes: 'recipes', media: 'music', music: 'music', tv: 'tv', videos: 'videos', podcasts: 'podcasts', house: 'house', notices: 'notices' };
 // (Media's views go as music, tv and videos; the frame opens Media on that view. notices opens the
 // notices sheet over whatever is showing.)
 export const tabOf = (word) => TABS[String(word || '').toLowerCase().trim()] || null;
@@ -153,7 +154,7 @@ async function zoneOf(sys) {
 
 // handle(req, env, { command, calendar, videoGroups, meals, rotations }): command(name, data) reaches the frame (the
 // message room's live connection) and resolves to how many frames got it.
-export async function handleAlexa(req, env, { command, calendar, videoGroups, meals, rotations, recipes = async () => ({}), demo = async () => false }) {
+export async function handleAlexa(req, env, { command, calendar, videoGroups, meals, rotations, recipes = async () => ({}), demo = async () => false, podcasts = async () => ({}) }) {
   const body = await req.text();
   const problem = await verified(req, body).catch((e) => 'signature check failed: ' + e.message);
   if (problem) { console.warn('alexa refused: ' + problem); return new Response('forbidden', { status: 403 }); }
@@ -168,6 +169,11 @@ export async function handleAlexa(req, env, { command, calendar, videoGroups, me
   if (allowed.length && !allowed.includes(user)) { console.warn('alexa refused: user ' + user + ' (an id changes when the skill is turned off and on: put the new one in ALEXA_USER_IDS)'); return Response.json(say('Sorry, this frame only listens to its own household.')); }
 
   const type = r.request.type;
+  const audio = (r.context && r.context.AudioPlayer) || {};
+  // Podcasts playing on the Echo (podcast-audio.js): Alexa's reports and the Echo's buttons get no
+  // spoken answer.
+  if (type.startsWith('AudioPlayer.') || type.startsWith('PlaybackController.')) return Response.json(await audioEvent(env, type, r.request, audio));
+  if (type === 'System.ExceptionEncountered') { console.warn('alexa exception: ' + JSON.stringify(r.request.error || {}).slice(0, 300)); return Response.json({ version: '1.0', response: {} }); }
   if (type === 'LaunchRequest') return Response.json(say('Kitchen Frame here. Say add eggs to groceries, show the calendar, what\'s for dinner, or the rundown.', false));
   if (type === 'SessionEndedRequest') return Response.json({ version: '1.0', response: {} });
   if (type !== 'IntentRequest') return Response.json(say('Sorry, I didn\'t get that.'));
@@ -226,7 +232,20 @@ export async function handleAlexa(req, env, { command, calendar, videoGroups, me
         return Response.json(say(todaySpeech({ cal: await calendar(), meals: plan.meals || [], rules: rotations(), tz })));
       }
       case 'AMAZON.HelpIntent': return Response.json(say('You can say: add milk to groceries, add call the dentist to tasks, show the calendar, start the slideshow, wake up, play videos, what\'s for dinner, or the rundown.', false));
-      case 'AMAZON.StopIntent': case 'AMAZON.CancelIntent': case 'AMAZON.NavigateHomeIntent': return Response.json(say('Okay.'));
+      case 'PlayPodcastIntent': return Response.json(await playPodcast(env, slot(intent, 'show'), (await podcasts().catch(() => ({}))).shows || []));
+      case 'AMAZON.PauseIntent': return Response.json(pause());
+      case 'AMAZON.ResumeIntent': return Response.json(await resume(env, audio));
+      case 'AMAZON.StartOverIntent': {
+        const now = await echoNow(env);
+        return Response.json(now && now.episode ? { version: '1.0', response: { directives: [playDirective(now, 0)], shouldEndSession: true } } : say('There\'s nothing playing.'));
+      }
+      case 'AMAZON.NextIntent': case 'AMAZON.PreviousIntent': case 'AMAZON.LoopOnIntent': case 'AMAZON.LoopOffIntent':
+      case 'AMAZON.ShuffleOnIntent': case 'AMAZON.ShuffleOffIntent': case 'AMAZON.RepeatIntent':
+        return Response.json(say('That doesn\'t work for podcasts yet.'));
+      // While a podcast plays, stop means pause it (and keep the place).
+      case 'AMAZON.StopIntent': case 'AMAZON.CancelIntent':
+        return Response.json(audio.playerActivity === 'PLAYING' || audio.playerActivity === 'BUFFER_UNDERRUN' ? pause() : say('Okay.'));
+      case 'AMAZON.NavigateHomeIntent': return Response.json(say('Okay.'));
       default: return Response.json(say('Sorry, I can\'t do that yet. Say help for what I can do.'));
     }
   } catch (e) {

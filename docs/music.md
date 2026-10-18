@@ -223,3 +223,36 @@ else, so a leaked one can only play a video on the frame. Not the agent token.
 
 The Worker accepts a link in any form (youtu.be, watch, Shorts), with or without tracking
 parameters, as JSON (`url`) or plain text.
+
+## Podcasts: Apple Podcasts through the Mac
+
+**Media → Podcasts** shows the podcasts you follow in Apple Podcasts on your iPhone, most listened to
+first, with a **Continue** row of episodes you're partway through (on the phone or here). Tap a show
+for its latest episodes and their descriptions (tap one to read all of it); tap ▶ to play it on the
+frame's own speaker, from where you left off. Back 15 s, forward 30 s, a seek bar, volume, and Stop
+sit in the bar along the bottom; an episode keeps playing on other tabs.
+
+**Needs:** the [Mac bridge](mac-bridge.md) with Full Disk Access, and the Podcasts app on that Mac
+signed in with your Apple ID and **Sync Library** on (Podcasts → Settings → General), so your phone's
+library reaches it. Then `PODCASTS=bridge` on the Worker. Optional: without it there's no Podcasts view.
+
+How it works:
+
+- Apple has no API for a podcast library. The Podcasts app on the Mac keeps your phone's (through
+  iCloud) in its own database, which the bridge reads, and only reads, every 5 minutes, sending the
+  Worker the shows, your plays, where you stopped in each episode and their audio links when anything
+  changed. It keeps the Podcasts app open in the background, as it syncs only while it runs.
+- The app on the Mac refreshes a show's episodes only now and then, so the Worker adds each show's
+  latest episodes from Apple's public podcast directory (no key) and keeps your progress on the ones
+  the library has. Artwork comes from the library or the same directory.
+- Episodes play straight from the podcast's own (https) audio link. Where you stop on the frame is
+  kept on the frame; it doesn't reach your phone's Podcasts app.
+- **On an Echo:** pick it with the speaker button in the bottom bar (Frame, or any Echo from Home
+  Assistant's Alexa Devices integration), then tap an episode. The frame hands the Worker the episode
+  and its place and asks that Echo, through Home Assistant, "ask Kitchen Frame to play my podcast": the
+  [Alexa skill](alexa.md) streams it there with Alexa's AudioPlayer. Pause, resume and stop work from
+  the frame or by voice, and where the Echo stops shows in the frame's Continue row. Needs the skill
+  with Audio Player on, and the original Alexa (not Alexa+). By voice: "Alexa, ask Kitchen Frame to
+  play Science Friday podcast".
+- The database isn't an API: a macOS update can change it, and then Podcasts stops updating (the
+  status page says so) while the rest of the bridge carries on.

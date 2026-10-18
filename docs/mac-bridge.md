@@ -8,12 +8,13 @@ can't, or can only reach through a public link, and sends them to the Worker:
 | Apple Reminders lists, two-way | `GROCERIES_SOURCE` / `TODO_SOURCE` = `reminders` | Apple offers no web API for Reminders | [lists.md](lists.md#apple-reminders-through-a-mac) |
 | iCloud calendars, with their alerts | `bridge:<name>` entries in `CALENDAR_URLS` | iCloud's public links leave out alerts, and are readable by anyone with the link | [calendar.md](calendar.md#apple-calendars-through-the-mac) |
 | An iCloud shared album | `ALBUM_URL=bridge:<album name>` | the alternative is the album's public website | [presence.md](presence.md) |
+| Apple Podcasts: the shows you follow and your listening | `PODCASTS=bridge` | Apple offers no API for a podcast library | [music.md](music.md#podcasts-apple-podcasts-through-the-mac) |
 
 **Needs:** a Mac with macOS 13 or later that stays on at home, signed in to your Apple ID, and
 `BRIDGE_TOKEN` on the Worker. **Only if you use one of the jobs above**: Todoist lists, Google,
 Fastmail or Outlook calendars and a public album link all work without a Mac. Each job is separate,
 chosen on the Worker; the bridge does only those, and macOS is asked only for the access they need
-(Reminders, Calendar, Photos).
+(Reminders, Calendar, Photos; Full Disk Access for Reminders' extras and Podcasts).
 
 The camera relay is a different thing that can run on the same Mac ([house.md](house.md#cameras-the-frame-cant-decode-the-camera-relay)).
 

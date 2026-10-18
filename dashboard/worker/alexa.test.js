@@ -1,3 +1,5 @@
+// The Worker runs on UTC (Cloudflare), and the demo day is worked out as it does (alexa.js wallClock).
+process.env.TZ = 'UTC';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';

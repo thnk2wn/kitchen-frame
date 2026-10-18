@@ -92,13 +92,15 @@ export const earlier = () => {
   return past.items.filter((n) => Date.parse(n.ended) >= since).sort((a, b) => String(b.created).localeCompare(String(a.created)));
 };
 
-// Unread: anything that started after the notices sheet was last opened (remembered per frame).
-// The top bar's bell shows how many, in the most urgent one's colour; opening the sheet reads them.
+// New: anything that started after the notices sheet was last opened (remembered per frame); the
+// sheet lists them under New. The top bar's bell counts only the new ones still on (in the most
+// urgent one's colour): most notices clear themselves (a thermostat change after 15 minutes, "washer
+// running" when it's done), and those need no one. Opening the sheet reads them.
 const SEEN_KEY = 'frame-notices-seen';
 const seen = $state({ at: (() => { try { return Number(localStorage.getItem(SEEN_KEY)) || 0; } catch { return 0; } })(), demoAt: Date.now() - 2 * 3600000 });
 const seenAt = () => (ui.demo ? seen.demoAt : seen.at);
 export const isNew = (n) => !!n.created && Date.parse(n.created) > seenAt();
-export const unread = () => [...notices(), ...earlier()].filter(isNew).sort((a, b) => RANK[a.tone] - RANK[b.tone]);
+export const unread = () => notices().filter(isNew).sort((a, b) => RANK[a.tone] - RANK[b.tone]);
 export function markSeen() {
   if (ui.demo) { seen.demoAt = Date.now(); return; }
   seen.at = Date.now();

@@ -31,6 +31,7 @@ same and give the same advice. (Use two words for the name; Amazon discourages o
 | start the slideshow · go to sleep · show the clock | The clock and photo slideshow, as the Play button does |
 | wake up | Leaves the slideshow |
 | play Trucks videos · play videos | Plays that Media → Videos group on the frame, least recently played first, muted until someone taps it (the frame's browser needs a tap before it plays sound) |
+| play Science Friday podcast · play my podcast | Plays a podcast on the Echo (Apple Podcasts through the Mac: [music](music.md#podcasts-apple-podcasts-through-the-mac)): that show's half-played or newest episode, or the one just picked on the frame; "pause", "resume", "start over" and "stop" work while it plays |
 | what's for dinner | Says tonight's dinner from the Paprika meal plan, and opens its recipe on the frame (Recipes → Meals when there are several) |
 | what's on my calendar today · the rundown | Shows Home on the frame and reads its Today card in order: who's up early, today's meals, today's events, bedtime ([rotations](rotations.md)), at the Echo's own time |
 
@@ -69,22 +70,24 @@ The Worker answers only requests that:
    [alexa/interaction-model.json](../alexa/interaction-model.json). In `VIDEO_GROUP`, put your own
    Videos group names (the names in `YOUTUBE_VIDEOS`) in place of the examples, so Alexa hears them
    well. **Save**, then **Build skill**.
-3. **Endpoint.** **Build → Endpoint → HTTPS**, Default Region:
+3. **Audio Player.** **Build → Interfaces**: turn on **Audio Player** and **Save** (for podcasts on the
+   Echo; it adds the pause and resume intents the JSON already has).
+4. **Endpoint.** **Build → Endpoint → HTTPS**, Default Region:
    `https://<your worker>.workers.dev/api/alexa`, with the certificate option "My development
    endpoint is a sub-domain of a domain that has a wildcard certificate from a certificate
    authority" (a custom domain with its own certificate: the first option). **Save**.
-4. **The skill id.** Copy it from the Endpoint page (**Your Skill ID**, `amzn1.ask.skill.…`) into
+5. **The skill id.** Copy it from the Endpoint page (**Your Skill ID**, `amzn1.ask.skill.…`) into
    `ALEXA_SKILL_ID` in `dashboard/.dev.vars` and push it (`scripts/push-secrets.sh`, or
    `npx wrangler secret put ALEXA_SKILL_ID`).
-5. **Its card in the Alexa app.** **Distribution → Store Preview**: set **Public Name** to the same name
+6. **Its card in the Alexa app.** **Distribution → Store Preview**: set **Public Name** to the same name
    (the app lists your development skills by it), a one-line and a longer description, and the three
    **Example Phrases** ("Alexa, ask Kitchen Frame what's for dinner", …). **Save**. Nothing is
    published; this is only what the app shows under Skills → Dev.
-6. **Turn on testing.** **Test** tab → "Skill testing is enabled in:" **Development**. Type "ask
+7. **Turn on testing.** **Test** tab → "Skill testing is enabled in:" **Development**. Type "ask
    kitchen frame what's for dinner" there to try it, then say it to your Echo. After changing the
    invocation name, build again and switch testing Off and back to Development: until then Alexa
    doesn't know the new name.
-7. **Usually not needed: your account only.** A development skill already works only on your own
+8. **Usually not needed: your account only.** A development skill already works only on your own
    account's Echos. To lock the Worker to it as well, put your Amazon account id
    (`amzn1.ask.account.…`, in the skill's request JSON on the Test tab) in `ALEXA_USER_IDS` and push
    it. Amazon gives the account a new id whenever the skill is turned off and on again (Test tab →

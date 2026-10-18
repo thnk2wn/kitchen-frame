@@ -9,6 +9,8 @@
 //   GET  /api/photos                 idle-screen photo list from the iCloud shared album (see photos.js)
 //   GET  /api/photos/:id             one photo, passed through from iCloud
 //   GET  /api/photos?demo, /api/photos/demo-:n   demo mode's stock photos (demo-photos.js)
+//   GET  /api/podcasts               Apple Podcasts shows and episodes, through the Mac bridge (podcasts.js)
+//   POST /api/podcasts/cast, GET /api/podcasts/now   an episode for an Echo, and what it's playing (podcast-audio.js)
 //   GET  /api/demo                   demo mode's Media: shown names (DEMO_NAMES), public playlists (demo-media.js)
 //   POST /api/messages               an agent posts a full-screen message (AGENT_TOKEN; see messages.js)
 //   GET  /api/messages               pending messages for the frame
@@ -51,6 +53,8 @@
 //   AGENT_TOKEN    lets AI agents post messages and save recipes; it can't read anything.
 //   SHARE_TOKEN    optional: lets a phone's share sheet play a YouTube video on the frame
 //                  (POST /api/share/play), and nothing else.
+//   PODCASTS       optional: "bridge" for Media → Podcasts from the Apple Podcasts library on the Mac
+//                  bridge (podcasts.js).
 //   DEMO_NAMES     optional: JSON of real -> shown names for demo mode's live Media tab (demo-media.js),
 //                  with DEMO_PLAYLISTS (public Spotify playlist links) for its Music row.
 //   ALEXA_SKILL_ID optional: the id of your own Alexa skill (POST /api/alexa, alexa.js, docs/alexa.md),
@@ -75,6 +79,8 @@ import { listVideos, thumbResponse, videoIdOf, videoTitle, parseSetting } from '
 import { handleAlexa } from './alexa.js';
 import { demoPhotos, demoPhotoResponse, demoCamResponse } from './demo-photos.js';
 import { demoMedia } from './demo-media.js';
+import { podcastsOn, savePodcasts, listPodcasts } from './podcasts.js';
+import { saveCast, echoNow, echoSpots, withEchoSpots } from './podcast-audio.js';
 const DEMO_KEY = 'frame:demo'; // { on, at }: the frame's demo mode (POST /api/frame/demo)
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
@@ -147,7 +153,7 @@ async function handle(req, env, ctx) {
         const extras = /^(on|yes|true|1)$/i.test(String(env.REMINDERS_EXTRAS || '').trim());
         // calendars: the bridge:<name> entries in CALENDAR_URLS, with whether to send their notes.
         const cals = bridgeCalendars(env);
-        return json({ lists: Object.fromEntries(Object.keys(BRIDGE_LISTS).filter((l) => fromReminders(env, l)).map((l) => [l, remindersName(env, l)])), ...(extras ? { extras: true } : {}),
+        return json({ lists: Object.fromEntries(Object.keys(BRIDGE_LISTS).filter((l) => fromReminders(env, l)).map((l) => [l, remindersName(env, l)])), ...(extras ? { extras: true } : {}), ...(podcastsOn(env) ? { podcasts: true } : {}),
           ...(cals.length ? { calendars: Object.fromEntries(cals.map((c) => [c.name, { notes: c.notes }])), window: { back: DAYS_BACK, ahead: DAYS_AHEAD } } : {}),
           // photos: the shared album to send, and the sizes to send it at (a landscape fills the
           // 1920-wide screen, a portrait half of it, as they show in pairs).
@@ -175,6 +181,9 @@ async function handle(req, env, ctx) {
           await env.CALENDAR.put(BRIDGE_CAL_KEY, JSON.stringify({ at: new Date().toISOString(), calendars }));
           ctx.waitUntil(env.CALENDAR.get(KEY, 'json').then((prev) => updateCalendar(env, prev)));
         }
+        // Podcasts: the Podcasts library (podcasts.js), when it changed or hourly.
+        if (Array.isArray(body.podcasts) && podcastsOn(env)) await savePodcasts(env, body.podcasts);
+        delete body.podcasts;
         delete body.calendars;
         return bridge(env).fetch('https://bridge/snapshot', { method: 'POST', body: JSON.stringify(body) });
       }
@@ -209,6 +218,7 @@ async function handle(req, env, ctx) {
         videoGroups: () => parseSetting(env.YOUTUBE_VIDEOS).map((g) => g.name),
         meals: () => listMeals(env),
         recipes: () => listPaprika(env),
+        podcasts: () => listPodcasts(env),
         rotations: () => rotations(env),
         demo: async () => ((await env.CALENDAR.get(DEMO_KEY, 'json')) || {}).on === true,
       });
@@ -264,6 +274,16 @@ async function handle(req, env, ctx) {
       }
       if (url.pathname.startsWith('/api/photos/')) return photoResponse(env, url.pathname.slice('/api/photos/'.length), ctx);
       if (url.pathname.startsWith('/api/videos/')) return videoResponse(env, url.pathname.slice('/api/videos/'.length), req);
+      if (url.pathname === '/api/podcasts') {
+        const list = await listPodcasts(env);
+        return json({ ...list, shows: withEchoSpots(list.shows, await echoSpots(env)) });
+      }
+      // An episode for the Echo (podcast-audio.js): the frame stores it, then asks the Echo to play it.
+      if (url.pathname === '/api/podcasts/cast' && req.method === 'POST') {
+        const { status, body } = await saveCast(env, await req.json().catch(() => ({})));
+        return json(body, status);
+      }
+      if (url.pathname === '/api/podcasts/now') return json({ now: await echoNow(env) });
       if (url.pathname === '/api/youtube') return json(await listVideos(env, { force: url.searchParams.has('refresh') }));
       if (url.pathname.startsWith('/api/youtube/thumb/')) return thumbResponse(url.pathname.slice('/api/youtube/thumb/'.length), ctx);
       if (url.pathname === '/api/messages' && req.method === 'GET') return room(env).fetch('https://room/list');

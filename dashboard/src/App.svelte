@@ -33,6 +33,8 @@
   import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible, videos, loadVideos, nowVideo } from './lib/state.svelte.js';
   import { noteAlbum, prepare } from './lib/slides.js';
   import { fakeMedia, loadDemoMedia } from './lib/demo-media.svelte.js';
+  import { podcasts, loadPodcasts } from './lib/podcasts.svelte.js';
+  import Podcasts from './views/Podcasts.svelte';
   import { time, clockTime, weatherInfo } from './lib/format.js';
 
   // Reactive: Media also appears when YouTube videos are set up (Media → Videos needs no Home Assistant).
@@ -44,7 +46,7 @@
     { id: 'recipes', label: 'Recipes' },
     // Media (music, and TVs when Home Assistant has any) appears once the frame has a Home Assistant
     // token (see docs/frame.md). Its id stays 'music' so older links and settings keep working.
-    ...(haConfigured() || ui.demo || videos.groups.length ? [{ id: 'music', label: 'Media' }] : []), // demo: an invented player
+    ...(haConfigured() || ui.demo || videos.groups.length || podcasts.shows.length ? [{ id: 'music', label: 'Media' }] : []), // demo: an invented player
     // House mirrors a Home Assistant dashboard, once the frame has its URL path (frame-ha-dashboard).
     ...((haConfigured() && haDashboard()) || ui.demo ? [{ id: 'house', label: 'House' }] : []), // demo: an invented house
   ]);
@@ -53,7 +55,7 @@
 
   // Speculative photo downloads wait until the first screen's data has had the slow Wi-Fi to itself.
   let warm = $state(false);
-  onMount(() => { start(); loadVideos().then(() => { if (videos.groups.length) setTimeout(() => loadYouTube().catch(() => {}), 20000); }); connectHA(); setTimeout(() => (warm = true), 15000); });
+  onMount(() => { start(); loadPodcasts(); setInterval(loadPodcasts, 15 * 60 * 1000); loadVideos().then(() => { if (videos.groups.length) setTimeout(() => loadYouTube().catch(() => {}), 20000); }); connectHA(); setTimeout(() => (warm = true), 15000); });
 
   // Keep the next slideshow slide downloaded in the background, so play/idle shows photos at once.
   $effect(() => {
@@ -109,7 +111,7 @@
     {#if !ui.idle}
     {#if ui.tab === 'home'}<Home {playing} />
     {:else if ui.tab === 'calendar'}<Week />
-    {:else if ui.tab === 'music'}{#if ui.media === 'tv'}<TV />{:else if ui.media === 'videos' || !haConfigured()}<Videos />{:else}<Music />{/if}
+    {:else if ui.tab === 'music'}{#if ui.media === 'tv'}<TV />{:else if ui.media === 'podcasts'}<Podcasts />{:else if ui.media === 'videos' || !haConfigured()}<Videos />{:else}<Music />{/if}
     {:else if ui.tab === 'house'}<House />
     {:else if ui.tab === 'recipes'}<Recipes />
     {:else if ui.tab === 'groceries'}<List name="groceries" title="Groceries" accent="var(--orange)" accentText="var(--orange-text)" />

@@ -38,7 +38,7 @@ export const ui = $state({
   // openMeals: Recipes opens on Meals once (Alexa's "what's for dinner" with several meals planned).
   // The event whose details are showing ({ uid, start }); ?event=<uid> opens one, for screenshots.
   event: q.get('event') ? { uid: q.get('event'), start: null } : null,
-  media: ['tv', 'videos'].includes(q.get('media')) ? q.get('media') : 'music', // the Media tab's view (?media=tv or videos)
+  media: ['tv', 'videos', 'podcasts'].includes(q.get('media')) ? q.get('media') : 'music', // the Media tab's view (?media=tv, videos or podcasts)
   // { list, id }: the list item whose sheet is open; ?task=<id> opens a task, for screenshots.
   task: q.get('task') ? { list: 'todo', id: q.get('task') } : null,
   weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,
@@ -611,7 +611,7 @@ export function startSlideshow() {
 function showTab(tab) {
   ui.settingsOpen = false;
   if (tab === 'notices') { ui.noticesOpen = true; return; }
-  if (tab === 'music' || tab === 'tv' || tab === 'videos') { ui.tab = 'music'; ui.media = tab; return; }
+  if (tab === 'music' || tab === 'tv' || tab === 'videos' || tab === 'podcasts') { ui.tab = 'music'; ui.media = tab; return; }
   if (TAB_IDS.includes(tab)) ui.tab = tab;
   if (tab === 'groceries' || tab === 'todo') loadList(tab); // an item just added by voice shows at once
 }

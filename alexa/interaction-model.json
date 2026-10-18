@@ -154,6 +154,27 @@
           ]
         },
         {
+          "name": "PlayPodcastIntent",
+          "slots": [
+            {
+              "name": "show",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "play my podcast",
+            "play the podcast",
+            "play my podcasts",
+            "resume my podcast",
+            "continue my podcast",
+            "play podcast {show}",
+            "play the podcast {show}",
+            "play the {show} podcast",
+            "play {show} podcast",
+            "put on the {show} podcast"
+          ]
+        },
+        {
           "name": "DinnerIntent",
           "slots": [],
           "samples": [
@@ -210,6 +231,46 @@
         },
         {
           "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.PauseIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ResumeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StartOverIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NextIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.PreviousIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.LoopOnIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.LoopOffIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ShuffleOnIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.ShuffleOffIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.RepeatIntent",
           "samples": []
         }
       ],
@@ -304,6 +365,15 @@
                   "alerts",
                   "the notifications",
                   "my notifications"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "podcasts",
+                "synonyms": [
+                  "podcast",
+                  "the podcasts"
                 ]
               }
             }
