@@ -155,6 +155,8 @@ Each part has a short README of its own: what it is, when you need it, how to bu
   ([`ops/`](dashboard/ops)) and the day-to-day [`scripts/`](dashboard/scripts). Always needed.
 - [`kiosk/`](kiosk/README.md): the Android app the frame boots into (one full-screen WebView). For an
   Android frame.
+- [`ios/`](ios/README.md): the optional iPhone app, a remote for the frame. Built with Xcode; not on
+  the App Store.
 - [`bridge/mac/`](bridge/mac/README.md): the optional Mac bridge, for Apple Reminders lists, and
   iCloud calendars (with alerts) and a shared album without public links
   ([docs/mac-bridge.md](docs/mac-bridge.md)).

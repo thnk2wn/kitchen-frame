@@ -19,6 +19,7 @@
     "wrangler": "^4.149.0"
   },
   "dependencies": {
-    "ical.js": "^2.2.1"
+    "ical.js": "^2.2.1",
+    "qrcode-generator": "^2.0.4"
   }
 }

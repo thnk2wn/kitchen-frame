@@ -146,4 +146,3 @@ A week of recipes uses well under 1% of Workers AI's free daily allowance and ta
 the result is kept for a day, so opening it again is instant until the plan, a recipe or the list
 changes. Add your own staples with `PANTRY_STAPLES` (comma-separated, for example
 `fish sauce, soy sauce`). The code is `dashboard/worker/meal-groceries.js`.
-

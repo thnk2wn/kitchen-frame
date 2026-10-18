@@ -1,0 +1,5 @@
+// Copy to Signing.xcconfig (gitignored) and fill in. Your team id is in Xcode → Settings → Accounts
+// (a free Apple ID's "Personal Team" works for your own phone; apps signed that way run for 7 days).
+DEVELOPMENT_TEAM =
+// Reverse-DNS prefix for the app's bundle id; must be yours (e.g. com.yourname).
+BUNDLE_ID_PREFIX = com.example

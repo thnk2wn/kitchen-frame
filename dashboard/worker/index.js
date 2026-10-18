@@ -24,6 +24,7 @@
 //   POST /api/frame/checkin          asks the frame to check in now, over the messages socket
 //   POST /api/frame/demo             the frame's demo mode on or off, for Alexa (alexa.js)
 //   POST /api/frame/reload           asks it to reload the dashboard (it sends its events first)
+//   POST /api/frame/command          { command: show|slideshow|wake|close|playgroup, tab?, group? } (the phone app)
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
@@ -311,6 +312,12 @@ async function handle(req, env, ctx) {
         return json({ ok: true });
       }
       if (url.pathname === '/api/frame/checkin' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'checkin' }) });
+      // The phone app's remote (ios/): the same commands Alexa sends; messages.js checks them.
+      if (url.pathname === '/api/frame/command' && req.method === 'POST') {
+        const { command, tab, group } = await req.json().catch(() => ({}));
+        if (!['show', 'slideshow', 'wake', 'close', 'playgroup'].includes(command)) return json({ error: 'unknown command' }, 400);
+        return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command, tab, group }) });
+      }
       if (url.pathname === '/api/frame/reload' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'reload' }) });
       if (url.pathname === '/api/frame/status') return json(await getStatus(env));
       if (url.pathname === '/api/frame/settings') return json(url.searchParams.has('history') ? await getSettingsHistory(env) : await getSettings(env));

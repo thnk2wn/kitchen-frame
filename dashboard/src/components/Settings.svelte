@@ -90,6 +90,23 @@
   }
   async function changePin() { if (await confirmPin('Current PIN')) newPin(); }
   async function dropPin() { if (await confirmPin('Current PIN to remove it')) removePin(); }
+  // Pairing the iPhone app (ios/): a QR code the iPhone camera opens the app with, carrying this
+  // dashboard's address and key. Behind the PIN when one is set; hidden again after two minutes.
+  let pairQr = $state('');
+  let pairTimer;
+  async function pair() {
+    if (pairQr) { pairQr = ''; return; }
+    if (pin.set && !(await confirmPin('PIN to show the pairing code'))) return;
+    const { default: qrcode } = await import('qrcode-generator');
+    const q = qrcode(0, 'M');
+    let key = '';
+    try { key = localStorage.getItem('frame-key') || ''; } catch {}
+    q.addData('kitchenframe://pair?url=' + encodeURIComponent(location.origin) + '&key=' + encodeURIComponent(key));
+    q.make();
+    pairQr = q.createSvgTag({ cellSize: 5, margin: 3, scalable: true });
+    clearTimeout(pairTimer);
+    pairTimer = setTimeout(() => (pairQr = ''), 2 * 60 * 1000);
+  }
   let showLog = $state(false);
   const logLine = (e) => Object.entries(e).filter(([k]) => !['t', 'event', 'level'].includes(k)).map(([k, v]) => k + ': ' + v).join(' · ');
   let announcers = $derived(ha.notify.filter((n) => /_announce$/.test(n.entity_id))
@@ -383,6 +400,14 @@
         <button class:on={!ui.demo} onclick={() => setSetting('demo', false)}>Off</button>
       </div>
     </div>
+    {#if !ui.demo}
+      <div class="row">
+        <span>Phone app<small>Scan with the iPhone camera to pair the Kitchen Frame app</small></span>
+        <button class="reload" onclick={pair}>{pairQr ? 'Hide' : 'Pair a phone'}</button>
+      </div>
+      <!-- An SVG made here from our own address and key, not outside input. -->
+      {#if pairQr}<div class="qr">{@html pairQr}</div>{/if}
+    {/if}
     <div class="row">
       <span>Recent events<small>What the frame noticed, newest first</small></span>
       <button class="reload" onclick={() => (showLog = !showLog)}>{showLog ? 'Hide' : 'Show ' + recent.length}</button>
@@ -420,6 +445,8 @@
   .tabs { flex: 1 0 100%; margin-top: 12px; }
   .tabs button { flex: 1; min-width: 0; }
   .hint.pad { margin: 18px 0; }
+  .qr { width: 260px; margin: 4px auto 14px; padding: 10px; border-radius: 16px; background: #fff; }
+  .qr :global(svg) { display: block; width: 100%; height: auto; }
   .tests { display: flex; gap: 10px; }
   .events { list-style: none; margin: 0 0 8px; padding: 0; max-height: 260px; overflow-y: auto; font-size: 15px; }
   .events li { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--sep); }

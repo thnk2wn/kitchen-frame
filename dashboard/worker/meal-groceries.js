@@ -205,6 +205,12 @@ export function prompt(lines, set) {
   ];
 }
 
+// Workers AI's free plan has a daily allowance; past it every call fails until midnight UTC.
+export function aiError(e) {
+  const m = String((e && e.message) || e);
+  return /4006|daily free allocation/i.test(m) ? 'Today’s free AI allowance is used up; it resets at midnight UTC' : 'The AI model failed: ' + m.slice(0, 120);
+}
+
 async function hash(s) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return [...new Uint8Array(b)].slice(0, 12).map((x) => x.toString(16).padStart(2, '0')).join('');
@@ -259,7 +265,9 @@ export async function mealGroceries(env, listNames, { today, model = MODEL } = {
   const kept = await env.CALENDAR.get(key, 'json');
   if (kept) return { ...base, items: kept.items, cached: true };
 
-  const { items, read, of } = await readRecipes(env, model, [...recipes.values()], set, list);
+  let r;
+  try { r = await readRecipes(env, model, [...recipes.values()], set, list); } catch (e) { return { ...base, items: [], error: aiError(e) }; }
+  const { items, read, of } = r;
   if (!read) return { ...base, items: [], error: 'The model gave no answer; try again' };
   if (read < of) console.warn({ source: 'worker', message: 'meal groceries: read ' + read + ' of ' + of + ' lines' });
   await env.CALENDAR.put(key, JSON.stringify({ items }), { expirationTtl: 86400 });
