@@ -17,13 +17,14 @@
   let events = $derived(calendar.data ? calendar.data.events : []);
   // Finished events drop off Home; the Calendar tab still shows them.
   let today = $derived(eventsOn(events, clock.now).filter((e) => e.allDay || Date.parse(e.end) > clock.now.getTime()));
-  // Upcoming: the rest of this week, tomorrow through Sunday (the feed is already sorted).
+  // Upcoming: the next 7 days from tomorrow, not just to Sunday, so a weekend still shows Monday on
+  // (the feed is already sorted). The card lists as many as fit.
   let upcoming = $derived.by(() => {
     const tomorrow = addDays(clock.now, 1).getTime();
-    const nextMonday = addDays(clock.now, (8 - clock.now.getDay()) % 7 || 7).getTime();
+    const weekOn = addDays(clock.now, 8).getTime();
     return events.filter((e) => {
       const start = e.allDay ? new Date(e.start + 'T00:00').getTime() : Date.parse(e.start);
-      return start >= tomorrow && start < nextMonday;
+      return start >= tomorrow && start < weekOn;
     });
   });
   // Upcoming, grouped by day ("Tomorrow", "Thu, Oct 15") so days don't run together.
