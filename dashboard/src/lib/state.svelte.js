@@ -308,6 +308,8 @@ function connectMessages() {
       // "What's for dinner": tonight's recipe, or Recipes → Meals when there are several.
       if (d.command === 'recipe' && d.id) { ui.settingsOpen = false; ui.openRecipe = { id: d.id, title: d.title || '' }; ui.tab = 'recipes'; }
       if (d.command === 'meals') { ui.settingsOpen = false; ui.openMeals = true; ui.tab = 'recipes'; }
+      // The Worker saw the Paprika meal plan change: fetch it now (Meals and Home's Today card).
+      if (d.command === 'refresh' && d.what === 'meals') loadMeals();
       // "Hide notifications", "close that": whatever sheet is over the screen.
       if (d.command === 'close') { ui.noticesOpen = false; ui.settingsOpen = false; ui.event = null; ui.task = null; ui.weatherDay = null; }
       if (['show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close'].includes(d.command)) log('alexa.command', { command: d.command, tab: d.tab, group: d.group });

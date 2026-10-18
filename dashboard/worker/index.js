@@ -397,6 +397,8 @@ async function scheduled(controller, env) {
     if (controller.cron === PAPRIKA_CRON) {
       const r = await syncPaprika(env);
       console.log('cron ' + controller.cron + ': paprika ' + JSON.stringify(r));
+      // A changed meal plan reaches an open frame at once, not at its next half-hourly look.
+      if (r.mealsChanged) await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'refresh', what: 'meals' }) }).catch(() => {});
       return;
     }
     const data = await updateCalendar(env, await env.CALENDAR.get(KEY, 'json'));

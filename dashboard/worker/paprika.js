@@ -138,17 +138,16 @@ async function syncMeals(env, state) {
   const list = mealWindow(meals, types, today);
   const prev = await env.CALENDAR.get(MEALS_KEY);
   const next = JSON.stringify(list);
-  if (!prev || JSON.parse(prev).meals === undefined || JSON.stringify(JSON.parse(prev).meals) !== next) {
-    await env.CALENDAR.put(MEALS_KEY, JSON.stringify({ updated: new Date().toISOString(), meals: list }));
-  }
-  return list.length;
+  const changed = !prev || JSON.parse(prev).meals === undefined || JSON.stringify(JSON.parse(prev).meals) !== next;
+  if (changed) await env.CALENDAR.put(MEALS_KEY, JSON.stringify({ updated: new Date().toISOString(), meals: list }));
+  return { count: list.length, changed };
 }
 
 export async function syncPaprika(env) {
   if (!paprikaConfigured(env)) return { skipped: true };
   const state = { token: null };
-  let meals = null;
-  try { meals = await syncMeals(env, state); } catch (e) { console.error('paprika meals:', e); }
+  let meals = null, mealsChanged = false;
+  try { ({ count: meals, changed: mealsChanged } = await syncMeals(env, state)); } catch (e) { console.error('paprika meals:', e); }
   const stored = (await env.CALENDAR.get(KEY, 'json')) || { recipes: [], updated: null };
   const byUid = new Map(stored.recipes.map((r) => [r.uid, r]));
 
@@ -204,7 +203,7 @@ export async function syncPaprika(env) {
     const recipes = [...byUid.values()].sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
     await env.CALENDAR.put(KEY, JSON.stringify({ updated: new Date().toISOString(), remaining, recipes }));
   }
-  return { total: index.length, fetched: Math.min(todo.length, BATCH), remaining, meals };
+  return { total: index.length, fetched: Math.min(todo.length, BATCH), remaining, meals, mealsChanged };
 }
 
 async function storePhoto(env, uid, url) {

@@ -46,16 +46,18 @@ export class MessageRoom {
     // dashboard again, e.g. to pick up a deploy at once), pushed to
     // every connected frame; nothing is stored.
     if (path === '/command') {
-      const { command, id, title, tab, group } = await req.json().catch(() => ({}));
+      const { command, id, title, tab, group, what } = await req.json().catch(() => ({}));
       // play: a YouTube video shared from a phone (index.js /api/share/play), with its id and title.
       // show (a tab), slideshow, wake, playgroup (a Media → Videos group), recipe (a Paprika recipe's id
       // and title), meals (Recipes → Meals) and close (whatever sheet is open): from Alexa (alexa.js).
-      if (!['checkin', 'reload', 'play', 'show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close'].includes(command)) return json({ error: 'unknown command' }, 400);
+      // refresh (what: 'meals'): something the frame shows changed on the Worker; fetch it now.
+      if (!['checkin', 'reload', 'play', 'show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close', 'refresh'].includes(command)) return json({ error: 'unknown command' }, 400);
       if (command === 'play' && !/^[\w-]{11}$/.test(id || '')) return json({ error: 'a YouTube video id' }, 400);
       const extra = command === 'play' ? { id, title: String(title || '').slice(0, 200) }
         : command === 'show' ? { tab: String(tab || '').slice(0, 20) }
           : command === 'playgroup' ? { group: String(group || '').slice(0, 40) }
-            : command === 'recipe' ? { id: String(id || '').slice(0, 100), title: String(title || '').slice(0, 200) } : {};
+            : command === 'recipe' ? { id: String(id || '').slice(0, 100), title: String(title || '').slice(0, 200) }
+              : command === 'refresh' ? { what: String(what || '').slice(0, 20) } : {};
       const msg = JSON.stringify({ command, ...extra });
       let sent = 0;
       for (const ws of this.ctx.getWebSockets()) { try { ws.send(msg); sent++; } catch {} }

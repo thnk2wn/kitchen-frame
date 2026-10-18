@@ -6,7 +6,9 @@ optional; it adds the **Meals** and **Paprika** views and saving into your Papri
 
 The Recipes tab has four views:
 
-- **Meals:** the Paprika meal plan for the week (see the README's Paprika section).
+- **Meals:** the Paprika meal plan for the week (see the README's Paprika section). The Worker checks
+  Paprika every 15 minutes and tells the frame the moment the plan changed, so a meal moved in the
+  Paprika app shows within 15 minutes of Paprika syncing it (open Paprika, or tap its Sync button).
 - **Paprika:** your Paprika library, synced read-only, with its categories (A–Z, and Uncategorized
   when a recipe has none), search and an A–Z strip.
 - **Explore:** recipes from [TheMealDB](https://www.themealdb.com) (free, a few hundred curated
