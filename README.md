@@ -22,14 +22,19 @@ lists other frames that work.
 | --- | --- | --- |
 | ![Recipe page](docs/images/recipe-page-light.jpg) | ![Media: music](docs/images/music-light.jpg) | ![House](docs/images/house-light.jpg) |
 
-| Weather details (tap the weather) |
-| --- |
-| ![Weather details](docs/images/weather-light.jpg) |
+| Media (videos for the kids) | Media (podcasts) | Weather (tap it): rain radar |
+| --- | --- | --- |
+| ![Media: videos](docs/images/videos-light.jpg) | ![Media: podcasts](docs/images/podcasts-light.jpg) | ![Weather radar](docs/images/weather-light.jpg) |
 
-Screenshots use the built-in demo mode (Settings → About → Demo mode, or `?demo=on`), so all data shown is
-invented, apart from the weather (the slideshow shows stock photos from [Lorem Picsum](https://picsum.photos)). It's also handy for showing the frame to people without your own
-calendar and lists on it. `?tab=`, `?open=<recipe id>`, `?explore=<category>`, `?timer=Pasta:7`,
-`?weather=<day>` and `?settings=<tab>` set up a particular screen.
+Screenshots use the built-in demo mode (Settings → About → Demo mode, or `?demo=on`): the calendar,
+lists, rotations and notices are invented, the meal plan is made from Paprika recipes, and the slideshow
+shows stock photos from [Lorem Picsum](https://picsum.photos). With Home Assistant connected, House and
+Media show the real devices and speakers under made-up names (`DEMO_NAMES`, so "Mom" rather than a
+real name), stock camera pictures and public playlists, and the radar is centred on Kansas City rather
+than home. The weather is real. It's also handy for showing the frame to people without your own
+calendar and lists on it. `?tab=`, `?media=tv|videos|podcasts`, `?open=<recipe id>`,
+`?explore=<category>`, `?timer=Pasta:7`, `?weather=<day>` (with `&radar` for the radar) and
+`?settings=<tab>` set up a particular screen.
 
 ## Thanks
 
@@ -58,31 +63,37 @@ Each feature links to its page in [`docs/`](docs/), which has the setup and the 
 | --- | --- | --- |
 | **[House tab](docs/house.md)** | New | Mirrors one HA dashboard, live: tap to toggle, thermostat setpoints tinted by heating/cooling, HA-rendered markdown, camera pictures that refresh on a schedule, and a camera full screen on tap (live video where the frame can play it). An unlock PIN. |
 | **[Doorbell pop-up](docs/doorbell.md)** | New | A ring fills the screen with that doorbell's camera, live video or the latest snapshot, for 90 seconds. Found automatically. |
-| **[Notices](docs/notices.md)** | New | HA automations post banners such as "Garage freezer is 18°F" that clear themselves; a bell counts new ones and keeps the last 24 hours. Blueprints for temperature limits and thermostat changes. |
-| **[Announcements](docs/announcements.md)** | New | Said out loud on a speaker from HA (an Echo's Announce, or text-to-speech): event reminders for the calendars you pick ("In 30 minutes: Swim lesson"), red alerts such as a leak at a louder volume and at night, optionally orange ones, and agent messages. Off until turned on. |
+| **[Notices](docs/notices.md)** | New | HA automations post banners such as "Garage freezer is 18°F" (with the time each started) that clear themselves; a bell counts the ones still on and keeps the last 24 hours. Blueprints for temperature limits and thermostat changes. |
+| **[Announcements](docs/announcements.md)** | New | Said out loud on a speaker from HA (an Echo's Announce, or text-to-speech): event reminders for the calendars you pick ("In 30 minutes: Swim lesson"), red alerts such as a leak at a louder volume and at night, optionally orange ones, and agent messages. Nothing during night hours, and `#quiet` in an event keeps it from being said. Off until turned on. |
 | **[Presence](docs/presence.md)** | Updated | With motion sensors in an HA area (the kitchen, say), the clock screen waits until nobody has been seen for a while, and goes away when someone walks in. |
-| **[Media](docs/music.md)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist, what's playing from, Up next, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. **Videos**: chosen YouTube videos and playlists as big thumbnails for kids, played full screen. |
+| **[Media](docs/music.md)** | Updated | Spotify through HA: Spotify Connect speakers, every playlist, what's playing from, Up next, Now Playing on Home and every tab's top bar, controls that answer at once, and starting from silence on an Echo. **TV**: any TV in HA, with what's playing, controls, its apps and an on-screen remote. **Videos**: chosen YouTube videos and playlists as big thumbnails for kids, played full screen. **[Podcasts](docs/music.md#podcasts-apple-podcasts-through-the-mac)**: Apple Podcasts through a Mac at home, with a Continue row of half-played episodes and rows of someone else's shows, played on the frame or on an Echo. |
 
 ### In the kitchen
 
 | Feature | | What it does |
 | --- | --- | --- |
 | **[Paprika recipes](docs/recipes.md)** | New | Your library, synced: categories, search, an A–Z index, notes, nutrition and full-size photos. **Save to Paprika** from Explore (recipes already there are marked). A script fixes recipes whose imports only got a thumbnail, in Paprika itself. |
-| **Meal plan** | New | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week. |
+| **Meal plan** | New | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week, which updates when the plan changes. **[Groceries for the week](docs/recipes.md#groceries-for-the-week)**: one shopping list from the week's planned recipes, combined and added up, staples and what's already on the list left out, to check over before adding (an open-weight model on Workers AI, free). |
 | **[Rotations](docs/rotations.md)** | New | Who's up early with the kids, whose turn for bedtime, on Home's Today card. |
 | **[Timers](docs/timers.md)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
 | **[Lists](docs/lists.md)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds), with priorities, due times, aisles and flags. Tap an item to edit it; ticking one gives a few seconds to undo. |
-| **[Alexa](docs/alexa.md)** | New | Your own private Alexa skill: "Alexa, ask Kitchen Frame to add eggs to groceries", show a tab, start the slideshow, play a group of videos, what's for dinner, or the rundown of the day. |
+| **[Alexa](docs/alexa.md)** | New | Your own private Alexa skill: "Alexa, ask Kitchen Frame to add eggs to groceries" (the frame then shows the list), show a tab, start the slideshow, play a group of videos or a podcast on the Echo, what's for dinner, or the rundown of the day. What each Echo heard and what the skill did are logged on the status page. |
 
 ### At a glance
 
 | Feature | | What it does |
 | --- | --- | --- |
 | **[Weather](docs/weather.md)** | Updated | The UV right now on Home (for sunscreen) and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, the day's peak UV, sun times, and a **radar** of the last hour and the next two. |
-| **[Calendar](docs/calendar.md)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details and notes on the calendars you choose, hide any calendar per frame, and `#private` to keep an event off the frame. |
-| **Settings** | Updated | In tabs (Display, Announcements, Home, About), backed up to the Worker (after a reset the frame takes its choices back), with the version and build time on About. |
-| **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours); a red night clock. Classic iCloud shared album links work for the slideshow, and album videos show as a still. |
-| **[Status page](docs/frame.md#status-page-optional)** | New | A private page behind GitHub sign-in: is the frame online and what is it running, a day's timeline, its event log, and the health of everything behind the dashboard. |
+| **[Calendar](docs/calendar.md)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details, a map of where it is, and notes on the calendars you choose, hide any calendar per frame, `#private` to keep an event off the frame, and `#quiet` to show it but never announce it. |
+| **Settings** | Updated | In tabs (Display, Announcements, Home, About), backed up to the Worker (after a reset the frame takes its choices back), with the version and build time on About, and a QR code to pair the iPhone app. Demo mode shows invented calendars and lists, and with Home Assistant connected, the real House and Media under made-up names. |
+| **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours); a red night clock that brightens a little when someone's in the room. Classic iCloud shared album links work for the slideshow, and through the Mac, album videos play in it and photos show when and where they were taken. |
+| **[Status page](docs/frame.md#status-page-optional)** | New | A private page behind GitHub sign-in: is the frame online and what is it running, a day's timeline, its event log, the Alexa log, and the health of everything behind the dashboard. |
+
+### On your phone
+
+| Feature | | What it does |
+| --- | --- | --- |
+| **[iPhone app](ios/README.md)** | New | Share a photo or video from Photos to the frame, full screen with pinch-to-zoom and when and where it was taken, or a YouTube link to play there. A remote to show any screen, start the slideshow or wake it. Pairs by scanning a QR code on the frame; built with Xcode, not from the App Store. |
 
 ## How it fits together
 
@@ -155,10 +166,10 @@ Each part has a short README of its own: what it is, when you need it, how to bu
   ([`ops/`](dashboard/ops)) and the day-to-day [`scripts/`](dashboard/scripts). Always needed.
 - [`kiosk/`](kiosk/README.md): the Android app the frame boots into (one full-screen WebView). For an
   Android frame.
-- [`ios/`](ios/README.md): the optional iPhone app, a remote for the frame. Built with Xcode; not on
-  the App Store.
-- [`bridge/mac/`](bridge/mac/README.md): the optional Mac bridge, for Apple Reminders lists, and
-  iCloud calendars (with alerts) and a shared album without public links
+- [`ios/`](ios/README.md): the optional iPhone app: share photos, videos and YouTube links to the
+  frame, and a remote for it. Built with Xcode; not on the App Store.
+- [`bridge/mac/`](bridge/mac/README.md): the optional Mac bridge, for Apple Reminders lists, Apple
+  Podcasts, and iCloud calendars (with alerts) and a shared album without public links
   ([docs/mac-bridge.md](docs/mac-bridge.md)).
 - [`bridge/camera-relay/`](bridge/camera-relay/README.md): the optional camera relay for a Mac, for
   cameras too big for your frame's video decoder.
@@ -212,7 +223,8 @@ month. Nothing here costs money beyond the frame.
 
 The Worker merges any number of calendar feeds into one agenda (Google, iCloud, Fastmail,
 Outlook/Exchange, or a subscribed .ics link such as a team's schedule); name and colour each one,
-hide any of them per frame, and `#private` in an event keeps it off the frame. Choose which
+hide any of them per frame; `#private` in an event keeps it off the frame, and `#quiet` shows it but
+never announces it. Choose which
 calendars open when an event is tapped (`CALENDAR_DETAILS`): those show the day and time, the
 location with a small map, and the event's notes; notes from other calendars are never stored.
 [docs/calendar.md](docs/calendar.md) has how to get each kind of link, every setting, privacy
@@ -238,7 +250,9 @@ Four views: **Meals** (the Paprika meal plan), **Paprika** (your library, synced
 **Explore** (TheMealDB) and **Saved**. With a Paprika account, **Save to Paprika** on an Explore
 recipe puts it in your library, photo included, under your matching category; recipes already there
 wear a badge in Explore and say **In Paprika** on their page, and the Worker won't save a duplicate.
-Recipes agents send go to Paprika too. Any recipe's ingredients can go to Groceries. Paprika has no
+Recipes agents send go to Paprika too. Any recipe's ingredients can go to Groceries, and
+**Groceries for the week** makes one list from all the week's planned recipes (combined and added up,
+pantry staples and what's already on the list left out) to check over before adding. Paprika has no
 official API, so the sync uses the undocumented one its apps use; a change there stops the sync, not
 the frame. [docs/recipes.md](docs/recipes.md).
 
@@ -259,7 +273,7 @@ camera that sends more than your frame decodes can go through an optional relay 
 shrinks it; Ring cameras have extra steps (ring-mqtt). Setup, what each device does,
 and the camera measurements are in [docs/house.md](docs/house.md).
 
-### Media: music, TV and videos
+### Media: music, TV, videos and podcasts
 
 **Music** is Spotify on the house's speakers through Home Assistant, with controls that answer at
 once and a Now Playing card everywhere. **TV** is any TV HA knows: what's playing, controls, apps and
@@ -269,6 +283,9 @@ connection for every playlist) in [docs/music.md](docs/music.md).
 
 **Videos** shows chosen YouTube videos and playlists (`YOUTUBE_VIDEOS`) as big thumbnails a kid can
 tap, played full screen in YouTube's own player; it needs no Home Assistant. [docs/music.md](docs/music.md#videos-youtube-for-the-kids).
+**Podcasts** are your Apple Podcasts library through a Mac at home, half-played episodes first, played
+on the frame or on an Echo through the Alexa skill.
+[docs/music.md](docs/music.md#podcasts-apple-podcasts-through-the-mac).
 
 ### Timers
 
@@ -320,6 +337,13 @@ to add eggs to groceries", "…show the calendar", "…play Trucks videos", "…
 
 AI agents can post full-screen messages to the frame with their own token, and have them read
 aloud. [docs/messages.md](docs/messages.md).
+
+### iPhone app
+
+A small app built with Xcode (a free Apple account is enough for your own phone). From the share sheet,
+a photo or video shows full screen on the frame (pinch to zoom, with when and where it was taken),
+and a YouTube link plays there. It's also a remote for showing any screen, starting the slideshow or
+waking the frame. It pairs by scanning a QR code in the frame's Settings. [ios/README.md](ios/README.md).
 
 ## The frame
 
