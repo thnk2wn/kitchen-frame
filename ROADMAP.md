@@ -77,6 +77,32 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
   morning, or "remind me in 2 hours", rather than nothing; an hour's snooze was judged not worth it
   against a 30-minute repeat.
 
+## Deploys and keeping the frame up
+
+Since 2026-10-19 one part of the screen that fails shows a placeholder instead of taking the page
+down (`components/Safe.svelte`), and the frame reloads itself if the page stops updating or keeps
+erroring (`lib/watchdog.js`). Next:
+
+- **Smoke test as a deploy gate:** `scripts/smoke.mjs` already opens every screen of a new build on
+  the real data and in demo mode and fails on any error (it would have stopped the white frame of
+  2026-10-19). Run it from `npm run deploy` before `wrangler deploy`, with a way around it for an
+  emergency fix.
+- **Roll back on its own:** after a deploy, if the frame hasn't checked in on the new build within a
+  few minutes, `wrangler rollback` to the version before and say so.
+- **Tell someone when the frame goes quiet:** a Home Assistant notification to a phone when the frame
+  hasn't checked in for 15 minutes (the Ops tab's badge only shows when the app is open).
+- **Pull requests for larger changes,** with an adversarial review (an agent looking for data that
+  breaks it: out-of-order or repeated items, empty lists, missing fields) before merging. Small fixes
+  and docs go straight to `main`.
+- **CI/CD:** CI runs the tests and the build on every push and pull request. Add the smoke test in demo
+  mode there (headless Chrome on the runner), and deploy from GitHub Actions on a merge to `main`
+  (a Cloudflare API token as a repository secret) behind the same gate and rollback, so a deploy no
+  longer depends on one laptop. A preview version per pull request (`wrangler versions upload`) to try
+  on the frame before merging, if preview links work with the Worker's Durable Objects.
+- **Tests for data the household produces:** the white frame came from real data no test had (a
+  calendar from the Mac arriving after the others). Unit tests on lists built from such data, and keyed
+  lists that can't repeat a key.
+
 ## Operations and security
 
 - **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).

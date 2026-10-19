@@ -5,6 +5,7 @@
   let { playing = null } = $props();
   let slotH = $state(0);
   import Icon from '../components/Icon.svelte';
+  import Safe from '../components/Safe.svelte';
   import EventRow from '../components/EventRow.svelte';
   import TaskRow from '../components/TaskRow.svelte';
   import CalendarPicker from '../components/CalendarPicker.svelte';
@@ -28,14 +29,17 @@
     });
   });
   // Upcoming, grouped by day ("Tomorrow", "Thu, Oct 15") so days don't run together.
+  // In time order and one entry per day, whatever order the feeds arrive in: a calendar from the Mac
+  // comes after the others, and a day listed twice repeats its key, which stops the page (2026-10-19).
   let upcomingDays = $derived.by(() => {
-    const days = [];
-    for (const e of upcoming) {
+    const startOf = (e) => (e.allDay ? new Date(e.start + 'T00:00').getTime() : Date.parse(e.start));
+    const days = new Map();
+    for (const e of [...upcoming].sort((a, b) => startOf(a) - startOf(b))) {
       const name = dayName(e, clock.now);
-      if (!days.length || days[days.length - 1].name !== name) days.push({ name, events: [] });
-      days[days.length - 1].events.push(e);
+      if (!days.has(name)) days.set(name, { name, events: [] });
+      days.get(name).events.push(e);
     }
-    return days;
+    return [...days.values()];
   });
   // Tonight's dinner (and any other meal planned today) from Paprika, above today's events.
   let todaysMeals = $derived(mealItems().filter((m) => m.date === dayKey(clock.now)));
@@ -59,6 +63,8 @@
 </script>
 
 <div class="home">
+  <!-- Each card fails on its own (components/Safe.svelte): a bad event can't take the clock or lists with it. -->
+  <Safe name="The clock and weather">
   <section class="now">
     <div class="date">{longDate(clock.now)}</div>
     <div class="clock num">{clockTime(clock.now)}</div>
@@ -104,7 +110,9 @@
       <p class="note">Weather isn’t set up yet.</p>
     {/if}
   </section>
+  </Safe>
 
+  <Safe name="Today and Upcoming">
   <section class="sheet cal">
     <!-- The list scrolls inside the widget on a busy day; the footer action always stays visible. -->
     <div class="scroll">
@@ -163,12 +171,13 @@
       {/if}
     </footer>
   </section>
+  </Safe>
 
   <!-- Groceries and Tasks share the right column: Groceries takes the room, Tasks sizes to its
        items (up to ~38%), since the family to-do list is usually short. -->
   <div class="lists">
-    {@render listCard('groceries', 'Groceries', 'var(--orange-text)', 'Nothing to buy.')}
-    {@render listCard('todo', 'Tasks', 'var(--blue-text)', 'All done.')}
+    <Safe name="Groceries">{@render listCard('groceries', 'Groceries', 'var(--orange-text)', 'Nothing to buy.')}</Safe>
+    <Safe name="Tasks">{@render listCard('todo', 'Tasks', 'var(--blue-text)', 'All done.')}</Safe>
   </div>
 </div>
 

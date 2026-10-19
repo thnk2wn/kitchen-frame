@@ -51,11 +51,13 @@ export function take() { const out = pending; pending = []; savePending(); retur
 export function putBack(events) { pending = events.concat(pending).slice(-PENDING_MAX); savePending(); }
 export function onError(fn) { flushSoon = fn; }
 
+// Chrome's harmless "ResizeObserver loop limit exceeded": a layout note, not a fault (the watchdog skips it too).
+export const harmless = (msg) => /ResizeObserver loop/.test(msg);
+
 // Uncaught errors: one entry per distinct message per 10 minutes, so a loop can't flood the log.
 const seenErrors = new Map();
 function error(msg, src) {
-  // Chrome's harmless "ResizeObserver loop limit exceeded": a layout note, not a fault.
-  if (/ResizeObserver loop/.test(msg)) return;
+  if (harmless(msg)) return;
   const key = msg + '|' + src, now = Date.now();
   if (now - (seenErrors.get(key) || 0) < 10 * 60000) return;
   seenErrors.set(key, now);
