@@ -28,14 +28,17 @@
     });
   });
   // Upcoming, grouped by day ("Tomorrow", "Thu, Oct 15") so days don't run together.
+  // In time order and one entry per day, whatever order the feeds arrive in: a calendar from the Mac
+  // comes after the others, and a day listed twice repeats its key, which stops the page (2026-10-19).
   let upcomingDays = $derived.by(() => {
-    const days = [];
-    for (const e of upcoming) {
+    const startOf = (e) => (e.allDay ? new Date(e.start + 'T00:00').getTime() : Date.parse(e.start));
+    const days = new Map();
+    for (const e of [...upcoming].sort((a, b) => startOf(a) - startOf(b))) {
       const name = dayName(e, clock.now);
-      if (!days.length || days[days.length - 1].name !== name) days.push({ name, events: [] });
-      days[days.length - 1].events.push(e);
+      if (!days.has(name)) days.set(name, { name, events: [] });
+      days.get(name).events.push(e);
     }
-    return days;
+    return [...days.values()];
   });
   // Tonight's dinner (and any other meal planned today) from Paprika, above today's events.
   let todaysMeals = $derived(mealItems().filter((m) => m.date === dayKey(clock.now)));
