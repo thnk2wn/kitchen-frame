@@ -6,9 +6,10 @@
   // Without it, one bad card stopped the whole page and the frame showed white (2026-10-19).
   //   name: what the part is, for the log and the placeholder ("Upcoming", "the House tab")
   //   quiet: draw nothing when it fails (for small parts where a message wouldn't fit)
+  //   fallback: a snippet to draw instead when it fails (the clock screen keeps a way back to the dashboard)
   import { log } from '../lib/log.svelte.js';
 
-  let { name, quiet = false, children } = $props();
+  let { name, quiet = false, fallback, children } = $props();
   const RETRY_MS = 60000;
   let timer;
 
@@ -22,7 +23,7 @@
 <svelte:boundary onerror={caught}>
   {@render children()}
   {#snippet failed()}
-    {#if !quiet}<div class="failed" role="status">{name} couldn’t show just now. Trying again shortly.</div>{/if}
+    {#if fallback}{@render fallback()}{:else if !quiet}<div class="failed" role="status">{name} couldn’t show just now. Trying again shortly.</div>{/if}
   {/snippet}
 </svelte:boundary>
 

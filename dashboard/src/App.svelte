@@ -36,7 +36,7 @@
   import { timers } from './lib/timers.svelte.js';
   import { connectHA, haConfigured, haDashboard, nowPlaying } from './lib/ha.svelte.js';
   import House from './views/House.svelte';
-  import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible, videos, loadVideos, nowVideo } from './lib/state.svelte.js';
+  import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible, videos, loadVideos, nowVideo, exitIdle } from './lib/state.svelte.js';
   import { noteAlbum, prepare } from './lib/slides.js';
   import { fakeMedia, loadDemoMedia } from './lib/demo-media.svelte.js';
   import { podcasts, loadPodcasts } from './lib/podcasts.svelte.js';
@@ -135,8 +135,11 @@
   </main>
 
   <Safe name="Settings" quiet>{#if ui.settingsOpen && !ui.idle}<Settings />{/if}</Safe>
-  <!-- The clock screen: if it fails, a plain clock-less black screen beats a white one; it retries. -->
-  <Safe name="The clock screen" quiet>{#if ui.idle}<Ambient />{/if}</Safe>
+  <!-- The clock screen: if it fails, a plain black screen beats a white one, and a tap on it still
+       wakes the dashboard (outside the part that failed) while it retries. -->
+  <Safe name="The clock screen" quiet>{#if ui.idle}<Ambient />{/if}
+    {#snippet fallback()}{#if ui.idle}<button class="idle-fallback" aria-label="Wake" onclick={exitIdle}></button>{/if}{/snippet}
+  </Safe>
   <!-- Agent messages cover everything, the slideshow included; held back in demo mode. -->
   <Safe name="Messages" quiet>{#if messages.items.length && !ui.demo}<Message />{/if}</Safe>
   <!-- Timer alerts cover everything, messages and the slideshow included. -->
@@ -182,4 +185,5 @@
   .seg button.on { background: var(--thumb); font-weight: 600; }
   .seg button:not(.on):active { opacity: .5; }
   .view { flex: 1; min-height: 0; }
+  .idle-fallback { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 10; background: #000; border: 0; }
 </style>

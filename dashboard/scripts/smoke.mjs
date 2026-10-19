@@ -2,7 +2,7 @@
 // Smoke test of a build before it goes to the frame: the built page (dist/client) is served here, its
 // /api calls go to the live Worker, so it runs on the household's real data (calendar, lists, Home
 // Assistant) the way the frame would, and on demo mode. Each screen is opened in headless Chrome; any
-// uncaught error, any part that had to be caught (components/Safe.svelte), or a page that didn't draw
+// uncaught error, any failed API call (so a calendar that didn't load fails too), any part that had to be caught (components/Safe.svelte), or a page that didn't draw
 // fails the test. On 2026-10-19 one card's error on that day's real calendar turned the frame white;
 // this would have stopped that deploy.
 //
@@ -21,8 +21,9 @@ const vars = (file) => (existsSync(join(here, file)) ? readFileSync(join(here, f
 const setting = (text, k) => (new RegExp('^' + k + '="?([^"\\n]*)"?', 'm').exec(text) || [])[1] || '';
 const dev = vars('.dev.vars'), frame = vars('.frame.vars');
 const key = setting(dev, 'DASHBOARD_KEY');
-const live = new URL(setting(frame, 'DASHBOARD_URL') || 'http://invalid').origin;
-if (!key || live === 'null') { console.error('smoke: needs DASHBOARD_KEY in .dev.vars and DASHBOARD_URL in .frame.vars'); process.exit(2); }
+const url = setting(frame, 'DASHBOARD_URL');
+const live = /^https?:\/\//.test(url) ? new URL(url).origin : '';
+if (!key || !live) { console.error('smoke: needs DASHBOARD_KEY in .dev.vars and DASHBOARD_URL in .frame.vars'); process.exit(2); }
 const ha = ['HA_URL:ha_url', 'HA_TOKEN:ha_token', 'HA_DASHBOARD:ha_dashboard']
   .map((p) => p.split(':')).filter(([v]) => setting(frame, v)).map(([v, q]) => '&' + q + '=' + encodeURIComponent(setting(frame, v))).join('');
 const chrome = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -66,7 +67,7 @@ for (const [name, query] of screens) {
   for (const line of r.console.split('\n')) {
     const msg = (/CONSOLE[^"]*"(.*)", source/.exec(line) || [])[1] || (/Uncaught.*/.exec(line) || [])[0];
     if (!msg) continue;
-    if (/Uncaught|\[frame\] (error|ui\.error)/.test(msg)) problems.push(msg.slice(0, 200));
+    if (/Uncaught|\[frame\] (error|ui\.error|api\.failed)/.test(msg)) problems.push(msg.slice(0, 200));
   }
   if (r.code !== 0) problems.push('Chrome exited ' + r.code + (r.code === null ? ' (hung, killed after 60 s)' : ''));
   if (!/role="tablist"/.test(r.dom)) problems.push("the page didn't draw (no tab bar)");

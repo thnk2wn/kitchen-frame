@@ -3,11 +3,12 @@
 //     uncaught error has stopped Svelte's updates, those redraws stop while this timer, which isn't
 //     Svelte's, keeps running; three minutes without one and the page reloads. That's what a frozen
 //     white frame looked like on 2026-10-19.
-//   - Repeated errors: three uncaught errors within five minutes, and the page reloads.
+//   - Repeated errors: three uncaught errors or unhandled promise rejections within five minutes, and
+//     the page reloads (the logger's harmless layout notes don't count).
 // At most one such reload every RELOAD_GAP_MS (remembered across reloads), so a fault that comes back
 // at once can't reload the frame in a loop; it shows as frame.selfreload on the status page instead.
 // Parts of the screen that fail on their own are caught by components/Safe.svelte and don't count.
-import { log } from './log.svelte.js';
+import { log, harmless } from './log.svelte.js';
 import { checkIn, reloadFor } from './checkin.js';
 
 const STALL_MS = 3 * 60 * 1000;
@@ -35,9 +36,12 @@ function reload(reason) {
 export function startWatchdog() {
   if (typeof window === 'undefined' || !window.FrameKiosk) return;
   setInterval(() => { if (Date.now() - alive > STALL_MS) reload('stopped updating'); }, 30000);
-  window.addEventListener('error', () => {
+  const count = (msg) => {
+    if (harmless(String(msg))) return;
     const now = Date.now();
     errors = [...errors.filter((t) => now - t < ERROR_WINDOW_MS), now];
     if (errors.length >= ERRORS) reload('repeated errors');
-  });
+  };
+  window.addEventListener('error', (ev) => count(ev.message || ev.error));
+  window.addEventListener('unhandledrejection', (ev) => count((ev.reason && (ev.reason.message || ev.reason)) || 'rejected'));
 }
