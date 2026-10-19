@@ -171,3 +171,14 @@ test('fromBridge: the Mac\'s events, with their alerts, private and out-of-windo
   assert.equal(out[1].start, '2026-10-20');              // all-day: plain dates, no alerts
   assert.equal(out[1].alarms, undefined);
 });
+
+test('#quiet: kept and shown without the tag, marked quiet (title or notes, any case)', async () => {
+  const { quietTag, fromBridge } = await import('./calendar.js');
+  assert.deepEqual(quietTag('Gym 💪 #quiet', ''), { quiet: true, title: 'Gym 💪' });
+  assert.deepEqual(quietTag('Gym', 'Early one #Quiet'), { quiet: true, title: 'Gym' });
+  assert.deepEqual(quietTag('Gym', 'nothing'), { quiet: false, title: 'Gym' });
+  const [e] = fromBridge([{ uid: 'a', title: 'Gym #quiet', start: '2026-10-19T10:30:00Z', end: '2026-10-19T12:00:00Z', notes: 'bring water #quiet' }], 0, 0, Date.parse('2027-01-01'), { notes: true });
+  assert.equal(e.title, 'Gym');
+  assert.equal(e.quiet, true);
+  assert.equal(e.notes, 'bring water');
+});

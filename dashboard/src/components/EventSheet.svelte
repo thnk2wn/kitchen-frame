@@ -7,7 +7,8 @@
   import EventMap from './EventMap.svelte';
   import { ui, clock, calendar, calendarNames, eventNotes } from '../lib/state.svelte.js';
   import { calVars, timeRange, time, dayKey, addDays, isNow, isPast } from '../lib/format.js';
-  import { reminderFor } from '../lib/reminders.svelte.js';
+  import { reminderFor, remindsFor } from '../lib/reminders.svelte.js';
+  import { say } from '../lib/announce.svelte.js';
   import { quietAt } from '../lib/night.svelte.js';
   import { speaker } from '../lib/announce.svelte.js';
 
@@ -73,6 +74,9 @@
         </div>
         {#if e.location}
           <div class="row"><span class="ic"><Icon name="mapPin" size={24} /></span><div class="day">{e.location}</div></div>
+        {/if}
+        {#if e.quiet && remindsFor(e.cal) && say.on && !e.allDay}
+          <div class="row"><span class="ic"><Icon name="volumeOff" size={24} /></span><div class="sub">Not announced (#quiet)</div></div>
         {/if}
         {#if reminder}
           <div class="row"><span class="ic"><Icon name={allQuiet ? 'volumeOff' : 'volume'} size={24} /></span><div class="sub">{#if allQuiet}Not announced: {quietTimes.map((d) => time(d)).join(' and ')} {quietTimes.length > 1 ? 'are' : 'is'} in quiet hours{:else}Announced {whenSaid(reminder.all)}{reminder.own ? (reminder.all.length > 1 ? ' (its own reminders)' : ' (its own reminder)') : ''}{speaker() ? ' on ' + speaker().label : ''}{quietTimes.length ? ' (not at ' + quietTimes.map((d) => time(d)).join(' or ') + ': quiet hours)' : ''}{/if}</div></div>

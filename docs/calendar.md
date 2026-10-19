@@ -102,6 +102,10 @@ Private in your calendar app. The Worker drops it before the frame ever sees it.
 published feed, so this hides it from the kitchen, not from anyone who has the link. A calendar
 through the Mac bridge has no link; `#private` works there too.
 
+To show an event but never say it out loud (an early gym session, say), put `#quiet` in its title or
+notes. The frame takes the tag out of what it shows, skips the event's spoken reminders, and its
+details say "Not announced (#quiet)".
+
 ## Refreshing and failures
 
 A cron job fetches every feed into KV every 10 minutes (a calendar from the Mac bridge arrives

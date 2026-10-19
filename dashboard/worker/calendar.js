@@ -7,6 +7,15 @@ const DAY = 864e5;
 // Events kept off the frame: "#private" anywhere in the title or notes (say, a surprise in a
 // personal calendar that is published for the frame), or marked Private/Confidential in the app.
 const PRIVATE_TAG = /#private\b/i;
+// Shown but never said out loud: "#quiet" in the title or notes (an early gym session, say), taken out
+// of what the frame shows. The frame's spoken reminders skip it (src/lib/reminders.svelte.js).
+const QUIET_TAG = /\s*#quiet\b/gi;
+export function quietTag(title, notes) {
+  const quiet = QUIET_TAG.test(String(title || '')) || (QUIET_TAG.lastIndex = 0, QUIET_TAG.test(String(notes || '')));
+  QUIET_TAG.lastIndex = 0;
+  return { quiet, title: quiet ? String(title || '').replace(QUIET_TAG, '').trim() || '(No title)' : title };
+}
+const stripQuiet = (notes) => String(notes || '').replace(QUIET_TAG, '').trim();
 export function isPrivate(comp) {
   const cls = String(comp.getFirstPropertyValue('class') || '').toUpperCase();
   if (cls === 'PRIVATE' || cls === 'CONFIDENTIAL') return true;
@@ -143,10 +152,11 @@ function toEvent(comp, uid, cal, start, end, tz, withNotes) {
   const allDay = start.isDate;
   const startMs = utcMs(start, tz), endMs = Math.max(utcMs(end, tz), startMs);
   const location = comp.getFirstPropertyValue('location');
-  const title = String(comp.getFirstPropertyValue('summary') || '(No title)');
-  const notes = withNotes ? cleanNotes(comp.getFirstPropertyValue('description'), title) : '';
+  const raw = String(comp.getFirstPropertyValue('summary') || '(No title)');
+  const { quiet, title } = quietTag(raw, comp.getFirstPropertyValue('description'));
+  const notes = withNotes ? stripQuiet(cleanNotes(comp.getFirstPropertyValue('description'), title)) : '';
   return {
-    uid, cal, startMs, endMs, allDay, title,
+    uid, cal, startMs, endMs, allDay, title, ...(quiet ? { quiet: true } : {}),
     // All-day events stay as plain dates (end exclusive) so the frame shows them on its own day.
     start: allDay ? dateStr(start) : new Date(startMs).toISOString(),
     end: allDay ? dateStr(end) : new Date(endMs).toISOString(),
@@ -185,14 +195,15 @@ export function fromBridge(list, cal, from, to, { notes = false } = {}) {
   const out = [];
   for (const b of Array.isArray(list) ? list : []) {
     if (!b || typeof b.uid !== 'string' || typeof b.start !== 'string' || typeof b.end !== 'string') continue;
-    const title = String(b.title || '(No title)').slice(0, 300);
-    if (PRIVATE_TAG.test(title) || PRIVATE_TAG.test(String(b.notes || ''))) continue;
+    const raw = String(b.title || '(No title)').slice(0, 300);
+    if (PRIVATE_TAG.test(raw) || PRIVATE_TAG.test(String(b.notes || ''))) continue;
+    const { quiet, title } = quietTag(raw, b.notes);
     const allDay = b.allDay === true && /^\d{4}-\d{2}-\d{2}$/.test(b.start) && /^\d{4}-\d{2}-\d{2}$/.test(b.end);
     const startMs = Date.parse(b.start), endMs = Math.max(Date.parse(b.end), startMs);
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || !(endMs > from && startMs < to)) continue;
-    const text = notes ? cleanNotes(b.notes, title) : '';
+    const text = notes ? stripQuiet(cleanNotes(b.notes, title)) : '';
     out.push({
-      uid: b.uid.slice(0, 300), cal, startMs, endMs, allDay, title,
+      uid: b.uid.slice(0, 300), cal, startMs, endMs, allDay, title, ...(quiet ? { quiet: true } : {}),
       start: allDay ? b.start : new Date(startMs).toISOString(),
       end: allDay ? b.end : new Date(endMs).toISOString(),
       ...(place(b.location) ? { location: place(b.location) } : {}),

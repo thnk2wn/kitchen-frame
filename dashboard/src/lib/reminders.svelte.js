@@ -23,7 +23,7 @@ export const remindsFor = (cal) => !!say.reminders.cals[calendarNames()[cal]];
 // When this event will be announced, or null: { all: minutes before for each (longest first),
 // minutes: the first of them, own: its own reminders }.
 export function reminderFor(e) {
-  if (!e || e.allDay || e.holiday || !say.on || !remindsFor(e.cal)) return null;
+  if (!e || e.allDay || e.holiday || e.quiet || !say.on || !remindsFor(e.cal)) return null; // quiet: #quiet in the event
   const mine = Array.isArray(e.alarms) && e.alarms.length ? e.alarms : e.alarm != null ? [e.alarm] : [];
   const own = say.reminders.own && mine.length > 0;
   const all = own ? mine : [say.reminders.lead];
