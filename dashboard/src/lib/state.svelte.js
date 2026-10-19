@@ -26,7 +26,7 @@ const pref = (k, d) => { try { return localStorage.getItem('frame-' + k) || d; }
 // and ?weather=<day> opens that day's weather sheet.
 const q = new URLSearchParams(location.search);
 if (q.get('demo') === 'on' || q.get('demo') === 'off') { try { localStorage.setItem('frame-demo', q.get('demo')); } catch {} }
-const TAB_IDS = ['home', 'calendar', 'groceries', 'todo', 'recipes', 'music', 'house'];
+const TAB_IDS = ['home', 'calendar', 'groceries', 'todo', 'recipes', 'music', 'house', 'fitness'];
 
 // Settings live in localStorage so they survive reboots. ?theme= still works for ADB setup.
 export const ui = $state({

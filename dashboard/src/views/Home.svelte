@@ -12,6 +12,8 @@
   import NowPlaying from '../components/NowPlaying.svelte';
   import SortButton from '../components/SortButton.svelte';
   import NoticeBanners from '../components/NoticeBanners.svelte';
+  import Rings from '../components/Rings.svelte';
+  import { demoFitness } from '../lib/fitness.js';
   import { clock, calendar, weather, lists, mealItems, rotationRules, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
 
@@ -66,7 +68,17 @@
   <!-- Each card fails on its own (components/Safe.svelte): a bad event can't take the clock or lists with it. -->
   <Safe name="The clock and weather">
   <section class="now">
-    <div class="date">{longDate(clock.now)}</div>
+    <div class="date-row">
+      <div class="date">{longDate(clock.now)}</div>
+      <!-- Each person's rings at a glance (a mockup, demo mode only); a tap opens Fitness. -->
+      {#if ui.demo}
+        <button class="rings" onclick={() => (ui.tab = 'fitness')} aria-label="Fitness">
+          {#each demoFitness(clock.now) as p (p.name)}
+            <span class="ring-p"><Rings move={p.move / p.moveGoal} exercise={p.exercise / p.exerciseGoal} stand={p.stand / p.standGoal} size={34} light={ui.theme === 'light'} /><i>{p.name[0]}</i></span>
+          {/each}
+        </button>
+      {/if}
+    </div>
     <div class="clock num">{clockTime(clock.now)}</div>
     <!-- Home Assistant notices come first (lib/notices.svelte.js). Now Playing takes whatever room is
          left above the weather: a row on the frame, a big cover on a taller screen, nothing when
@@ -217,6 +229,11 @@
   .np-slot { flex: 1 1 0; min-height: 0; overflow: hidden; padding: 10px 0 8px; display: flex; flex-direction: column; }
   .home { display: grid; grid-template-columns: 384px 1.3fr 1fr; gap: 20px; height: 100%; padding: 10px 28px 28px; }
   .now { display: flex; flex-direction: column; min-width: 0; }
+  .date-row { display: flex; align-items: center; gap: 8px; }
+  .rings { margin-left: auto; display: flex; gap: 10px; padding: 4px 0 0; }
+  .rings:active { opacity: .6; }
+  .ring-p { display: flex; align-items: center; gap: 4px; }
+  .ring-p i { font-style: normal; font-size: 15px; font-weight: 700; color: var(--secondary); }
   .date { font-size: 26px; font-weight: 600; color: var(--secondary); padding: 6px 4px 0; }
   .clock { font-size: 146px; font-weight: 600; line-height: 1; letter-spacing: -.04em; margin: 2px 0 0 -4px; }
 

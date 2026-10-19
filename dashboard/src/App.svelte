@@ -5,6 +5,7 @@
   import Week from './views/Week.svelte';
   import List from './views/List.svelte';
   import Ambient from './views/Ambient.svelte';
+  import Fitness from './views/Fitness.svelte';
   import Settings from './components/Settings.svelte';
   import Music from './views/Music.svelte';
   import TV from './views/TV.svelte';
@@ -56,6 +57,8 @@
     ...(haConfigured() || ui.demo || videos.groups.length || podcasts.shows.length ? [{ id: 'music', label: 'Media' }] : []), // demo: an invented player
     // House mirrors a Home Assistant dashboard, once the frame has its URL path (frame-ha-dashboard).
     ...((haConfigured() && haDashboard()) || ui.demo ? [{ id: 'house', label: 'House' }] : []), // demo: an invented house
+    // Fitness: Activity rings and workouts. A mockup, so demo mode only until the phones send real numbers.
+    ...(ui.demo ? [{ id: 'fitness', label: 'Fitness' }] : []),
   ]);
   let wx = $derived(weather.data);
   let info = $derived(wx ? weatherInfo(wx.code, wx.day) : null);
@@ -88,7 +91,7 @@
   <header class="top">
     <!-- The tab bar and the status on the right, together: if they fail, the placeholder holds their place. -->
     <Safe name="The top bar">
-    <nav class="seg" role="tablist" aria-label="Sections">
+    <nav class="seg" class:snug={TABS.length > 6} role="tablist" aria-label="Sections">
       {#each TABS as t (t.id)}
         {@const on = t.views ? t.views.includes(ui.tab) : ui.tab === t.id}
         <button role="tab" aria-selected={on} class:on onclick={() => (ui.tab = t.views ? (on ? ui.tab : lastList()) : t.id)}>{t.label}</button>
@@ -126,6 +129,7 @@
     {:else if ui.tab === 'calendar'}<Week />
     {:else if ui.tab === 'music'}{#if ui.media === 'tv'}<TV />{:else if ui.media === 'podcasts'}<Podcasts />{:else if ui.media === 'videos' || !haConfigured()}<Videos />{:else}<Music />{/if}
     {:else if ui.tab === 'house'}<House />
+    {:else if ui.tab === 'fitness'}<Fitness />
     {:else if ui.tab === 'recipes'}<Recipes />
     {:else if ui.tab === 'groceries'}<List name="groceries" title="Groceries" accent="var(--orange)" accentText="var(--orange-text)" />
     {:else}<List name="todo" title="Tasks" accent="var(--blue)" accentText="var(--blue-text)" board />{/if}
@@ -182,6 +186,8 @@
   /* Segmented control: a grey track with the selected segment as a raised sheet. */
   .seg { display: flex; padding: 3px; border-radius: 15px; background: var(--track); }
   .seg button { min-width: 124px; height: 48px; padding: 0 18px; border-radius: 12px; font-size: 18px; font-weight: 500; text-align: center; color: var(--label); }
+  /* Seven tabs: narrower, so the mini player, clock and weather still fit beside them. */
+  .seg.snug button { min-width: 100px; padding: 0 14px; }
   .seg button.on { background: var(--thumb); font-weight: 600; }
   .seg button:not(.on):active { opacity: .5; }
   .view { flex: 1; min-height: 0; }
