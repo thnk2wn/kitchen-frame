@@ -106,6 +106,12 @@ erroring (`lib/watchdog.js`). Next:
 ## Operations and security
 
 - **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).
+- **See what the frame is showing, from the phone:** a button in the phone app sends a `screenshot`
+  command (the same path as show and wake); the page asks the kiosk app, which already has root, to
+  run `screencap`, so video, the doorbell camera and the slideshow show too. A small JPEG goes to the
+  Worker, kept a few minutes behind the frame key, and the phone shows it with the time taken. Needs
+  a new kiosk app, and network ADB is off, so the frame is plugged into the Mac by USB for the install.
+  Drawing the page to an image in the browser instead would miss video and load the frame's CPU.
 - **A PIN for Settings:** unlocking has one (Settings → Home). Settings changes are logged and the
   last 10 versions kept, so a PIN there waits until a change slips by unnoticed.
 - **Calmer calendar blips on the status page:** a feed that fails once (a sports site refusing a
