@@ -14,3 +14,5 @@ kiosk/build/
 kiosk/bootanimation/build/
 # A design-review tool's working files (Impeccable); not part of the project.
 .impeccable/
+# Household details the pre-push check looks for (dashboard/scripts/check-private.sh). Never commit.
+.private-terms

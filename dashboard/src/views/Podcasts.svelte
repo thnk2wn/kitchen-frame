@@ -21,7 +21,7 @@
   let show = $derived(podcasts.shows.find((s) => s.id === chosen) || podcasts.shows[0]);
   function pick(s) { chosen = s.id; try { localStorage.setItem('frame-podcast-show', s.id); } catch {} }
   let going = $derived(inProgress(podcasts.shows, positions));
-  // The library's shows first, then a row per PODCASTS_EXTRA group, under its name ("Sharon").
+  // The library's shows first, then a row per PODCASTS_EXTRA group, under its name ("Sam").
   let rows = $derived.by(() => {
     const out = [{ name: '', shows: podcasts.shows.filter((s) => !s.group) }];
     for (const s of podcasts.shows) if (s.group) {
