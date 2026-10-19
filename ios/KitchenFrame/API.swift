@@ -42,6 +42,11 @@ struct API: Sendable {
         var receivedAt: String?
     }
 
+    /// Everything the status page shows (dashboard/worker/ops.js), as JSON.
+    func opsSummary() async throws -> Data {
+        try await send("api/ops/summary")
+    }
+
     func status() async throws -> FrameStatus {
         try JSONDecoder().decode(FrameStatus.self, from: try await send("api/frame/status"))
     }

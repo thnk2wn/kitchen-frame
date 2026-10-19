@@ -25,6 +25,7 @@ struct KitchenFrameApp: App {
 final class AppModel {
     private(set) var pairing: Pairing? = PairingStore.load()
     var pairingProblem: String?
+    let ops = OpsModel()
 
     var api: API? { pairing.map(API.init) }
 
@@ -46,12 +47,23 @@ final class AppModel {
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    // DEBUG -tab <name> opens on that tab (screenshots).
+    @State private var tab = ProcessInfo.processInfo.arguments.drop { $0 != "-tab" }.dropFirst().first ?? "remote"
 
     var body: some View {
         if let api = model.api {
-            TabView {
-                Tab("Remote", systemImage: "av.remote") { RemoteView(api: api) }
-                Tab("Settings", systemImage: "gear") { SettingsView() }
+            TabView(selection: $tab) {
+                Tab("Remote", systemImage: "av.remote", value: "remote") { RemoteView(api: api) }
+                Tab("Ops", systemImage: "waveform.path.ecg", value: "ops") { OpsView(api: api) }
+                    .badge(model.ops.report?.attention ?? 0)
+                Tab("Settings", systemImage: "gear", value: "settings") { SettingsView() }
+            }
+            // Ops' badge (things that need a look) is kept current while the app is open.
+            .task {
+                while !Task.isCancelled {
+                    await model.ops.load(api)
+                    try? await Task.sleep(for: .seconds(300))
+                }
             }
         } else {
             PairView()
