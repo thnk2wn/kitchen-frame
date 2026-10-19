@@ -24,6 +24,8 @@
 //   POST /api/frame/checkin          asks the frame to check in now, over the messages socket
 //   POST /api/frame/demo             the frame's demo mode on or off, for Alexa (alexa.js)
 //   POST /api/frame/reload           asks it to reload the dashboard (it sends its events first)
+//   POST /api/share/media            a photo or video from the phone app, shown on the frame (shared-media.js)
+//   GET  /api/share/media/:id        that photo or video
 //   POST /api/frame/command          { command: show|slideshow|wake|close|playgroup, tab?, group? } (the phone app)
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
@@ -100,6 +102,7 @@ const editOf = (b) => ({
 });
 import { syncPaprika, listPaprika, getPaprika, paprikaImage, listMeals } from './paprika.js';
 import { mealGroceries, MODEL } from './meal-groceries.js';
+import { saveShared, sharedResponse } from './shared-media.js';
 
 const KEY = 'calendar';
 const DAY = 864e5;
@@ -199,7 +202,9 @@ async function handle(req, env, ctx) {
     // its own SHARE_TOKEN, which opens this route and nothing else: the worst a leaked one can do is
     // play a video on the frame.
     if (url.pathname === '/api/share/play' && req.method === 'POST') {
-      if (!env.SHARE_TOKEN || !same(req.headers.get('Authorization') || '', 'Bearer ' + env.SHARE_TOKEN)) return json({ error: 'unauthorized' }, 401);
+      // Also the phone app's share extension, with the dashboard key it was paired with.
+      const shareToken = env.SHARE_TOKEN && same(req.headers.get('Authorization') || '', 'Bearer ' + env.SHARE_TOKEN);
+      if (!shareToken && !(env.DASHBOARD_KEY && hasKey(req, env))) return json({ error: 'unauthorized' }, 401);
       const body = await req.text();
       let text = body;
       try { const j = JSON.parse(body); text = j.url || j.text || body; } catch {}
@@ -312,6 +317,16 @@ async function handle(req, env, ctx) {
         return json({ ok: true });
       }
       if (url.pathname === '/api/frame/checkin' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'checkin' }) });
+      // A photo or video shared from the phone app, shown on the frame at once (shared-media.js).
+      if (url.pathname === '/api/share/media' && req.method === 'POST') {
+        const r = await saveShared(env, await req.formData());
+        if (r.status !== 200) return json(r.body, r.status);
+        const res = await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'media', id: r.id, kind: r.kind, title: r.title }) });
+        const { sent = 0 } = await res.json().catch(() => ({}));
+        return json({ id: r.id, kind: r.kind, sent, ...(sent ? {} : { error: 'the frame isn\'t connected right now' }) });
+      }
+      const shared = /^\/api\/share\/media\/([0-9a-f-]{36})$/.exec(url.pathname);
+      if (shared && req.method === 'GET') return sharedResponse(env, shared[1], req);
       // The phone app's remote (ios/): the same commands Alexa sends; messages.js checks them.
       if (url.pathname === '/api/frame/command' && req.method === 'POST') {
         const { command, tab, group } = await req.json().catch(() => ({}));
@@ -514,7 +529,7 @@ async function refresh(env, previous) {
 // response to a request that had the key. That keeps the key out of URLs, and so out of request
 // logs and caches. (A key in the URL, ?key=, how they used to do it, is no longer accepted.)
 const AUTH_COOKIE = 'frame_auth';
-const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/youtube/thumb/') || p.startsWith('/api/tiles/') || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
+const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/share/media/') || p.startsWith('/api/youtube/thumb/') || p.startsWith('/api/tiles/') || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
 // Constant-time comparison, so a key or cookie can't be guessed a character at a time.
 function same(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;

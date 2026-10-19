@@ -42,7 +42,7 @@ struct RemoteView: View {
                 .padding()
             }
             .navigationTitle("Remote")
-            .refreshable { try? await api.checkIn(); try? await Task.sleep(for: .seconds(2)); await refresh() }
+            .refreshable { await refreshAfterCheckIn() }
             .task { await refresh() }
         }
     }
@@ -73,13 +73,23 @@ struct RemoteView: View {
         problem = nil
         do {
             try await api.command(command, tab: tab)
-            try? await api.checkIn()
-            try? await Task.sleep(for: .seconds(2))
-            await refresh()
+            await refreshAfterCheckIn()
         } catch {
             problem = error.localizedDescription
         }
         busy = nil
+    }
+
+    /// Asks the frame to report in, then waits (up to about 8 s) for a report newer than the last one:
+    /// reading straight away gets the report from before the button was pressed.
+    private func refreshAfterCheckIn() async {
+        let before = status?.receivedAt
+        try? await api.checkIn()
+        for _ in 0..<8 {
+            try? await Task.sleep(for: .seconds(1))
+            if let s = try? await api.status(), s.receivedAt != before { status = s; return }
+        }
+        await refresh()
     }
 
     private func refresh() async {

@@ -1,8 +1,14 @@
 # Kitchen Frame for iPhone
 
-A companion app for the frame. For now it's a **remote**: show any screen on the frame, start the
-slideshow, wake it, or close what's open, and see what the frame is displaying. More frame-specific
-things can join it (the lists, notices, sharing a video to the frame from the share sheet).
+A companion app for the frame:
+
+- **Share to the frame:** in Photos (or anywhere), Share → **Kitchen Frame** shows a photo or video
+  full screen on the frame until it's closed; a YouTube link plays there (alongside the YouTube
+  Shortcut, which still works). The phone prepares it for the frame first: a photo at screen size, a
+  video converted to H.264 at 960x540 and about 0.9 Mbit/s (the frame's Wi-Fi is slow), the first 3
+  minutes. The Worker keeps it a day (`dashboard/worker/shared-media.js`).
+- **Remote:** show any screen on the frame, start the slideshow, wake it, or close what's open, and see
+  what the frame is displaying.
 
 It talks to the same Worker as the frame, with the same key, which it keeps in the iPhone's Keychain.
 
@@ -34,6 +40,7 @@ dashboard's address and key, so it hides itself after two minutes. Unpair from t
 | --- | --- |
 | Remote | `POST /api/frame/command` (`show` with a `tab`, `slideshow`, `wake`, `close`), then `POST /api/frame/checkin` and `GET /api/frame/status` for what it shows |
 | Pairing | `kitchenframe://pair?url=…&key=…`, from the frame's Settings (`dashboard/src/components/Settings.svelte`); kept by `KitchenFrame/Pairing.swift` |
+| Share extension | `Share/ShareViewController.swift`; preparing photos and videos in `KitchenFrame/MediaSender.swift`; `POST /api/share/media` (or `/api/share/play` for YouTube), shown by `dashboard/src/components/SharedMedia.svelte`. It reads the pairing from a Keychain group shared with the app (open the app once after updating so it moves there). |
 
 Adding recipes from photos into Paprika is a separate app, since it's phone-to-Paprika and doesn't
 need the frame.

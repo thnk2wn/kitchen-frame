@@ -22,6 +22,7 @@
   import UndoToast from './components/UndoToast.svelte';
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
+  import SharedMedia from './components/SharedMedia.svelte';
   import NowPlaying from './components/NowPlaying.svelte';
   import PinPad from './components/PinPad.svelte';
   import { shown } from './lib/pending.svelte.js';
@@ -134,6 +135,7 @@
   <PinPad />
   <DoorbellAlert />
   <!-- A YouTube video, over every screen: from Media → Videos, or shared from a phone. -->
+  <SharedMedia />
   {#if nowVideo.list}{#key nowVideo.list}<YouTubePlayer list={nowVideo.list} index={nowVideo.index} startMuted={nowVideo.shared} onclose={() => (nowVideo.list = null)} />{/key}{/if}
 </div>
 

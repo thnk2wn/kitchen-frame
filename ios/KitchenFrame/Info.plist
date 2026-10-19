@@ -29,5 +29,7 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>KeychainGroup</key>
+	<string>$(AppIdentifierPrefix)$(BUNDLE_ID_PREFIX).kitchenframe.shared</string>
 </dict>
 </plist>

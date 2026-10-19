@@ -89,6 +89,9 @@ export const videos = $state({ groups: ui.demo && !haConfigured() ? [] : cached(
 // group's order there (name -> 'recent' | 'az'). Kept on the frame.
 const readJSON = (k) => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch { return {}; } };
 export const videoPlays = $state(readJSON('frame-video-played'));
+// A photo or video shared from a phone (worker/shared-media.js): { id, kind, title }, shown full screen
+// by components/SharedMedia.svelte until closed.
+export const sharedMedia = $state({ item: null });
 export const videoSort = $state(readJSON('frame-video-sort'));
 export function notePlay(id) {
   videoPlays[id] = Date.now();
@@ -319,6 +322,7 @@ function connectMessages() {
       // A video shared from a phone: over whatever is showing, the clock screen included.
       if (d.command === 'play' && d.id) {
         if (ui.idle) exitIdle();
+        sharedMedia.item = null;
         Object.assign(nowVideo, { list: [{ id: d.id, title: d.title || '' }], index: 0, shared: true });
         log('youtube.shared', { video: d.id });
       }
@@ -336,7 +340,14 @@ function connectMessages() {
       // The Worker saw the Paprika meal plan change: fetch it now (Meals and Home's Today card).
       if (d.command === 'refresh' && d.what === 'meals') loadMeals();
       // "Hide notifications", "close that": whatever sheet is over the screen.
-      if (d.command === 'close') { ui.noticesOpen = false; ui.settingsOpen = false; ui.event = null; ui.task = null; ui.weatherDay = null; }
+      if (d.command === 'media' && d.id) {
+        lastTouch = Date.now();
+        if (ui.idle) exitIdle();
+        nowVideo.list = null; // one thing at a time: the newest share
+        sharedMedia.item = { id: d.id, kind: d.kind, title: d.title || '', at: Date.now() };
+        log('share.media', { kind: d.kind });
+      }
+      if (d.command === 'close') { sharedMedia.item = null; ui.noticesOpen = false; ui.settingsOpen = false; ui.event = null; ui.task = null; ui.weatherDay = null; }
       if (['show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close'].includes(d.command)) log('alexa.command', { command: d.command, tab: d.tab, group: d.group });
       if (d.messages) showMessages(d.messages);
     } catch {}
@@ -602,7 +613,7 @@ async function checkForUpdate() {
 }
 function reloadIfUpdated() {
   const quiet = ui.idle || Date.now() - lastTouch > 10 * MIN;
-  if (!quiet || document.querySelector('[role="alertdialog"]')) return;
+  if (!quiet || sharedMedia.item || document.querySelector('[role="alertdialog"]')) return;
   try { if (ui.idle) sessionStorage.setItem('frame-resume-idle', '1'); sessionStorage.setItem('frame-reload-reason', 'update'); } catch {}
   location.reload();
 }
@@ -612,7 +623,7 @@ function reloadIfUpdated() {
 // timer is running: hands are busy then and the screen is in use.
 function idleCheck() {
   if (ui.idle) return;
-  if (ui.recipeOpen || timers.list.some((t) => !t.done)) return;
+  if (ui.recipeOpen || sharedMedia.item || timers.list.some((t) => !t.done)) return;
   // At night: two minutes after the last touch, whatever the motion sensors say.
   if (night.active) { if (Date.now() - lastTouch >= NIGHT_IDLE_MS) { ui.idle = true; ui.tab = 'home'; ui.settingsOpen = false; } return; }
   if (!ui.idleMinutes) return;

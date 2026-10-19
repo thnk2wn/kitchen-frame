@@ -17,16 +17,23 @@ struct Pairing: Codable, Equatable, Sendable {
     }
 }
 
-/// Kept in the Keychain (this device only), not in UserDefaults or a file.
+/// Kept in the Keychain (this device only), not in UserDefaults or a file, in a group the share
+/// extension can read too (KeychainGroup in Info.plist: the team prefix and this app's id).
 enum PairingStore {
-    private static var query: [String: Any] { [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "kitchenframe",
-        kSecAttrAccount as String: "pairing",
-    ] }
+    private static let group = Bundle.main.object(forInfoDictionaryKey: "KeychainGroup") as? String
 
-    static func load() -> Pairing? {
-        var q = query
+    private static func query(shared: Bool) -> [String: Any] {
+        var q: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "kitchenframe",
+            kSecAttrAccount as String: "pairing",
+        ]
+        if shared, let group { q[kSecAttrAccessGroup as String] = group }
+        return q
+    }
+
+    private static func read(shared: Bool) -> Pairing? {
+        var q = query(shared: shared)
         q[kSecReturnData as String] = true
         q[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: CFTypeRef?
@@ -34,15 +41,24 @@ enum PairingStore {
         return try? JSONDecoder().decode(Pairing.self, from: data)
     }
 
+    static func load() -> Pairing? {
+        if let p = read(shared: true) { return p }
+        // Paired before the share extension: move it to the shared group.
+        guard let old = read(shared: false) else { return nil }
+        save(old)
+        return old
+    }
+
     static func save(_ pairing: Pairing) {
         clear()
-        var q = query
+        var q = query(shared: true)
         q[kSecValueData as String] = try? JSONEncoder().encode(pairing)
         q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(q as CFDictionary, nil)
     }
 
     static func clear() {
-        SecItemDelete(query as CFDictionary)
+        SecItemDelete(query(shared: true) as CFDictionary)
+        SecItemDelete(query(shared: false) as CFDictionary)
     }
 }

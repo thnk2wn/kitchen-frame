@@ -26,6 +26,14 @@ struct API: Sendable {
 
     private func json(_ value: some Encodable) throws -> Data { try JSONEncoder().encode(value) }
 
+    func post(_ path: String, json value: [String: String], timeout: TimeInterval = 30) async throws -> Data {
+        try await send(path, method: "POST", body: try json(value), contentType: "application/json", timeout: timeout)
+    }
+
+    func post(_ path: String, body: Data, contentType: String, timeout: TimeInterval = 30) async throws -> Data {
+        try await send(path, method: "POST", body: body, contentType: contentType, timeout: timeout)
+    }
+
     // MARK: Remote
 
     struct FrameStatus: Decodable, Sendable {
