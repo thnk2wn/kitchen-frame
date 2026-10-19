@@ -5,6 +5,7 @@
   let { playing = null } = $props();
   let slotH = $state(0);
   import Icon from '../components/Icon.svelte';
+  import Safe from '../components/Safe.svelte';
   import EventRow from '../components/EventRow.svelte';
   import TaskRow from '../components/TaskRow.svelte';
   import CalendarPicker from '../components/CalendarPicker.svelte';
@@ -62,6 +63,8 @@
 </script>
 
 <div class="home">
+  <!-- Each card fails on its own (components/Safe.svelte): a bad event can't take the clock or lists with it. -->
+  <Safe name="The clock and weather">
   <section class="now">
     <div class="date">{longDate(clock.now)}</div>
     <div class="clock num">{clockTime(clock.now)}</div>
@@ -107,7 +110,9 @@
       <p class="note">Weather isn’t set up yet.</p>
     {/if}
   </section>
+  </Safe>
 
+  <Safe name="Today and Upcoming">
   <section class="sheet cal">
     <!-- The list scrolls inside the widget on a busy day; the footer action always stays visible. -->
     <div class="scroll">
@@ -166,12 +171,13 @@
       {/if}
     </footer>
   </section>
+  </Safe>
 
   <!-- Groceries and Tasks share the right column: Groceries takes the room, Tasks sizes to its
        items (up to ~38%), since the family to-do list is usually short. -->
   <div class="lists">
-    {@render listCard('groceries', 'Groceries', 'var(--orange-text)', 'Nothing to buy.')}
-    {@render listCard('todo', 'Tasks', 'var(--blue-text)', 'All done.')}
+    <Safe name="Groceries">{@render listCard('groceries', 'Groceries', 'var(--orange-text)', 'Nothing to buy.')}</Safe>
+    <Safe name="Tasks">{@render listCard('todo', 'Tasks', 'var(--blue-text)', 'All done.')}</Safe>
   </div>
 </div>
 

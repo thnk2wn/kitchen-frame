@@ -23,6 +23,11 @@
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
   import SharedMedia from './components/SharedMedia.svelte';
+  import Safe from './components/Safe.svelte';
+  import { noteAlive, startWatchdog } from './lib/watchdog.js';
+  // The watchdog (lib/watchdog.js): this redraws with the clock each minute; if updates stop, it reloads.
+  startWatchdog();
+  $effect(() => { clock.now; noteAlive(); });
   import NowPlaying from './components/NowPlaying.svelte';
   import PinPad from './components/PinPad.svelte';
   import { shown } from './lib/pending.svelte.js';
@@ -81,6 +86,8 @@
 
 <div class="stage">
   <header class="top">
+    <!-- The tab bar and the status on the right, together: if they fail, the placeholder holds their place. -->
+    <Safe name="The top bar">
     <nav class="seg" role="tablist" aria-label="Sections">
       {#each TABS as t (t.id)}
         {@const on = t.views ? t.views.includes(ui.tab) : ui.tab === t.id}
@@ -105,12 +112,16 @@
       {#if !timers.list.some((t) => !t.done) && !mini}<button class="gear play" onclick={startSlideshow} aria-label="Start slideshow"><Icon name="play" size={24} /></button>{/if}
       <button class="gear" onclick={() => (ui.settingsOpen = !ui.settingsOpen)} aria-label="Settings"><Icon name="gear" size={26} /></button>
     </div>
+    </Safe>
   </header>
 
   <!-- Only the active view exists in the DOM, and none behind the clock screen: less to style, lay
        out, update every minute and keep in memory. -->
   <main class="view">
     {#if !ui.idle}
+    <!-- Each view and overlay in its own Safe: one that fails shows a placeholder, not a white frame. -->
+    {#key ui.tab + ui.media}
+    <Safe name={'This tab'}>
     {#if ui.tab === 'home'}<Home {playing} />
     {:else if ui.tab === 'calendar'}<Week />
     {:else if ui.tab === 'music'}{#if ui.media === 'tv'}<TV />{:else if ui.media === 'podcasts'}<Podcasts />{:else if ui.media === 'videos' || !haConfigured()}<Videos />{:else}<Music />{/if}
@@ -118,25 +129,28 @@
     {:else if ui.tab === 'recipes'}<Recipes />
     {:else if ui.tab === 'groceries'}<List name="groceries" title="Groceries" accent="var(--orange)" accentText="var(--orange-text)" />
     {:else}<List name="todo" title="Tasks" accent="var(--blue)" accentText="var(--blue-text)" board />{/if}
+    </Safe>
+    {/key}
     {/if}
   </main>
 
-  {#if ui.settingsOpen && !ui.idle}<Settings />{/if}
-  {#if ui.idle}<Ambient />{/if}
+  <Safe name="Settings" quiet>{#if ui.settingsOpen && !ui.idle}<Settings />{/if}</Safe>
+  <!-- The clock screen: if it fails, a plain clock-less black screen beats a white one; it retries. -->
+  <Safe name="The clock screen" quiet>{#if ui.idle}<Ambient />{/if}</Safe>
   <!-- Agent messages cover everything, the slideshow included; held back in demo mode. -->
-  {#if messages.items.length && !ui.demo}<Message />{/if}
+  <Safe name="Messages" quiet>{#if messages.items.length && !ui.demo}<Message />{/if}</Safe>
   <!-- Timer alerts cover everything, messages and the slideshow included. -->
-  <WeatherSheet />
-  <EventSheet />
-  <TaskSheet />
-  <UndoToast />
-  <NoticeSheet />
-  <TimerAlert />
-  <PinPad />
-  <DoorbellAlert />
+  <Safe name="Weather" quiet><WeatherSheet /></Safe>
+  <Safe name="Event details" quiet><EventSheet /></Safe>
+  <Safe name="Task details" quiet><TaskSheet /></Safe>
+  <Safe name="Undo" quiet><UndoToast /></Safe>
+  <Safe name="Notices" quiet><NoticeSheet /></Safe>
+  <Safe name="Timer alert" quiet><TimerAlert /></Safe>
+  <Safe name="PIN" quiet><PinPad /></Safe>
+  <Safe name="Doorbell" quiet><DoorbellAlert /></Safe>
   <!-- A YouTube video, over every screen: from Media → Videos, or shared from a phone. -->
-  <SharedMedia />
-  {#if nowVideo.list}{#key nowVideo.list}<YouTubePlayer list={nowVideo.list} index={nowVideo.index} startMuted={nowVideo.shared} onclose={() => (nowVideo.list = null)} />{/key}{/if}
+  <Safe name="Shared photo or video" quiet><SharedMedia /></Safe>
+  <Safe name="Video" quiet>{#if nowVideo.list}{#key nowVideo.list}<YouTubePlayer list={nowVideo.list} index={nowVideo.index} startMuted={nowVideo.shared} onclose={() => (nowVideo.list = null)} />{/key}{/if}</Safe>
 </div>
 
 <style>
