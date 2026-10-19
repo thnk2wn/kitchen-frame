@@ -26,17 +26,23 @@ function shuffle(a) {
 // the queue.
 export function noteAlbum(items) {
   const ids = new Set(items.map((p) => p.id));
-  if (known !== null) queue = [...shuffle(items.filter((p) => !known.has(p.id))), ...queue.filter((p) => ids.has(p.id))];
+  if (known !== null) queue = once([...shuffle(items.filter((p) => !known.has(p.id))), ...queue.filter((p) => ids.has(p.id))]);
   known = ids;
   // A slide prepared from the other set (demo mode's stock photos, or the album) is dropped.
   if (ready && !ready.every((p) => ids.has(p.id))) ready = null;
 }
 
+// Each photo once (by id). A photo queued twice (the album refreshed while the queue refilled) could
+// otherwise be paired with itself, and a slide with the same photo twice stops the page (Svelte's
+// each_key_duplicate), clock screen and waking included (seen 2026-10-19).
+const once = (list) => { const seen = new Set(); return list.filter((p) => !seen.has(p.id) && seen.add(p.id)); };
+
 // Portraits go in pairs (side by side fills a landscape screen); landscapes and videos go alone.
 function pick() {
   const items = photos.items;
-  if (!queue.length) queue = shuffle([...items]);
+  if (!queue.length) queue = shuffle(once([...items]));
   const first = queue.shift();
+  queue = queue.filter((p) => p.id !== first.id);
   if (first.h <= first.w || asVideo(first)) return [first];
   const i = queue.findIndex((p) => p.h > p.w && !asVideo(p));
   if (i >= 0) return [first, queue.splice(i, 1)[0]];
@@ -120,7 +126,7 @@ export function prepare() {
 // The next slide, ready to show; starts preparing the one after.
 export async function takeSlide() {
   if (!ready) await prepare();
-  const slide = ready;
+  const slide = ready && once(ready);
   ready = null;
   prepare();
   return slide;
