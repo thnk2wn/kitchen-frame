@@ -8,6 +8,7 @@
   import { ui, clock, calendar, calendarNames, eventNotes } from '../lib/state.svelte.js';
   import { calVars, timeRange, time, dayKey, addDays, isNow, isPast } from '../lib/format.js';
   import { reminderFor } from '../lib/reminders.svelte.js';
+  import { quietAt } from '../lib/night.svelte.js';
   import { speaker } from '../lib/announce.svelte.js';
 
   let e = $derived.by(() => {
@@ -27,6 +28,9 @@
     const mins = all.filter((m) => m > 0), start = all.includes(0);
     return [mins.length ? mins.join(' and ') + ' min before' : '', start ? 'as it starts' : ''].filter(Boolean).join(' and ');
   };
+  // Reminders due in quiet hours aren't said (lib/reminders.svelte.js): "6:00 AM", for each one.
+  let quietTimes = $derived(reminder ? reminder.all.map((m) => new Date(Date.parse(e.start) - m * 60000)).filter(quietAt) : []);
+  let allQuiet = $derived(!!reminder && quietTimes.length === reminder.all.length);
   let mapped = $state(false);
   let rowsHeight = $state(0); // the map matches the details beside it
 
@@ -71,7 +75,7 @@
           <div class="row"><span class="ic"><Icon name="mapPin" size={24} /></span><div class="day">{e.location}</div></div>
         {/if}
         {#if reminder}
-          <div class="row"><span class="ic"><Icon name="volume" size={24} /></span><div class="sub">Announced {whenSaid(reminder.all)}{reminder.own ? (reminder.all.length > 1 ? ' (its own reminders)' : ' (its own reminder)') : ''}{speaker() ? ' on ' + speaker().label : ''}</div></div>
+          <div class="row"><span class="ic"><Icon name={allQuiet ? 'volumeOff' : 'volume'} size={24} /></span><div class="sub">{#if allQuiet}Not announced: {quietTimes.map((d) => time(d)).join(' and ')} {quietTimes.length > 1 ? 'are' : 'is'} in quiet hours{:else}Announced {whenSaid(reminder.all)}{reminder.own ? (reminder.all.length > 1 ? ' (its own reminders)' : ' (its own reminder)') : ''}{speaker() ? ' on ' + speaker().label : ''}{quietTimes.length ? ' (not at ' + quietTimes.map((d) => time(d)).join(' or ') + ': quiet hours)' : ''}{/if}</div></div>
         {/if}
         {#if notes}
           <div class="row notes"><span class="ic"><Icon name="notes" size={24} /></span><p>{notes}</p></div>

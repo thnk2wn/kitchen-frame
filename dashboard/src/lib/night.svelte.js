@@ -45,7 +45,8 @@ export function inNight(d = new Date(), from = night.from, to = night.to) {
   return a <= b ? t >= a && t < b : t >= a || t < b;
 }
 // Quiet hours for reading messages aloud: the night hours, or 10 PM to 7 AM with night off.
-export const quietNow = () => (night.on ? inNight() : inNight(new Date(), '22:00', '07:00'));
+export const quietAt = (d) => (night.on ? inNight(d) : inNight(d, '22:00', '07:00'));
+export const quietNow = () => quietAt(new Date());
 
 function tick() { night.active = night.on && inNight(); }
 
