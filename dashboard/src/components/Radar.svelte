@@ -11,6 +11,11 @@
   import Icon from './Icon.svelte';
   import { api, mediaUrl } from '../lib/api.js';
   import { time } from '../lib/format.js';
+  import { ui } from '../lib/state.svelte.js';
+
+  // Demo mode centres the map on Kansas City, not home, so screenshots don't show where the frame is.
+  // The radar's tiles cover the country; only the centre comes from home.
+  const DEMO_CENTRE = { lat: 39.0997, lon: -94.5786 };
 
   let { width = 1070, height = 430 } = $props();
   const TILE = 256, STEP_MS = 600, HOLD_MS = 1800;
@@ -52,7 +57,8 @@
       if (!live) return;
       if (r.error || !r.frames || !r.frames.length) { error = r.error ? 'Radar needs the home location (WEATHER_LAT / WEATHER_LON).' : 'No radar right now.'; return; }
       const Z = (r.zoom || 7) + 1; // the street map's zoom
-      const c8 = pixel(r.lat, r.lon, Z);
+      const centre = ui.demo && r.source !== 'RainViewer' ? DEMO_CENTRE : r;
+      const c8 = pixel(centre.lat, centre.lon, Z);
       const left = c8.x - width / 2, top = c8.y - height / 2;
       home = { x: width / 2, y: height / 2 };
 

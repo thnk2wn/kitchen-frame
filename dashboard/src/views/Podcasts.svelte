@@ -7,6 +7,7 @@
   import Icon from '../components/Icon.svelte';
   import { podcasts, loadPodcasts, inProgress, positions, startAt, pod, playEpisode, toggle, skip, seekTo, setVolume, stopPodcast, echo, loadEchos, setTarget, playOnEcho, echoCommand } from '../lib/podcasts.svelte.js';
   import { ha } from '../lib/ha.svelte.js';
+  import { nm } from '../lib/demo-media.svelte.js';
 
   onMount(() => { loadPodcasts(); });
   // The Echos it can play on (Home Assistant's Alexa Devices), once Home Assistant is connected.
@@ -67,7 +68,8 @@
         </div>
       {/if}
       {#each rows as r (r.name)}
-        {#if r.name}<h2 class="rowname">{r.name}</h2>{/if}
+        <!-- nm(): demo mode shows the group under its demo name, like Videos does. -->
+        {#if r.name}<h2 class="rowname">{nm(r.name)}</h2>{/if}
         <div class="row shows">
           {#each r.shows as s (s.id)}
             <button class="show" class:on={show && s.id === show.id} onclick={() => pick(s)} aria-label={s.title}>

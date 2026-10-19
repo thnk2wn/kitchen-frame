@@ -74,7 +74,8 @@
 
 <div class="page">
   <section class="sheet side">
-    {#if image}<img src={image} alt="" />{:else if recipe.loading}<span class="ghost photo"></span>{/if}
+    <!-- One retry: on a first load the photo can be asked for before the Worker's media cookie is set. -->
+    {#if image}<img src={image} alt="" onerror={(e) => { const el = e.currentTarget; if (!el.dataset.retried) { el.dataset.retried = '1'; setTimeout(() => { el.src = image + (image.includes('?') ? '&' : '?') + 'retry=1'; }, 1500); } }} />{:else if recipe.loading}<span class="ghost photo"></span>{/if}
     {#if recipe.title}<h1>{recipeTitle(recipe.title)}</h1>{:else}<span class="ghost wide"></span>{/if}
     <p class="meta">
       {[recipe.category, recipe.area, recipe.time, recipe.servings && 'Serves ' + recipe.servings, recipe.yield && 'Makes ' + recipe.yield].filter(Boolean).join(' · ')}
