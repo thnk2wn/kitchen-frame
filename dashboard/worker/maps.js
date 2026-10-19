@@ -14,20 +14,38 @@ export function mappable(q) {
   return q.length >= 4 && q.length <= 200 && !/https?:|www\.|\b(zoom|teams|meet|webex|skype|video|call|phone|virtual|online|tbd|tba)\b/i.test(q);
 }
 
+// What to look up, in order: the text as written, then, when a place's name comes before its street
+// address ("Riverside Fitness - Springfield 120 Main St, Springfield, IL", as calendars fill it in
+// when a place is picked by name), the address from its house number on. Nominatim finds nothing for
+// the whole, and the address alone.
+export function lookups(q) {
+  const out = [q];
+  const at = q.search(/\b\d{1,6}[a-z]?\s+[a-z]/i);
+  if (at > 0) out.push(q.slice(at).trim());
+  return out;
+}
+
 // Search near home first (WEATHER_LAT/LON, ~150 km either way), so "Aquatic center" means the local
 // one. Anywhere else only when the text names more than a bare place (a comma or a number, as in
 // "Williams-Brice Stadium, Columbia" or a street address), to avoid a same-named place abroad.
-export async function geocode(env, raw) {
+export async function geocode(env, raw, wait = (ms) => new Promise((r) => setTimeout(r, ms))) {
   const q = String(raw || '').replace(/\s+/g, ' ').trim();
   if (!mappable(q)) return null;
   const key = 'geo:' + q.toLowerCase();
   const hit = await env.CALENDAR.get(key, 'json');
-  if (hit) return hit.lat != null ? hit : null;
+  // A miss saved before addresses were tried on their own (no v) is looked up again.
+  if (hit && (hit.lat != null || hit.v === 2)) return hit.lat != null ? hit : null;
   const lat = Number(env.WEATHER_LAT), lon = Number(env.WEATHER_LON);
   const near = Number.isFinite(lat) && Number.isFinite(lon) ? [lon - 1.5, lat + 1.4, lon + 1.5, lat - 1.4].map((n) => n.toFixed(3)).join(',') : null;
-  let found = near ? await search(q, near) : null;
-  if (!found && (!near || /[,\d]/.test(q))) found = await search(q, null);
-  await env.CALENDAR.put(key, JSON.stringify(found || { none: true }), found ? {} : { expirationTtl: 7 * DAY });
+  let found = null, calls = 0;
+  // OSM asks for at most one search a second.
+  const ask = async (text, box) => { if (calls++) await wait(1100); return search(text, box); };
+  for (const text of lookups(q)) {
+    found = near ? await ask(text, near) : null;
+    if (!found && (!near || /[,\d]/.test(text))) found = await ask(text, null);
+    if (found) break;
+  }
+  await env.CALENDAR.put(key, JSON.stringify(found || { none: true, v: 2 }), found ? {} : { expirationTtl: 7 * DAY });
   return found;
 }
 
