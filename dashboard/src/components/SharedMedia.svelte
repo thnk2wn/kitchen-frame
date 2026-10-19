@@ -41,6 +41,16 @@
     }
   }
   function unmute() { muted = false; if (video) { video.muted = false; video.play().catch(() => {}); } }
+
+  // Volume 0-10, remembered on this frame; the loudest is the frame's own Android media volume.
+  const saved = () => { try { const v = Number(localStorage.getItem('frame-shared-volume')); return v >= 0 && v <= 10 && localStorage.getItem('frame-shared-volume') !== null ? v : 8; } catch { return 8; } };
+  let volume = $state(saved());
+  $effect(() => { if (video) video.volume = volume / 10; });
+  function step(d) {
+    volume = Math.max(0, Math.min(10, volume + d));
+    if (volume > 0 && muted) unmute();
+    try { localStorage.setItem('frame-shared-volume', String(volume)); } catch {}
+  }
 </script>
 
 {#if item}
@@ -59,7 +69,14 @@
     {#if failed}<p class="note">Couldn’t load it. It may have expired (shared items last a day).</p>{/if}
     <div class="bar">
       {#if item.title}<span class="title">{item.title}</span>{:else}<span class="title"></span>{/if}
-      {#if muted}<button class="sound" onclick={unmute}><Icon name="volume" size={26} />Tap for sound</button>{/if}
+      {#if muted}<button class="sound" onclick={unmute}><Icon name="volume" size={26} />Tap for sound</button>
+      {:else if item.kind === 'video' && !failed}
+        <span class="vol">
+          <button class="round" onclick={() => step(-1)} disabled={volume === 0} aria-label="Quieter"><Icon name="minus" size={28} /></button>
+          <span class="level"><span style="transform: scaleX({volume / 10})"></span></span>
+          <button class="round" onclick={() => step(1)} disabled={volume === 10} aria-label="Louder"><Icon name="plus" size={28} /></button>
+        </span>
+      {/if}
       <button class="close" onclick={close}>Close</button>
     </div>
   </div>
@@ -72,5 +89,10 @@
   .bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 16px 24px; background: linear-gradient(to top, rgba(0, 0, 0, .6), rgba(0, 0, 0, 0)); }
   .title { flex: 1; min-width: 0; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sound { flex: none; height: 64px; padding: 0 28px; border-radius: 32px; background: var(--pal-blue, #0a84ff); color: #fff; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .vol { flex: none; display: flex; align-items: center; gap: 12px; }
+  .round { flex: none; width: 64px; height: 64px; border-radius: 50%; background: rgba(255, 255, 255, .18); color: #fff; display: grid; place-items: center; }
+  .round:disabled { opacity: .35; }
+  .level { width: 140px; height: 12px; border-radius: 6px; background: rgba(255, 255, 255, .25); overflow: hidden; }
+  .level span { display: block; height: 100%; background: #fff; transform-origin: left; }
   .close { flex: none; height: 64px; padding: 0 34px; border-radius: 32px; background: #fff; color: #000; font-size: 24px; font-weight: 700; }
 </style>

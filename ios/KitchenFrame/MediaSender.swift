@@ -1,4 +1,5 @@
 import AVFoundation
+import ImageIO
 import UIKit
 
 /// Sends a photo, a video or a YouTube link to the frame (the share extension and the app both use it).
@@ -47,6 +48,14 @@ enum MediaSender {
 }
 
 extension UIImage {
+    /// A photo file read at most `maxPixels` on its longer side, upright, without decoding it at full size.
+    static func downsampled(_ url: URL, maxPixels: Int) -> UIImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+        let options = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
+                       kCGImageSourceShouldCacheImmediately: true, kCGImageSourceThumbnailMaxPixelSize: maxPixels] as CFDictionary
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options).map(UIImage.init(cgImage:))
+    }
+
     /// Upright, at most 1920 px on the longer side (the frame's screen), as a JPEG.
     func frameJPEG() -> Data? {
         let px = CGSize(width: size.width * scale, height: size.height * scale)

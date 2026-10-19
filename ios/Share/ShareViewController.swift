@@ -38,19 +38,24 @@ final class ShareModel {
         let api = API(pairing: pairing)
         let providers = (context?.inputItems as? [NSExtensionItem] ?? []).flatMap { $0.attachments ?? [] }
         do {
-            if let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.movie.identifier) }) {
+            // A photo first: a Live Photo carries a movie too, and should go as the photo.
+            if let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }) {
+                let url = try await copy(p, type: .image)
+                defer { try? FileManager.default.removeItem(at: url) }
+                // Read at the frame's size straight from the file: decoding a full 48 MP photo would take
+                // more memory than a share extension is allowed, and iOS would end it without a word.
+                guard let image = UIImage.downsampled(url, maxPixels: 1920) else { throw API.Failure(message: "Couldn’t read that photo.") }
+                preview = image
+                stage = .sending
+                try await MediaSender.send(photo: image, api: api)
+                stage = .done("The photo is on the frame.")
+            } else if let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.movie.identifier) }) {
                 let url = try await copy(p, type: .movie)
                 defer { try? FileManager.default.removeItem(at: url) }
                 preview = await Thumbnail.of(video: url)
                 stage = .preparing(0)
                 try await MediaSender.send(video: url, api: api) { p in Task { @MainActor in if case .preparing = self.stage { self.stage = .preparing(p) } } }
                 stage = .done("The video is playing on the frame.")
-            } else if let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }) {
-                let image = try await loadImage(p)
-                preview = image
-                stage = .sending
-                try await MediaSender.send(photo: image, api: api)
-                stage = .done("The photo is on the frame.")
             } else if let link = await youtubeLink(providers) {
                 stage = .sending
                 let title = try await MediaSender.send(youtube: link, api: api)
@@ -71,21 +76,13 @@ final class ShareModel {
         try await withCheckedThrowingContinuation { cont in
             _ = p.loadFileRepresentation(for: type, openInPlace: false) { url, _, error in
                 guard let url else { return cont.resume(throwing: error ?? API.Failure(message: "Couldn’t open that file.")) }
-                let dest = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString + "." + (url.pathExtension.isEmpty ? "mov" : url.pathExtension))
+                let ext = url.pathExtension.isEmpty ? (type == .movie ? "mov" : "jpg") : url.pathExtension
+                let dest = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString + "." + ext)
                 do { try FileManager.default.copyItem(at: url, to: dest); cont.resume(returning: dest) } catch { cont.resume(throwing: error) }
             }
         }
     }
 
-    private func loadImage(_ p: NSItemProvider) async throws -> UIImage {
-        let data: Data = try await withCheckedThrowingContinuation { cont in
-            _ = p.loadDataRepresentation(for: .image) { data, error in
-                if let data { cont.resume(returning: data) } else { cont.resume(throwing: error ?? API.Failure(message: "Couldn’t open that photo.")) }
-            }
-        }
-        guard let image = UIImage(data: data) else { throw API.Failure(message: "Couldn’t read that photo.") }
-        return image
-    }
 
     private func youtubeLink(_ providers: [NSItemProvider]) async -> String? {
         for p in providers {
