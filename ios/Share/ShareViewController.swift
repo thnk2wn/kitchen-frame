@@ -44,17 +44,18 @@ final class ShareModel {
                 defer { try? FileManager.default.removeItem(at: url) }
                 // Read at the frame's size straight from the file: decoding a full 48 MP photo would take
                 // more memory than a share extension is allowed, and iOS would end it without a word.
-                guard let image = UIImage.downsampled(url, maxPixels: 1920) else { throw API.Failure(message: "Couldn’t read that photo.") }
+                guard let image = UIImage.downsampled(url, maxPixels: 2560) else { throw API.Failure(message: "Couldn’t read that photo.") }
                 preview = image
                 stage = .sending
-                try await MediaSender.send(photo: image, api: api)
+                try await MediaSender.send(photo: image, title: await TakenCaption.ofPhoto(url), api: api)
                 stage = .done("The photo is on the frame.")
             } else if let p = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.movie.identifier) }) {
                 let url = try await copy(p, type: .movie)
                 defer { try? FileManager.default.removeItem(at: url) }
                 preview = await Thumbnail.of(video: url)
                 stage = .preparing(0)
-                try await MediaSender.send(video: url, api: api) { p in Task { @MainActor in if case .preparing = self.stage { self.stage = .preparing(p) } } }
+                let caption = await TakenCaption.ofVideo(url)
+                try await MediaSender.send(video: url, title: caption, api: api) { p in Task { @MainActor in if case .preparing = self.stage { self.stage = .preparing(p) } } }
                 stage = .done("The video is playing on the frame.")
             } else if let link = await youtubeLink(providers) {
                 stage = .sending

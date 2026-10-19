@@ -1,9 +1,10 @@
 import AVFoundation
 import ImageIO
+import MapKit
 import UIKit
 
 /// Sends a photo, a video or a YouTube link to the frame (the share extension and the app both use it).
-/// Photos go at the frame's screen size; videos are converted on the phone to what the frame plays well
+/// Photos go a little over the frame's screen size (for zooming); videos are converted on the phone to what the frame plays well
 /// over its slow Wi-Fi: H.264 at 960x540, about 0.9 Mbit/s, the first 3 minutes (the Worker keeps 24 MB).
 enum MediaSender {
     static let maxVideoSeconds = 180.0
@@ -47,6 +48,59 @@ enum MediaSender {
     }
 }
 
+/// When and where a photo or video was taken, from the file's own details, as the frame shows it:
+/// "October 18, 2026 at 3:14 PM · Raleigh, NC" (the slideshow shows the date and place the same way).
+/// The place is looked up with Apple Maps; with location left off in the share sheet, only the time shows.
+enum TakenCaption {
+    static func ofPhoto(_ url: URL) async -> String {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else { return "" }
+        let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+        var date: Date?
+        if let taken = exif[kCGImagePropertyExifDateTimeOriginal] as? String {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "en_US_POSIX")
+            f.dateFormat = "yyyy:MM:dd HH:mm:ss"
+            if let offset = exif[kCGImagePropertyExifOffsetTimeOriginal] as? String { f.dateFormat += "xxx"; date = f.date(from: taken + offset) }
+            if date == nil { f.dateFormat = "yyyy:MM:dd HH:mm:ss"; date = f.date(from: taken) }
+        }
+        var location: CLLocation?
+        if let gps = props[kCGImagePropertyGPSDictionary] as? [CFString: Any],
+           var lat = gps[kCGImagePropertyGPSLatitude] as? Double, var lon = gps[kCGImagePropertyGPSLongitude] as? Double {
+            if (gps[kCGImagePropertyGPSLatitudeRef] as? String) == "S" { lat = -lat }
+            if (gps[kCGImagePropertyGPSLongitudeRef] as? String) == "W" { lon = -lon }
+            location = CLLocation(latitude: lat, longitude: lon)
+        }
+        return await caption(date: date, location: location)
+    }
+
+    static func ofVideo(_ url: URL) async -> String {
+        let asset = AVURLAsset(url: url)
+        let date = try? await asset.load(.creationDate)?.load(.dateValue)
+        var location: CLLocation?
+        // "+35.7796-078.6382+100.000/" (ISO 6709): latitude, then longitude.
+        if let items = try? await asset.load(.metadata),
+           let item = AVMetadataItem.metadataItems(from: items, filteredByIdentifier: .quickTimeMetadataLocationISO6709).first,
+           let text = try? await item.load(.stringValue),
+           let m = text.firstMatch(of: /([+-]\d+(?:\.\d+)?)([+-]\d+(?:\.\d+)?)/), let lat = Double(m.1), let lon = Double(m.2) {
+            location = CLLocation(latitude: lat, longitude: lon)
+        }
+        return await caption(date: date ?? nil, location: location)
+    }
+
+    static func caption(date: Date?, location: CLLocation?) async -> String {
+        var parts: [String] = []
+        if let date { parts.append(date.formatted(.dateTime.month(.wide).day().year().hour().minute())) }
+        if let location, let place = await place(location) { parts.append(place) }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func place(_ location: CLLocation) async -> String? {
+        guard let request = MKReverseGeocodingRequest(location: location), let item = try? await request.mapItems.first else { return nil }
+        return item.addressRepresentations?.cityWithContext ?? item.addressRepresentations?.cityName
+    }
+}
+
 extension UIImage {
     /// A photo file read at most `maxPixels` on its longer side, upright, without decoding it at full size.
     static func downsampled(_ url: URL, maxPixels: Int) -> UIImage? {
@@ -56,10 +110,11 @@ extension UIImage {
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options).map(UIImage.init(cgImage:))
     }
 
-    /// Upright, at most 1920 px on the longer side (the frame's screen), as a JPEG.
+    /// Upright, at most 2560 px on the longer side, as a JPEG: a little over the frame's 1920 px screen, so
+    /// pinch-to-zoom there has some detail to show (about 5 MP, still far from a full phone photo).
     func frameJPEG() -> Data? {
         let px = CGSize(width: size.width * scale, height: size.height * scale)
-        let k = min(1, 1920 / max(px.width, px.height))
+        let k = min(1, 2560 / max(px.width, px.height))
         let target = CGSize(width: (px.width * k).rounded(), height: (px.height * k).rounded())
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1

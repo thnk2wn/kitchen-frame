@@ -26,7 +26,7 @@
   // Each new share starts fresh.
   $effect(() => {
     if (!item) return;
-    muted = false; loading = true; failed = false;
+    muted = false; loading = true; failed = false; zoom = 1; tx = 0; ty = 0;
     if (item.kind === 'photo') after(PHOTO_MIN * 60 * 1000);
     else clearTimeout(timer);
   });
@@ -42,6 +42,62 @@
   }
   function unmute() { muted = false; if (video) { video.muted = false; video.play().catch(() => {}); } }
 
+  // Pinch to zoom a photo (up to MAX_ZOOM), drag to look around while zoomed, double-tap to zoom in at that
+  // spot or back out. Only a transform changes (the frame's GPU handles that), centred on the screen:
+  // a point p from the centre shows at t + zoom * p, so a pinch keeps the point under the fingers still.
+  const MAX_ZOOM = 4;
+  let zoom = $state(1), tx = $state(0), ty = $state(0);
+  let box;
+  const pointers = new Map(); // pointer id -> { x, y }
+  let gesture = null;         // where the current pinch or drag started
+  let lastTap = 0;
+  const centre = (x, y) => { const r = box.getBoundingClientRect(); return { x: x - r.left - r.width / 2, y: y - r.top - r.height / 2 }; };
+  // Never past the photo's edge: at zoom z the picture is (z - 1) half-screens wider than the screen.
+  function clamp() {
+    const r = box.getBoundingClientRect();
+    const mx = ((zoom - 1) * r.width) / 2, my = ((zoom - 1) * r.height) / 2;
+    tx = Math.max(-mx, Math.min(mx, tx)); ty = Math.max(-my, Math.min(my, ty));
+  }
+  function setZoom(z, at) { // at: the point (from the centre) to keep still
+    const k = Math.max(1, Math.min(MAX_ZOOM, z)) / zoom;
+    tx = at.x - (at.x - tx) * k; ty = at.y - (at.y - ty) * k;
+    zoom *= k; clamp();
+  }
+  function begin() {
+    const [a, b] = [...pointers.values()];
+    gesture = b ? { d: Math.hypot(a.x - b.x, a.y - b.y), zoom, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } }
+      : { x: a.x, y: a.y, tx, ty };
+  }
+  function down(e) {
+    box.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, centre(e.clientX, e.clientY));
+    after(PHOTO_MIN * 60 * 1000); // looking at it: the clock starts again
+    begin();
+  }
+  function move(e) {
+    if (!pointers.has(e.pointerId) || !gesture) return;
+    pointers.set(e.pointerId, centre(e.clientX, e.clientY));
+    const [a, b] = [...pointers.values()];
+    if (b && gesture.d) {
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      setZoom(gesture.zoom * (Math.hypot(a.x - b.x, a.y - b.y) / gesture.d), mid);
+      tx += mid.x - gesture.mid.x; ty += mid.y - gesture.mid.y; gesture.mid = mid; clamp();
+    } else if (!b && zoom > 1 && gesture.x !== undefined) {
+      tx = gesture.tx + a.x - gesture.x; ty = gesture.ty + a.y - gesture.y; clamp();
+    }
+  }
+  function up(e) {
+    const was = pointers.get(e.pointerId);
+    pointers.delete(e.pointerId);
+    if (pointers.size) { begin(); return; }
+    // A tap (not a drag): two within 300 ms zoom in there, or back out.
+    if (gesture && gesture.x !== undefined && was && Math.hypot(was.x - gesture.x, was.y - gesture.y) < 12) {
+      if (Date.now() - lastTap < 300) { if (zoom > 1) { zoom = 1; tx = 0; ty = 0; } else setZoom(2.5, was); lastTap = 0; }
+      else lastTap = Date.now();
+    }
+    gesture = null;
+  }
+
   // Volume 0-10, remembered on this frame; the loudest is the frame's own Android media volume.
   const saved = () => { try { const v = Number(localStorage.getItem('frame-shared-volume')); return v >= 0 && v <= 10 && localStorage.getItem('frame-shared-volume') !== null ? v : 8; } catch { return 8; } };
   let volume = $state(saved());
@@ -56,7 +112,10 @@
 {#if item}
   <div class="shared" role="dialog" aria-label={item.kind === 'video' ? 'Shared video' : 'Shared photo'}>
     {#if item.kind === 'photo'}
-      <img {src} alt={item.title} onload={() => (loading = false)} onerror={() => { loading = false; failed = true; log('share.media', { error: 'photo' }, 'warn'); }} />
+      <div class="zoom" bind:this={box} onpointerdown={down} onpointermove={move} onpointerup={up} onpointercancel={up} role="presentation">
+        <img {src} alt={item.title} draggable="false" style="transform: translate({tx}px, {ty}px) scale({zoom})"
+          onload={() => (loading = false)} onerror={() => { loading = false; failed = true; log('share.media', { error: 'photo' }, 'warn'); }} />
+      </div>
     {:else if !failed}
       <!-- A black poster: without one, Android's WebView shows its own big play icon while loading. -->
       <!-- svelte-ignore a11y_media_has_caption -->
@@ -85,6 +144,8 @@
 <style>
   .shared { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 62; background: #000; color: #fff; }
   img, video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+  .zoom { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; touch-action: none; }
+  .zoom img { transform-origin: 50% 50%; will-change: transform; }
   .note { position: absolute; left: 0; right: 0; top: 45%; margin: 0; text-align: center; font-size: 24px; font-weight: 600; color: rgba(255, 255, 255, .8); }
   .bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 14px; padding: 16px 24px; background: linear-gradient(to top, rgba(0, 0, 0, .6), rgba(0, 0, 0, 0)); }
   .title { flex: 1; min-width: 0; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
