@@ -18,7 +18,8 @@
     place = seen.get(q) || null;
     if (seen.has(q)) return;
     let live = true;
-    api('/api/geo?q=' + encodeURIComponent(q)).then((r) => {
+    // v=2: past "not found" answers the browser kept a day (before misses stopped being cached).
+    api('/api/geo?v=2&q=' + encodeURIComponent(q)).then((r) => {
       if (!r.error) seen.set(q, r.place);
       if (live) place = r.place;
     }).catch(() => {});

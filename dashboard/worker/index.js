@@ -268,7 +268,9 @@ async function handle(req, env, ctx) {
         catch (err) { return json({ configured: true, error: String(err.message || err) }, 502); }
       }
       if (url.pathname === '/api/geo') {
-        try { return json({ place: await geocode(env, url.searchParams.get('q')) }, 200, 'private, max-age=86400'); }
+        // A place found is kept a day by the frame's browser; a miss isn't kept, so a later fix or a
+        // newly findable place shows at once.
+        try { const place = await geocode(env, url.searchParams.get('q')); return json({ place }, 200, place ? 'private, max-age=86400' : 'no-store'); }
         catch (err) { return json({ place: null, error: String(err.message || err) }); } // not cached; tried again next open
       }
       const t = /^\/api\/tiles\/(\d+)\/(\d+)\/(\d+)$/.exec(url.pathname);
