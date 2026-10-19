@@ -224,8 +224,9 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
   }
 
   // iCloud brings this Mac the phone's changes more reliably while the app itself runs: the Podcasts
-  // library syncs only then, and Reminders (seen 2026-10-17) can go hours without the phone's ticks
-  // until the app opens. Each is started hidden when it isn't running (at most every 10 minutes).
+  // library syncs only then, Reminders (seen 2026-10-17) can go hours without the phone's ticks until
+  // the app opens, and Calendar (2026-10-18) held back an event edited on the phone. Each is started
+  // hidden when it isn't running (at most every 10 minutes).
   var launchedAt: [String: Date] = [:]
   var refreshedAt = Date.distantPast
   func keepOpen(_ id: String, _ name: String) {
@@ -624,6 +625,7 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
     dayFmt.calendar = Calendar(identifier: .gregorian); dayFmt.locale = Locale(identifier: "en_US_POSIX"); dayFmt.timeZone = .current
     dayFmt.dateFormat = "yyyy-MM-dd"
     var out: [String: [[String: Any]]] = [:]
+    if !calendars.isEmpty { keepOpen("com.apple.iCal", "Calendar") }
     for (name, notes) in calendars {
       guard let c = store.calendars(for: .event).first(where: { $0.title.compare(name, options: [.caseInsensitive]) == .orderedSame }) else {
         problem("calendar:" + name, "No calendar named \"\(name)\" on this Mac. Check the name, and that iCloud Calendars is on.")
