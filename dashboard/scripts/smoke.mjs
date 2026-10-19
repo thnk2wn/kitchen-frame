@@ -6,7 +6,7 @@
 // fails the test. On 2026-10-19 one card's error on that day's real calendar turned the frame white;
 // this would have stopped that deploy.
 //
-//   npm run build && node scripts/smoke.mjs          (scripts/deploy.sh runs it before deploying)
+//   npm run build && node scripts/smoke.mjs          (run it before wrangler deploy; not yet automatic)
 //
 // Reads DASHBOARD_KEY from .dev.vars, and DASHBOARD_URL and the optional HA_URL / HA_TOKEN /
 // HA_DASHBOARD from .frame.vars (both gitignored). Chrome: /Applications/Google Chrome.app, or CHROME.
