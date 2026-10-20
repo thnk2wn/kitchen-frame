@@ -220,6 +220,53 @@
           ]
         },
         {
+          "name": "FitnessIntent",
+          "slots": [],
+          "samples": [
+            "how's my fitness",
+            "how is my fitness",
+            "how's my fitness looking",
+            "how is my fitness looking",
+            "how are my rings",
+            "how are my activity rings",
+            "how are my rings looking",
+            "check my rings",
+            "check my fitness",
+            "my fitness",
+            "fitness",
+            "how's my activity",
+            "how am I doing on my rings",
+            "how's everyone's fitness"
+          ]
+        },
+        {
+          "name": "GuestOnIntent",
+          "slots": [],
+          "samples": [
+            "guest mode",
+            "turn on guest mode",
+            "guest mode on",
+            "start guest mode",
+            "we have guests",
+            "we have company",
+            "company's here",
+            "hide fitness",
+            "hide our fitness"
+          ]
+        },
+        {
+          "name": "GuestOffIntent",
+          "slots": [],
+          "samples": [
+            "turn off guest mode",
+            "guest mode off",
+            "stop guest mode",
+            "end guest mode",
+            "the guests are gone",
+            "company's gone"
+          ]
+        },
+        {
           "name": "AMAZON.HelpIntent",
           "samples": []
         },
@@ -380,6 +427,16 @@
                 "synonyms": [
                   "podcast",
                   "the podcasts"
+                ]
+              }
+            },
+            {
+              "name": {
+                "value": "fitness",
+                "synonyms": [
+                  "rings",
+                  "activity rings",
+                  "activity"
                 ]
               }
             }

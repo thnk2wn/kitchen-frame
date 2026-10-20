@@ -1,5 +1,6 @@
 // Shared app state and the pollers that fill it. Each feed polls only while something on screen
 // needs it (see start()), one request at a time, and unchanged results don't touch the screen.
+import { loadFitness } from './fitness.svelte.js';
 import { api, cached, remember, changed, forget, mediaUrl } from './api.js';
 import { log } from './log.svelte.js';
 import { dayKey, recipeTitle, setCalendarColors } from './format.js';
@@ -339,6 +340,9 @@ function connectMessages() {
       if (d.command === 'meals') { ui.settingsOpen = false; ui.openMeals = true; ui.tab = 'recipes'; }
       // The Worker saw the Paprika meal plan change: fetch it now (Meals and Home's Today card).
       if (d.command === 'refresh' && d.what === 'meals') loadMeals();
+      // A phone just sent its Activity rings (worker/fitness.js). KV can serve the old copy for up to a
+      // minute after a write, so fetch again a minute later rather than waiting for the 10-minute poll.
+      if (d.command === 'refresh' && d.what === 'fitness') { loadFitness(); setTimeout(loadFitness, 70000); }
       // "Hide notifications", "close that": whatever sheet is over the screen.
       if (d.command === 'media' && d.id) {
         lastTouch = Date.now();
@@ -572,6 +576,7 @@ export function start() {
   every(30 * MIN, loadMeals);
   every(60 * MIN, loadVideos);
   every(60 * MIN, loadRotations);
+  every(10 * MIN, loadFitness); // the phones send when they have news; the Worker also says so (refresh)
   every(15 * MIN, loadWeather);
   // Both lists show on Home; each also has its own tab (App loads a list when its tab opens).
   every(MIN, () => loadList('todo'), () => !ui.idle);
@@ -652,6 +657,7 @@ function showTab(tab) {
   if (tab === 'music' || tab === 'tv' || tab === 'videos' || tab === 'podcasts') { ui.tab = 'music'; ui.media = tab; return; }
   if (TAB_IDS.includes(tab)) ui.tab = tab;
   if (tab === 'groceries' || tab === 'todo') loadList(tab); // an item just added by voice shows at once
+  if (tab === 'fitness') loadFitness(); // "how's my fitness": the latest the phones sent
 }
 // Alexa's "play Sam's videos": the group, the ones least recently played here first.
 function playGroup(name) {

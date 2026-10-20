@@ -523,3 +523,44 @@ test('radar: the last hour of NEXRAD, now, then HRRR steps counted from its run'
   assert.match(f[9].url, /REFD-F0270-0/);
   assert.equal(iemFrames(valid, NaN, now).length, 6); // no HRRR: past and now only
 });
+
+test('calendar feeds: a failing feed backs off and keeps its events; CALENDAR_REFRESH slows a feed down', async () => {
+  const at = (h) => new Date(Date.now() + h * 36e5).toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const feed = (uid) => ['BEGIN:VCALENDAR', 'BEGIN:VEVENT', 'UID:' + uid, 'SUMMARY:' + uid, 'DTSTART:' + at(24), 'DTEND:' + at(25), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const store = new Map();
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const fetched = [];
+  let gamesUp = true;
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url).includes('games') ? 'games' : 'family');
+    return String(url).includes('games') && !gamesUp ? new Response('no', { status: 403 }) : new Response(feed(String(url).includes('games') ? 'game' : 'dinner'));
+  };
+  const cenv = { ...env, CALENDAR: kv, CALENDAR_URLS: 'https://feed.test/family.ics https://feed.test/games.ics', CALENDAR_REFRESH: ',12' };
+  const run = async () => { fetched.length = 0; await worker.scheduled({ cron: '*/10 * * * *' }, cenv); return JSON.parse(store.get('calendar')); };
+  const realNow = Date.now;
+  let clock = realNow();
+  Date.now = () => clock;
+  try {
+    let cal = await run();
+    assert.deepEqual(fetched.sort(), ['family', 'games']);
+    clock += 20 * 60000;                          // 20 minutes on: the games feed isn't due (12 hours)
+    cal = await run();
+    assert.deepEqual(fetched, ['family']);
+    assert.ok(cal.events.some((e) => e.uid === 'game'), 'its events are kept');
+    clock += 12 * 3600000; gamesUp = false;       // due again, and the site refuses
+    cal = await run();
+    assert.deepEqual(cal.errors, [{ cal: 1, error: 'HTTP 403', since: new Date(clock - 12 * 3600000 - 20 * 60000).toISOString() }]);
+    assert.ok(cal.events.some((e) => e.uid === 'game'), 'still kept while failing');
+    clock += 10 * 60000;                          // 10 minutes: retried (first wait is 10)
+    await run();
+    assert.ok(fetched.includes('games'));
+    clock += 10 * 60000;                          // two failures: the next wait is 20 minutes
+    cal = await run();
+    assert.deepEqual(fetched, ['family']);
+    assert.equal(cal.errors[0].error, 'HTTP 403', 'still reported between tries');
+    clock += 10 * 60000; gamesUp = true;          // 20 minutes since the last try: retried, and it works
+    cal = await run();
+    assert.ok(fetched.includes('games'));
+    assert.deepEqual(cal.errors, []);
+  } finally { Date.now = realNow; }
+});

@@ -4,6 +4,9 @@
   // What's playing (or paused within the last 30 minutes), from App, which also feeds the top bar.
   let { playing = null } = $props();
   let slotH = $state(0);
+  let showPlaying = $derived(!!playing && slotH >= 78);
+  // Rings under the clock need about 52px of room (the slot's padding is 18px).
+  let ringsBelow = $derived(!showPlaying && ringPeople.length > 0 && slotH >= 70);
   import Icon from '../components/Icon.svelte';
   import Safe from '../components/Safe.svelte';
   import EventRow from '../components/EventRow.svelte';
@@ -13,7 +16,9 @@
   import SortButton from '../components/SortButton.svelte';
   import NoticeBanners from '../components/NoticeBanners.svelte';
   import Rings from '../components/Rings.svelte';
-  import { demoFitness } from '../lib/fitness.js';
+  import { view } from '../lib/fitness.js';
+  import HomeRings from '../components/HomeRings.svelte';
+  import { fitnessPeople } from '../lib/fitness.svelte.js';
   import { clock, calendar, weather, lists, mealItems, rotationRules, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
 
@@ -44,6 +49,7 @@
     return [...days.values()];
   });
   // Tonight's dinner (and any other meal planned today) from Paprika, above today's events.
+  let ringPeople = $derived(fitnessPeople(ui.demo, clock.now).map((p) => view(p, clock.now)).filter((p) => !p.empty));
   let todaysMeals = $derived(mealItems().filter((m) => m.date === dayKey(clock.now)));
   // Rotations (lib/rotations.js): today's up early at the top, tonight's bedtime last, and once the
   // morning's over, tomorrow's up early under Tomorrow in Upcoming.
@@ -70,11 +76,12 @@
   <section class="now">
     <div class="date-row">
       <div class="date">{longDate(clock.now)}</div>
-      <!-- Each person's rings at a glance (a mockup, demo mode only); a tap opens Fitness. -->
-      {#if ui.demo}
+      <!-- Each person's rings, small, when the room under the clock is taken (notices, Now Playing);
+           faded when old; a tap opens Fitness. -->
+      {#if ringPeople.length && !ringsBelow}
         <button class="rings" onclick={() => (ui.tab = 'fitness')} aria-label="Fitness">
-          {#each demoFitness(clock.now) as p (p.name)}
-            <span class="ring-p"><Rings move={p.move / p.moveGoal} exercise={p.exercise / p.exerciseGoal} stand={p.stand / p.standGoal} size={34} light={ui.theme === 'light'} /><i>{p.name[0]}</i></span>
+          {#each ringPeople as p (p.id)}
+            <span class="ring-p" class:stale={p.stale}><Rings move={p.rings.move} exercise={p.rings.exercise} stand={p.rings.stand} size={34} light={ui.theme === 'light'} /><i>{p.name[0]}</i></span>
           {/each}
         </button>
       {/if}
@@ -82,10 +89,12 @@
     <div class="clock num">{clockTime(clock.now)}</div>
     <!-- Home Assistant notices come first (lib/notices.svelte.js). Now Playing takes whatever room is
          left above the weather: a row on the frame, a big cover on a taller screen, nothing when
-         there's no room for even the row (it's still in Music). -->
+         there's no room for even the row (it's still in Music). With nothing playing, the room goes
+         to each person's rings (components/HomeRings.svelte), and they move up by the date. -->
     <NoticeBanners max={2} />
     <div class="np-slot" bind:clientHeight={slotH}>
-      {#if playing && slotH >= 78}<NowPlaying player={playing} card slim={slotH < 136} cover={slotH >= 320 ? Math.min(slotH - 124, 360) : 0} />{/if}
+      {#if showPlaying}<NowPlaying player={playing} card slim={slotH < 136} cover={slotH >= 320 ? Math.min(slotH - 124, 360) : 0} />
+      {:else if ringsBelow}<HomeRings people={ringPeople} height={slotH - 18} />{/if}
     </div>
 
     {#if wx}
@@ -233,6 +242,7 @@
   .rings { margin-left: auto; display: flex; gap: 10px; padding: 4px 0 0; }
   .rings:active { opacity: .6; }
   .ring-p { display: flex; align-items: center; gap: 4px; }
+  .ring-p.stale { opacity: .45; }
   .ring-p i { font-style: normal; font-size: 15px; font-weight: 700; color: var(--secondary); }
   .date { font-size: 26px; font-weight: 600; color: var(--secondary); padding: 6px 4px 0; }
   .clock { font-size: 146px; font-weight: 600; line-height: 1; letter-spacing: -.04em; margin: 2px 0 0 -4px; }

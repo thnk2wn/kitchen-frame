@@ -37,9 +37,14 @@ targets:
       path: KitchenFrame/KitchenFrame.entitlements
       properties:
         keychain-access-groups: [$(AppIdentifierPrefix)$(BUNDLE_ID_PREFIX).kitchenframe.shared]
+        # Settings → Fitness: reads Activity rings, steps and workouts for the frame (Fitness.swift),
+        # and is woken when they change.
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.background-delivery: true
     info:
       path: KitchenFrame/Info.plist
       properties:
+        NSHealthShareUsageDescription: Shows your Activity rings, steps and recent workouts on the kitchen frame’s Fitness tab. Nothing else from Health is sent.
         # The Keychain group the pairing lives in, shared with the share extension.
         KeychainGroup: $(AppIdentifierPrefix)$(BUNDLE_ID_PREFIX).kitchenframe.shared
         # The frame's Settings → Pair a phone QR code opens kitchenframe://pair?url=…&key=…

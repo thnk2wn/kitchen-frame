@@ -6,6 +6,7 @@
   import List from './views/List.svelte';
   import Ambient from './views/Ambient.svelte';
   import Fitness from './views/Fitness.svelte';
+  import { fitness } from './lib/fitness.svelte.js';
   import Settings from './components/Settings.svelte';
   import Music from './views/Music.svelte';
   import TV from './views/TV.svelte';
@@ -57,9 +58,12 @@
     ...(haConfigured() || ui.demo || videos.groups.length || podcasts.shows.length ? [{ id: 'music', label: 'Media' }] : []), // demo: an invented player
     // House mirrors a Home Assistant dashboard, once the frame has its URL path (frame-ha-dashboard).
     ...((haConfigured() && haDashboard()) || ui.demo ? [{ id: 'house', label: 'House' }] : []), // demo: an invented house
-    // Fitness: Activity rings and workouts. A mockup, so demo mode only until the phones send real numbers.
-    ...(ui.demo ? [{ id: 'fitness', label: 'Fitness' }] : []),
+    // Fitness: Activity rings and workouts, once someone's phone sends them (lib/fitness.svelte.js).
+    ...(ui.demo || (fitness.people.length && !fitness.guest.on) ? [{ id: 'fitness', label: 'Fitness' }] : []),
   ]);
+  // A tab that goes away while open (the last phone stopped sharing Fitness) falls back to Home, once
+  // the list has loaded: at start, before it has, the tab isn't there yet.
+  $effect(() => { if (ui.tab === 'fitness' && (fitness.loaded || ui.demo) && !TABS.some((t) => t.id === 'fitness')) ui.tab = 'home'; });
   let wx = $derived(weather.data);
   let info = $derived(wx ? weatherInfo(wx.code, wx.day) : null);
 
@@ -83,7 +87,9 @@
   // Demo mode without Home Assistant: an invented song (with it, the real one: lib/demo-media.svelte.js).
   $effect(() => { if (ui.demo) loadDemoMedia(); });
   const DEMO_NP = { entity_id: 'media_player.spotify_demo', state: 'playing', media_title: 'Golden Hour', media_artist: 'The Lanterns', media_playlist: 'Sunday Morning' };
-  let playing = $derived(fakeMedia() ? DEMO_NP : shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
+  // ?np=off: nothing playing in demo mode (screenshots of Home's room under the clock without music).
+  const NO_DEMO_NP = new URLSearchParams(location.search).get('np') === 'off';
+  let playing = $derived(fakeMedia() ? (NO_DEMO_NP ? null : DEMO_NP) : shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
   let mini = $derived(!!playing && ui.tab !== 'home' && ui.tab !== 'music');
 </script>
 

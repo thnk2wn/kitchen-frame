@@ -33,7 +33,7 @@ const screens = [
   ['home', 'tab=home'], ['calendar', 'tab=calendar'], ['lists', 'tab=todo'], ['groceries', 'tab=groceries'],
   ['recipes', 'tab=recipes'], ['music', 'tab=music'], ['tv', 'tab=music&media=tv'], ['videos', 'tab=music&media=videos'],
   ['podcasts', 'tab=music&media=podcasts'], ['house', 'tab=house'], ['weather', 'tab=home&weather=0'],
-  ['radar', 'tab=home&weather=0&radar'], ['settings', 'tab=home&settings=about'], ['timer', 'tab=home&timer=Pasta:7'],
+  ['radar', 'tab=home&weather=0&radar'], ['settings', 'tab=home&settings=about'], ['timer', 'tab=home&timer=Pasta:7'], ['fitness', 'tab=fitness'], ['workout', 'tab=fitness&workout=1'], ['fitness day', 'tab=fitness&fitnessday=3'],
 ].flatMap(([name, q]) => [[name, q + '&demo=off'], ['demo ' + name, q + '&demo=on']])
   .filter(([name]) => !process.env.SMOKE_ONLY || name === process.env.SMOKE_ONLY); // SMOKE_ONLY=home: just that one
 

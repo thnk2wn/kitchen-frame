@@ -41,6 +41,31 @@ export class MessageRoom {
       return new Response(null, { status: 101, webSocket: client });
     }
     if (path === '/list') return json({ messages: await this.load() });
+    // Guest mode (guest.js), kept here rather than in KV: KV can answer with the old value for a
+    // minute after a change, so a phone turning it on wouldn't reach the frame straight away. Set,
+    // it tells the frame to fetch what it may show.
+    // When a regular job last ran ({ name: { at, error } }), for the status page: e.g. the Paprika
+    // sync every 15 minutes, which only writes KV when something changed. Kept here rather than in KV
+    // so a write every run doesn't eat into KV's daily allowance.
+    if (path === '/stamps') {
+      const stamps = (await this.ctx.storage.get('stamps')) || {};
+      if (req.method === 'POST') {
+        const { name, error } = await req.json().catch(() => ({}));
+        if (typeof name !== 'string' || !name) return json({ error: 'name' }, 400);
+        stamps[name.slice(0, 40)] = { at: new Date().toISOString(), ...(error ? { error: String(error).slice(0, 200) } : {}) };
+        await this.ctx.storage.put('stamps', stamps);
+      }
+      return json(stamps);
+    }
+    if (path === '/guest') {
+      if (req.method === 'POST') {
+        const { on } = await req.json().catch(() => ({}));
+        await this.ctx.storage.put('guest', { on: !!on });
+        const msg = JSON.stringify({ command: 'refresh', what: 'fitness' });
+        for (const ws of this.ctx.getWebSockets()) { try { ws.send(msg); } catch {} }
+      }
+      return json({ on: !!((await this.ctx.storage.get('guest')) || {}).on });
+    }
     if (path === '/post') return this.post(req);
     // A command for the frame itself ("checkin": send your status and events now; "reload": load the
     // dashboard again, e.g. to pick up a deploy at once), pushed to
@@ -50,7 +75,7 @@ export class MessageRoom {
       // play: a YouTube video shared from a phone (index.js /api/share/play), with its id and title.
       // show (a tab), slideshow, wake, playgroup (a Media → Videos group), recipe (a Paprika recipe's id
       // and title), meals (Recipes → Meals) and close (whatever sheet is open): from Alexa (alexa.js).
-      // refresh (what: 'meals'): something the frame shows changed on the Worker; fetch it now.
+      // refresh (what: 'meals' or 'fitness'): something the frame shows changed on the Worker; fetch it now.
       // media: a photo or video shared from a phone (shared-media.js), by id, to show full screen.
       if (!['checkin', 'reload', 'play', 'show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close', 'refresh', 'media'].includes(command)) return json({ error: 'unknown command' }, 400);
       if (command === 'media' && (!/^[0-9a-f-]{36}$/.test(id || '') || !['photo', 'video'].includes(kind))) return json({ error: 'a shared photo or video id' }, 400);

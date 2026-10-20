@@ -8,9 +8,14 @@ A companion app for the frame:
   video converted to H.264 at 960x540 and about 0.9 Mbit/s (the frame's Wi-Fi is slow), the first 3
   minutes. The Worker keeps it a day (`dashboard/worker/shared-media.js`).
 - **Remote:** show any screen on the frame, start the slideshow, wake it, or close what's open, and see
-  what the frame is displaying.
+  what the frame is displaying. **Guest mode** hides personal things on the frame (Fitness) while
+  guests are over.
+- **Apple Health:** Settings → Apple Health sends its owner's Activity rings, steps and recent workouts
+  to the frame's [Fitness](../docs/fitness.md) tab, when the app opens and when Health has new data;
+  average heart rate only if that switch is on. Each person shares from their own phone. It lists the
+  day's sends, to see how fresh the frame is.
 - **Ops:** the status page on the phone: is the frame online and what it's running, the health of the
-  calendar, lists, Mac bridge and Paprika sync, the frame's event log, the Alexa log and recent notices,
+  calendar, lists, Mac bridge, Paprika sync and each phone's fitness sends, the frame's event log, the Alexa log and recent notices,
   with a badge on the tab when something needs a look. It reads the same summary the status page does,
   with the key the app was paired with, so there's no GitHub sign-in.
 
@@ -24,8 +29,10 @@ You need a Mac with Xcode (26 or later), an iPhone on iOS 26 or later, and
 1. `cp ios/Config/Signing.example.xcconfig ios/Config/Signing.xcconfig` and fill in your team id and a
    bundle id prefix of your own. A free Apple ID works for your own phone (Xcode → Settings →
    Accounts adds it as a "Personal Team"), but apps signed that way stop opening after 7 days until
-   you install them again. The Apple Developer Program ($99 a year) signs them for a year and adds
-   TestFlight, for putting the app on other people's phones.
+   you install them again. The Apple Developer Program ($99 a year) signs them for a year, which is
+   also how to put the app on other people's phones (register each one, or use TestFlight). The app
+   uses HealthKit for [Fitness](../docs/fitness.md); both kinds of account can sign it. After
+   installing or updating, open the app once so Health can wake it in the background.
 2. `cd ios && xcodegen && open KitchenFrame.xcodeproj`. The project is generated from `project.yml`
    and isn't committed; run `xcodegen` again after pulling changes.
 3. Connect the iPhone, pick it as the run destination, and Run. The first time, the iPhone asks you to

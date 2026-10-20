@@ -28,6 +28,8 @@
 //   GET  /api/share/media/:id        that photo or video
 //   POST /api/frame/command          { command: show|slideshow|wake|close|playgroup, tab?, group? } (the phone app)
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
+//   GET, POST, DELETE /api/fitness   Activity rings and workouts, sent by each person's phone (fitness.js)
+//   GET, POST /api/frame/guest       guest mode: nothing personal on the frame (guest.js)
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
@@ -49,6 +51,9 @@
 //                  iCal format" and iCloud public calendar links (webcal://) both work. bridge:<name>
 //                  instead of a link: the Apple Calendar calendar of that name, sent by the Mac
 //                  bridge (bridge/mac/) with its alerts, which iCloud's public links leave out.
+//   CALENDAR_REFRESH optional hours per calendar, comma-separated, in link order: fetch that feed at
+//                  most that often (blank: every 10 minutes). For feeds that barely change, or a
+//                  site that refuses frequent fetches from a cloud server (calendar-feeds, below).
 //   DASHBOARD_KEY  shared key the frame sends with every API call. Unset = no check (dev only).
 //   TODOIST_TOKEN  Todoist API token.
 //   YOUTUBE_VIDEOS optional: groups of YouTube videos and playlists for Media → Videos (youtube.js),
@@ -71,6 +76,8 @@
 //   SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN  optional: all playlists and
 //                  their last-played order for the Music tab (scripts/spotify-auth.mjs).
 // Optional: DISPLAY_TZ  IANA zone for times with no TZID and no X-WR-TIMEZONE (default UTC).
+import { listFitness, saveFitness, removeFitness } from './fitness.js';
+import { guestMode, setGuestMode } from './guest.js';
 import { expand, fromBridge, merge, splitNotes } from './calendar.js';
 import { getWeather } from './weather.js';
 import { getRadar } from './radar.js';
@@ -232,6 +239,9 @@ async function handle(req, env, ctx) {
         podcasts: () => listPodcasts(env),
         rotations: () => rotations(env),
         demo: async () => ((await env.CALENDAR.get(DEMO_KEY, 'json')) || {}).on === true,
+        fitness: () => listFitness(env),
+        guest: () => guestMode(env),
+        setGuest: (on) => setGuestMode(env, on),
       });
     }
     // Agents may also save recipes with their token (the frame saves with its own key).
@@ -339,6 +349,23 @@ async function handle(req, env, ctx) {
       if (url.pathname === '/api/frame/status') return json(await getStatus(env));
       if (url.pathname === '/api/frame/settings') return json(url.searchParams.has('history') ? await getSettingsHistory(env) : await getSettings(env));
       if (url.pathname === '/api/ops/summary') return json(await opsSummary(env, KEY));
+      // In guest mode nobody's fitness leaves the Worker (guest.js).
+      if (url.pathname === '/api/fitness' && req.method === 'GET') {
+        const guest = await guestMode(env);
+        return json(guest.on ? { people: [], guest } : { ...(await listFitness(env)), guest });
+      }
+      if (url.pathname === '/api/frame/guest' && req.method === 'GET') return json(await guestMode(env));
+      if (url.pathname === '/api/frame/guest' && req.method === 'POST') {
+        const { on } = await req.json().catch(() => ({}));
+        if (typeof on !== 'boolean') return json({ error: 'on: true or false' }, 400);
+        return json(await setGuestMode(env, on)); // the room tells the frame
+      }
+      if (url.pathname === '/api/fitness' && (req.method === 'POST' || req.method === 'DELETE')) {
+        const { status, body } = req.method === 'POST' ? await saveFitness(env, await req.json().catch(() => ({}))) : await removeFitness(env, url.searchParams.get('id'));
+        // The frame shows it at once rather than at its next fetch.
+        if (status === 200) await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'refresh', what: 'fitness' }) }).catch(() => {});
+        return json(body, status);
+      }
       if (url.pathname === '/api/notices' && req.method === 'POST') {
         const { status, body } = await addNotice(env, await req.json().catch(() => ({})));
         return json(body, status);
@@ -439,7 +466,11 @@ async function scheduled(controller, env) {
   {
     // Paprika has its own cron so its requests and CPU don't share a run with the calendar's.
     if (controller.cron === PAPRIKA_CRON) {
-      const r = await syncPaprika(env);
+      // The status page's "Last checked" (messages.js /stamps), with the error when the run failed.
+      const stamp = (error) => room(env).fetch(new Request('https://room/stamps', { method: 'POST', body: JSON.stringify({ name: 'paprika', error }) })).catch(() => {});
+      let r;
+      try { r = await syncPaprika(env); } catch (e) { await stamp(String(e.message || e)); throw e; }
+      if (!r.skipped) await stamp(null);
       console.log('cron ' + controller.cron + ': paprika ' + JSON.stringify(r));
       // A changed meal plan reaches an open frame at once, not at its next half-hourly look.
       if (r.mealsChanged) await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'refresh', what: 'meals' }) }).catch(() => {});
@@ -452,11 +483,32 @@ async function scheduled(controller, env) {
 
 // Fetches the feeds and stores the result when the events or errors changed, or hourly.
 async function updateCalendar(env, previous) {
-  const data = await refresh(env, previous);
+  const feeds = (await env.CALENDAR.get(FEEDS_KEY, 'json')) || {};
+  const before = JSON.stringify(feeds);
+  const data = await refresh(env, previous, feeds);
   const pick = (d) => JSON.stringify([d.events, d.errors, d.names, d.colors, d.details, d.notes]);
   const same = previous && pick(previous) === pick(data);
   if (!same || Date.now() - Date.parse(previous.updated) > HEARTBEAT_MS) await env.CALENDAR.put(KEY, JSON.stringify(data));
+  // Each feed's fetch record changes only when a feed is fetched on a slow schedule or fails, so
+  // this is a handful of writes a day, not one per run.
+  if (JSON.stringify(feeds) !== before) await env.CALENDAR.put(FEEDS_KEY, JSON.stringify(feeds));
   return data;
+}
+
+// When each linked feed was last fetched, and its failures in a row (KV "calendar-feeds", by
+// calendar index, with a short hash of its link so a changed link starts afresh):
+//   - CALENDAR_REFRESH (optional, hours, comma-separated in link order): fetch that feed at most
+//     that often; blank fetches on every run. A season's game schedule barely changes, and some
+//     sports sites refuse a cloud server that asks every 10 minutes.
+//   - After a failure, wait 10, 20, 40 ... minutes (at most 6 hours) before trying that feed again,
+//     showing its last good events meanwhile.
+const FEEDS_KEY = 'calendar-feeds';
+const RETRY_MAX_MS = 6 * 60 * 60 * 1000;
+const linkTag = (link) => { let h = 0; for (const c of link) h = (h * 31 + c.charCodeAt(0)) | 0; return (h >>> 0).toString(36); };
+function feedDue(feed, everyMs, now) {
+  if (!feed) return true;
+  if (feed.fails) return now - Date.parse(feed.tried) >= Math.min(RETRY_MAX_MS, 10 * 60000 * 2 ** (feed.fails - 1)) - 30000;
+  return !everyMs || now - Date.parse(feed.ok) >= everyMs - 30000;
 }
 
 // The calendars CALENDAR_URLS takes from the Mac bridge (bridge:<name>), with their index there and
@@ -470,7 +522,7 @@ function bridgeCalendars(env) {
     .filter((c) => c.name);
 }
 
-async function refresh(env, previous) {
+async function refresh(env, previous, feeds = {}) {
   const urls = String(env.CALENDAR_URLS || '').split(/[\s,]+/).filter(Boolean);
   // What the Mac bridge last sent, for bridge:<name> calendars (read once for all of them).
   const fromMac = urls.some((u) => /^bridge:/i.test(u)) ? await env.CALENDAR.get(BRIDGE_CAL_KEY, 'json') : null;
@@ -480,6 +532,10 @@ async function refresh(env, previous) {
   const names = [];
   // CALENDAR_DETAILS (optional, same order): which calendars' events open with their notes.
   const details = env.CALENDAR_DETAILS ? urls.map((_, i) => /^(yes|y|true|on)$/i.test((String(env.CALENDAR_DETAILS).split(',')[i] || '').trim())) : null;
+  const every = String(env.CALENDAR_REFRESH || '').split(',').map((x) => (Number(x) > 0 ? Number(x) * 3600000 : 0));
+  // The last good copy of a calendar, for a feed not fetched this time (failing, or not due yet).
+  const kept = (cal) => (previous?.events || []).filter((e) => e.cal === cal)
+    .map((e) => ({ ...e, startMs: Date.parse(e.start), ...(details?.[cal] && previous.notes?.[e.uid] ? { notes: previous.notes[e.uid] } : {}) }));
 
   const lists = await Promise.all(urls.map(async (link, cal) => {
     try {
@@ -492,6 +548,15 @@ async function refresh(env, previous) {
         if (now - Date.parse(fromMac.at) > BRIDGE_CAL_STALE_MS) errors.push({ cal, error: 'the Mac bridge last sent this calendar ' + fromMac.at });
         return fromBridge(list, cal, from, to, { notes: !!details?.[cal] });
       }
+      const tag = linkTag(link);
+      if (feeds[cal] && feeds[cal].tag !== tag) delete feeds[cal];
+      const feed = feeds[cal];
+      if (!feedDue(feed, every[cal], now) && previous) {
+        names[cal] = previous.names?.[cal] ?? null;
+        // Still failing: say so (with when the copy is from), rather than going quiet between tries.
+        if (feed.fails) errors.push({ cal, error: feed.error, since: feed.ok || null });
+        return kept(cal);
+      }
       // Some feeds (Sidearm sports sites, say) refuse anything that doesn't look like a browser.
       const res = await fetch(link.replace(/^webcal:/i, 'https:'), { headers: { Accept: 'text/calendar', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -503,15 +568,22 @@ async function refresh(env, previous) {
       const events = expand(text, cal, from, to, tz, { notes: !!details?.[cal] });
       // Holiday feeds (Google's or Apple's) are marked, so the frame can leave them out of counts.
       if (/holiday/i.test(link)) for (const e of events) e.holiday = true;
+      // Only feeds on a slow schedule, or recovering, need a record (so a write); the rest run every time.
+      if (every[cal] || feed?.fails) feeds[cal] = { tag, ok: new Date(now).toISOString() };
       return events;
     } catch (err) {
       // Keep this calendar's last good events so a blip doesn't blank the wall display.
       // Without the link itself: a feed's URL is its secret (fetch errors can quote it).
-      errors.push({ cal, error: String(err.message || err).replace(/(?:https?|webcal):\/\/\S+/gi, '<link>') });
+      const error = String(err.message || err).replace(/(?:https?|webcal):\/\/\S+/gi, '<link>');
       names[cal] = previous?.names?.[cal] ?? null;
-      console.error('calendar ' + cal + ' failed: ' + errors[errors.length - 1].error);
-      return (previous?.events || []).filter((e) => e.cal === cal)
-        .map((e) => ({ ...e, startMs: Date.parse(e.start), ...(details?.[cal] && previous.notes?.[e.uid] ? { notes: previous.notes[e.uid] } : {}) }));
+      console.error('calendar ' + cal + ' failed: ' + error);
+      if (!/^bridge:/i.test(link)) {
+        const f = feeds[cal]?.tag === linkTag(link) ? feeds[cal] : { tag: linkTag(link), ok: null };
+        feeds[cal] = { ...f, error, tried: new Date(now).toISOString(), fails: (f.fails || 0) + 1 };
+      }
+      // since: when its last good copy is from (the status page is calmer about a recent one).
+      errors.push({ cal, error, ...(/^bridge:/i.test(link) ? {} : { since: feeds[cal].ok || null }) });
+      return kept(cal);
     }
   }));
 

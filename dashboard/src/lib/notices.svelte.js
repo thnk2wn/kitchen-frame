@@ -24,6 +24,17 @@ const map = new Map();
 // How notices we removed ourselves ended, by id: 'dismissed' or 'expired' (anything else: cleared).
 const endedHere = new Map();
 
+// When each notice first appeared, by id. Home Assistant updates a notice by creating it again with
+// the same id ("Dryer running, ETA 11:38" as the dryer's estimate moves), which gives it a new
+// created_at; an update shouldn't ring the bell again or move the time on its banner. Remembered
+// across reloads (an update after one would look new too), for ids still showing.
+const STARTED_KEY = 'frame-notices-started';
+const started = new Map((() => { try { return Object.entries(JSON.parse(localStorage.getItem(STARTED_KEY) || '{}')); } catch { return []; } })());
+function keepStarted() {
+  for (const id of [...started.keys()]) if (!map.has(id)) started.delete(id);
+  try { localStorage.setItem(STARTED_KEY, JSON.stringify(Object.fromEntries(started))); } catch {}
+}
+
 onHAConnect(() => {
   // Notices from before a reconnect that are gone afterwards ended while we weren't watching.
   const before = new Map(map);
@@ -37,10 +48,16 @@ onHAConnect(() => {
     for (const [id, n] of Object.entries(ev.notifications || {})) {
       if (!id.startsWith(PREFIX)) continue;
       if (ev.type === 'removed') { record(map.get(id) || n); map.delete(id); }
-      else map.set(id, n);
+      else {
+        map.set(id, n);
+        // Over 12 hours later it's a new one with the same id (the next load), whose removal was missed.
+        const first = Date.parse(started.get(id)), at = Date.parse(n.created_at);
+        if (!(first <= at) || at - first > 12 * 3600000) started.set(id, n.created_at);
+      }
     }
+    keepStarted();
     real.list = [...map.values()]
-      .map((n) => ({ id: n.notification_id, title: n.title || '', message: n.message || '', created: n.created_at, tone: toneOf(n.notification_id) }))
+      .map((n) => ({ id: n.notification_id, title: n.title || '', message: n.message || '', created: started.get(n.notification_id) || n.created_at, tone: toneOf(n.notification_id) }))
       .sort((a, b) => (RANK[a.tone] - RANK[b.tone]) || String(b.created).localeCompare(String(a.created)));
   }).catch((e) => console.error('notices', e));
 });
@@ -127,7 +144,7 @@ const same = (x) => x.id + '|' + Date.parse(x.created);
 function record(n) {
   if (!n || !n.notification_id || !n.notification_id.startsWith(PREFIX)) return;
   const id = n.notification_id;
-  const item = { id, title: n.title || '', message: n.message || '', tone: toneOf(id), created: n.created_at,
+  const item = { id, title: n.title || '', message: n.message || '', tone: toneOf(id), created: started.get(id) || n.created_at,
     ended: new Date().toISOString(), how: endedHere.get(id) || 'cleared' };
   endedHere.delete(id);
   past.items = [item, ...past.items.filter((x) => same(x) !== same(item))];

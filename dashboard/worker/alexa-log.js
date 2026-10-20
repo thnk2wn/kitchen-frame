@@ -19,9 +19,12 @@ export async function addLog(env, entry) {
 }
 
 // From the frame: one Echo's voice event.
+// A fitness question's reply is someone's health numbers: not kept, only that it was answered.
+const FITNESS = /\b(fitness|rings?|activity)\b/i;
 export function heardEntry(b = {}) {
   if (!b.heard) return null;
-  return { source: 'alexa', device: s(b.device, 80), heard: s(b.heard), intent: s(b.intent, 80), reply: s(b.reply), at: s(b.at, 40) };
+  const reply = FITNESS.test(String(b.heard)) && b.reply ? '(fitness summary, not kept)' : s(b.reply);
+  return { source: 'alexa', device: s(b.device, 80), heard: s(b.heard), intent: s(b.intent, 80), reply, at: s(b.at, 40) };
 }
 
 // From the skill: a request and what came of it.

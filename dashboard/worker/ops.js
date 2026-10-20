@@ -9,6 +9,9 @@ import { BRIDGE_LISTS, fromReminders, bridge } from './bridge.js';
 import { mediaStorage } from './photos.js';
 import { spotifyConfigured } from './spotify.js';
 import { readLog } from './alexa-log.js';
+import { listFitness } from './fitness.js';
+import { guestMode } from './guest.js';
+import { room } from './messages.js';
 
 async function lists(env) {
   const out = {};
@@ -47,7 +50,7 @@ async function mac(env) {
 }
 
 export async function opsSummary(env, calendarKey) {
-  const [frame, cal, notices, paprika, listInfo, macInfo, alexa] = await Promise.all([
+  const [frame, cal, notices, paprika, listInfo, macInfo, alexa, fit, guest, stamps, mealPlan] = await Promise.all([
     getStatus(env),
     env.CALENDAR.get(calendarKey, 'json'),
     listNotices(env).catch(() => null),
@@ -56,6 +59,10 @@ export async function opsSummary(env, calendarKey) {
     mac(env).catch((e) => ({ error: String(e.message || e) })),
     // The Alexa log is words, not counts: what was said to an Echo, for working out what went wrong.
     readLog(env).catch(() => []),
+    listFitness(env).catch((e) => ({ error: String(e.message || e) })),
+    guestMode(env).catch(() => ({ on: false })),
+    Promise.resolve().then(() => room(env).fetch(new Request('https://room/stamps'))).then((r) => r.json()).catch(() => ({})),
+    env.CALENDAR.get('paprika-meals', 'json').catch(() => null),
   ]);
   const perCal = {};
   for (const e of (cal && cal.events) || []) perCal[e.cal] = (perCal[e.cal] || 0) + 1;
@@ -66,9 +73,14 @@ export async function opsSummary(env, calendarKey) {
     calendar: cal ? { updated: cal.updated, names: cal.names || [], events: perCal, errors: cal.errors || [] } : null,
     notices: notices ? notices.items.map(({ title, tone, how, created, ended }) => ({ title, tone, how, created, ended })) : [],
     paprika: paprika.configured === false ? { configured: false }
-      : { configured: true, updated: paprika.updated || null, recipes: (paprika.recipes || []).length, remaining: paprika.remaining || 0, error: paprika.error },
+      : { configured: true, updated: paprika.updated || null, recipes: (paprika.recipes || []).length, remaining: paprika.remaining || 0, error: paprika.error,
+        // updated: a recipe last changed; mealsUpdated: the meal plan last changed; checked: the sync last ran.
+        mealsUpdated: (mealPlan && mealPlan.updated) || null, checked: (stamps.paprika && stamps.paprika.at) || null, checkError: (stamps.paprika && stamps.paprika.error) || null },
     lists: listInfo,
     mac: macInfo,
     spotify: { configured: spotifyConfigured(env) },
+    // Each phone sending Fitness: when it last sent and how much, not the numbers themselves.
+    guest,
+    fitness: fit.error ? { error: fit.error } : { people: fit.people.map((p) => ({ name: p.name, updated: p.updated, reason: p.reason || null, days: p.days.length, workouts: p.workouts.length })) },
   };
 }

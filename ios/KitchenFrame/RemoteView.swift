@@ -10,13 +10,14 @@ struct RemoteView: View {
         ("groceries", "Groceries", "cart"), ("todo", "To Do", "checklist"),
         ("recipes", "Recipes", "fork.knife"), ("house", "House", "lightbulb"),
         ("music", "Music", "music.note"), ("videos", "Videos", "play.rectangle"),
-        ("podcasts", "Podcasts", "mic"), ("notices", "Notices", "bell"),
+        ("podcasts", "Podcasts", "mic"), ("fitness", "Fitness", "figure.walk"), ("notices", "Notices", "bell"),
     ]
     private static let names = Dictionary(uniqueKeysWithValues: screens.map { ($0.tab, $0.name) })
 
     @State private var status: API.FrameStatus?
     @State private var busy: String?
     @State private var problem: String?
+    @State private var guest: API.Guest?
 
     var body: some View {
         NavigationStack {
@@ -29,6 +30,15 @@ struct RemoteView: View {
                         action("Wake", "sun.max", command: "wake")
                         action("Close", "xmark", command: "close")
                     }
+
+                    // Guest mode: hides personal things on the frame (Fitness, for now) while guests are here.
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Guest mode", isOn: Binding(get: { guest?.on ?? false }, set: { on in Task { await setGuest(on) } }))
+                            .disabled(guest == nil)
+                        Text(guestNote).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    .padding(12)
+                    .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
 
                     Text("Show").font(.headline)
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
@@ -44,7 +54,17 @@ struct RemoteView: View {
             .navigationTitle("Remote")
             .refreshable { await refreshAfterCheckIn() }
             .task { await refresh() }
+            // Each time the tab shows: guest mode may have changed on the frame or the other phone.
+            .onAppear { Task { await loadGuest() } }
         }
+    }
+
+    private var guestNote: String {
+        guest?.on == true ? "Personal things, like Fitness, are hidden on the frame. Turn this off when your guests leave." : "Hides personal things on the frame, like Fitness, while guests are here."
+    }
+
+    private func setGuest(_ on: Bool) async {
+        do { guest = try await api.setGuest(on); problem = nil } catch { problem = "Guest mode: " + error.localizedDescription }
     }
 
     private var showing: String {
@@ -94,5 +114,11 @@ struct RemoteView: View {
 
     private func refresh() async {
         status = try? await api.status()
+        await loadGuest()
+    }
+
+    private func loadGuest() async {
+        do { guest = try await api.guest() } catch { problem = "Guest mode: " + error.localizedDescription }
     }
 }
+
