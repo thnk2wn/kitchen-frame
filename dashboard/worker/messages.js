@@ -43,16 +43,6 @@ export class MessageRoom {
       return new Response(null, { status: 101, webSocket: client });
     }
     if (path === '/list') return json({ messages: await this.load() });
-    // Guest mode (guest.js), kept here rather than in KV: KV can answer with the old value for a
-    // minute after a change, so a phone turning it on wouldn't reach the frame straight away. Set,
-    // it tells the frame to fetch what it may show.
-    // When a regular job last ran ({ name: { at, error } }), for the status page: e.g. the Paprika
-    // sync every 15 minutes, which only writes KV when something changed. Kept here rather than in KV
-    // so a write every run doesn't eat into KV's daily allowance.
-    // The frame's screen (screenshot.js): the latest JPEG the kiosk uploaded (PUT) and why the last
-    // ask failed, if it did (POST { error }); GET answers both as stored. Here rather than in KV for
-    // the same reason as guest mode: the phone asks for it seconds after the frame sends it. Only
-    // one is kept, and the alarm deletes it SHOT_KEEP_MS after it was taken.
     // The frame's home network (home.js): { v4, v6 } as last seen from the frame or the Mac bridge.
     // Written only when it changes, so a check-in every 10 minutes doesn't write each time.
     if (path === '/home') {
@@ -65,6 +55,10 @@ export class MessageRoom {
       }
       return json(home);
     }
+    // The frame's screen (screenshot.js): the latest JPEG the kiosk uploaded (PUT) and why the last
+    // ask failed, if it did (POST { error }); GET answers both as stored. Here rather than in KV for
+    // the same reason as guest mode: the phone asks for it seconds after the frame sends it. Only
+    // one is kept, and the alarm deletes it SHOT_KEEP_MS after it was taken.
     if (path === '/shot/ask') {
       const last = (await this.ctx.storage.get('shot-asked')) || 0;
       if (Date.now() - last < SHOT_ASK_MS) return json({ error: 'Asked a moment ago; try again in a few seconds' }, 429);
@@ -88,6 +82,9 @@ export class MessageRoom {
       }
       return json({ ok: true });
     }
+    // When a regular job last ran ({ name: { at, error } }), for the status page: e.g. the Paprika
+    // sync every 15 minutes, which only writes KV when something changed. Kept here rather than in KV
+    // so a write every run doesn't eat into KV's daily allowance.
     if (path === '/stamps') {
       const stamps = (await this.ctx.storage.get('stamps')) || {};
       if (req.method === 'POST') {
@@ -98,6 +95,9 @@ export class MessageRoom {
       }
       return json(stamps);
     }
+    // Guest mode (guest.js), kept here rather than in KV: KV can answer with the old value for a
+    // minute after a change, so a phone turning it on wouldn't reach the frame straight away. Set,
+    // it tells the frame to fetch what it may show.
     if (path === '/guest') {
       if (req.method === 'POST') {
         const { on } = await req.json().catch(() => ({}));

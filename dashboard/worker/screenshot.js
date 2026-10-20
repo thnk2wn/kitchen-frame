@@ -5,13 +5,15 @@
 //   POST /api/frame/screenshot/request  { tab? } -> { asked, sent }: asked is the Worker's time (ms)
 //        to fetch with as since (the phone's clock may differ); sent, how many screens heard it
 //        (only the frame's kiosk app answers). tab: show that tab first. 429 within 10 s of the last.
-//   PUT  /api/frame/screenshot          the kiosk's JPEG, at most 2 MB
+//   PUT  /api/frame/screenshot          the kiosk's JPEG, at most 1.5 MB
 //   POST /api/frame/screenshot/error    { error }: the frame couldn't (screencap or the upload failed)
 //   GET  /api/frame/screenshot?since=ms the JPEG (X-Taken-At: ms) once one is at least that new; 422
 //        { error } if the frame said it couldn't since then; 404 { waiting } before either.
 import { room } from './messages.js';
 
-const MAX_BYTES = 2 * 1024 * 1024;
+// Under the message room's 2 MB per stored value, with room for the time stored beside it. The
+// kiosk's 1280-wide JPEGs are about 100 KB.
+const MAX_BYTES = 1.5 * 1024 * 1024;
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 const command = (env, body) => room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify(body) });
 

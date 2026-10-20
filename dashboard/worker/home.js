@@ -43,7 +43,8 @@ export async function noteHome(env, req) {
 export async function atHome(env, req) {
   const net = network(ipOf(req));
   if (!net) return false;
-  const home = await (await room(env).fetch('https://room/home')).json().catch(() => ({}));
+  let home = {};
+  try { home = await (await room(env).fetch('https://room/home')).json(); } catch {}
   return (!!net.v4 && net.v4 === home.v4) || (!!net.v6 && net.v6 === home.v6);
 }
 

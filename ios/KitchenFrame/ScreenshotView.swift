@@ -39,6 +39,15 @@ struct ScreenshotView: View {
                 } else if let problem, shot == nil {
                     ContentUnavailableView("No screenshot", systemImage: "exclamationmark.triangle", description: Text(problem))
                         .foregroundStyle(.white)
+                } else if let problem {
+                    // Again didn't work (too soon, away from home…): said over the picture it kept.
+                    Label(problem, systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.white)
+                        .padding(12)
+                        .background(.black.opacity(0.75), in: .rect(cornerRadius: 14))
+                        .padding()
+                        .frame(maxHeight: .infinity, alignment: .bottom)
                 }
             }
             .toolbarBackground(.visible, for: .navigationBar, .bottomBar)

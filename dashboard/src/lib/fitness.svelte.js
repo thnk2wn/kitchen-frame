@@ -65,7 +65,8 @@ export async function askPhone(p, demo) {
 // (a new send) ends it.
 export function askState(p, now) {
   const a = asked[p.id];
-  if (!a || p.updated !== a.updated) return { state: 'ask' };
+  // Demo people's updated moves with the clock, so for them only the time counts.
+  if (!a || (!p.id.startsWith('demo-') && p.updated !== a.updated)) return { state: 'ask' };
   const since = now - a.at;
   if (a.failed) return since < 60000 ? { state: 'failed' } : { state: 'ask' };
   return since < ASK_WAIT_MS ? { state: 'asking' } : since < ASK_AGAIN_MS ? { state: 'asked', at: new Date(a.at) } : { state: 'ask' };

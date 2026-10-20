@@ -18,9 +18,14 @@ export const STALE_MS = 3 * 3600000;
 // on screen, 6 AM to 10 PM, so a tab that's been up a while still draws the eye. A number that
 // changes on the frame's per-minute clock: {#key} on it remounts the animation, no timer of its own.
 export const REPLAY_MS = 5 * 60000;
+// Outside the day it stays at the day's last value (not 0), so 10 PM itself doesn't replay once more.
 export const replayBeat = (now) => {
   const h = now.getHours();
-  return h >= 6 && h < 22 ? Math.floor(now.getTime() / REPLAY_MS) : 0;
+  if (h >= 6 && h < 22) return Math.floor(now.getTime() / REPLAY_MS);
+  const last = new Date(now);
+  if (h < 6) last.setDate(last.getDate() - 1);
+  last.setHours(22, 0, 0, 0);
+  return Math.floor((last.getTime() - 1) / REPLAY_MS);
 };
 
 // Today's numbers, and the last 7 days ending today (null where the phone sent nothing). A person
@@ -45,9 +50,10 @@ export function view(p, now) {
     week,
     // No goals at all: the phone sent nothing for the rings (Health access off, or no Watch data yet).
     empty: !t.moveGoal && !t.exerciseGoal && !t.standGoal,
-    // Earlier days but none for today: the phone's Health hasn't had today's rings from the Watch yet
-    // (a send from the iPhone's own steps first thing). Not zeros to fall behind on.
-    waiting: !byDate.has(dayKey(now)) && days.length > 0,
+    // Sent today, with earlier days but none for today: the phone's Health hasn't had today's rings
+    // from the Watch yet (a send from the iPhone's own steps first thing). Not zeros to fall behind
+    // on. A phone that last sent before today isn't waiting on the Watch; it shows as old instead.
+    waiting: !byDate.has(dayKey(now)) && days.length > 0 && !!p.updated && dayKey(new Date(p.updated)) === dayKey(now),
     stale: now.getTime() - updated > STALE_MS,
     trends: trends(days, byDate, now),
   };

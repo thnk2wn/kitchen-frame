@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { view } from './fitness.js';
+import { view, replayBeat } from './fitness.js';
 import { addDays, dayKey } from './format.js';
 
 // A person with n days before today (oldest first) from make(i), and today's numbers.
@@ -43,4 +43,22 @@ test('view: earlier days but none for today is waiting for the Watch, not behind
   assert.equal(v.empty, false);
   assert.equal(view(person(5, () => closed, closed), now).waiting, false);
   assert.equal(view({ id: 'a', name: 'Alex', updated: now.toISOString(), days: [] }, now).waiting, false);
+});
+
+test('view: a phone that last sent before today isn\'t waiting on the Watch', () => {
+  const p = person(5, () => closed, closed);
+  p.days.pop();
+  p.updated = addDays(now, -1).toISOString();
+  assert.equal(view(p, now).waiting, false);
+});
+
+test('replayBeat: changes every 5 minutes through the day, and not at all from 10 PM to 6 AM', () => {
+  const at = (d, h, m) => { const t = new Date(now); t.setDate(t.getDate() + d); t.setHours(h, m, 0, 0); return replayBeat(t); };
+  assert.notEqual(at(0, 14, 0), at(0, 14, 5));
+  assert.equal(at(0, 14, 0), at(0, 14, 4));
+  assert.equal(at(0, 21, 59), at(0, 22, 0)); // no extra replay at 10 PM
+  assert.equal(at(0, 22, 0), at(0, 23, 59));
+  assert.equal(at(0, 23, 59), at(1, 0, 0));
+  assert.equal(at(1, 0, 0), at(1, 5, 59));
+  assert.notEqual(at(1, 5, 59), at(1, 6, 0)); // the day's first
 });
