@@ -13,6 +13,8 @@ import { rotationLines, DEMO_ROTATIONS } from '../src/lib/rotations.js';
 import { demoCalendar, demoMeals } from '../src/lib/demo.js';
 import { parseNames } from './demo-media.js';
 import { skillEntry } from './alexa-log.js';
+import { fitnessFacts, fitnessSpeech } from './fitness-speech.js';
+import { demoFitness } from '../src/lib/fitness.js';
 import { playPodcast, audioEvent, resume, pause, playDirective, echoNow } from './podcast-audio.js';
 
 // ---- Amazon's signature
@@ -96,7 +98,7 @@ const slot = (intent, name) => {
   const r = s.resolutions && s.resolutions.resolutionsPerAuthority && s.resolutions.resolutionsPerAuthority.find((a) => a.status && a.status.code === 'ER_SUCCESS_MATCH');
   return (r && r.values[0].value.name) || s.value || '';
 };
-const TABS = { home: 'home', calendar: 'calendar', lists: 'groceries', groceries: 'groceries', tasks: 'todo', 'to do': 'todo', recipes: 'recipes', media: 'music', music: 'music', tv: 'tv', videos: 'videos', podcasts: 'podcasts', house: 'house', notices: 'notices' };
+const TABS = { home: 'home', calendar: 'calendar', lists: 'groceries', groceries: 'groceries', tasks: 'todo', 'to do': 'todo', recipes: 'recipes', media: 'music', music: 'music', tv: 'tv', videos: 'videos', podcasts: 'podcasts', house: 'house', notices: 'notices', fitness: 'fitness', rings: 'fitness', 'activity rings': 'fitness' };
 // (Media's views go as music, tv and videos; the frame opens Media on that view. notices opens the
 // notices sheet over whatever is showing.)
 export const tabOf = (word) => TABS[String(word || '').toLowerCase().trim()] || null;
@@ -163,12 +165,16 @@ export async function handleAlexa(req, env, deps) {
   const res = await answer(req, env, { ...deps, command }, note);
   if (note.r && deps.log) {
     const body = res.headers.get('Content-Type')?.includes('json') ? await res.clone().json().catch(() => null) : null;
-    deps.log(skillEntry(note.r, body, sent, note.refused));
+    // summary: where a fitness answer came from (ai, cache, or plain and why), for the status page.
+    const entry = skillEntry(note.r, body, sent, note.refused);
+    // The fitness summary is someone's health numbers: the log keeps where it came from, not the words.
+    if (note.fitness) { entry.said = '(fitness summary, not kept)'; entry.summary = note.fitness; }
+    deps.log(entry);
   }
   return res;
 }
 
-async function answer(req, env, { command, calendar, videoGroups, meals, rotations, recipes = async () => ({}), demo = async () => false, podcasts = async () => ({}) }, note) {
+async function answer(req, env, { command, calendar, videoGroups, meals, rotations, recipes = async () => ({}), demo = async () => false, podcasts = async () => ({}), fitness = async () => ({ people: [] }), guest = async () => ({ on: false }), setGuest = async () => ({}) }, note) {
   const body = await req.text();
   const problem = await verified(req, body).catch((e) => 'signature check failed: ' + e.message);
   if (problem) { console.warn('alexa refused: ' + problem); return new Response('forbidden', { status: 403 }); }
@@ -210,8 +216,8 @@ async function answer(req, env, { command, calendar, videoGroups, meals, rotatio
         const heard = slot(intent, 'tab');
         const tab = tabOf(heard);
         // "Show" with the screen missing (often Alexa not catching the last word): ask, and wait.
-        if (!heard) return Response.json(say('Which screen? Home, calendar, groceries, tasks, recipes, music, videos, podcasts, or the house?', false));
-        if (!tab) return Response.json(say('I can show home, calendar, groceries, tasks, recipes, music, videos, podcasts, the house or notices.'));
+        if (!heard) return Response.json(say('Which screen? Home, calendar, groceries, tasks, recipes, music, videos, podcasts, fitness, or the house?', false));
+        if (!tab) return Response.json(say('I can show home, calendar, groceries, tasks, recipes, music, videos, podcasts, fitness, the house or notices.'));
         return Response.json(say((await sent('show', { tab })) ? 'Okay.' : offline));
       }
       case 'CloseIntent': return Response.json(say((await sent('close')) ? 'Okay.' : offline));
@@ -249,7 +255,23 @@ async function answer(req, env, { command, calendar, videoGroups, meals, rotatio
         if (isDemo) return Response.json(say(todaySpeech(await demoDay(tz, recipes))));
         return Response.json(say(todaySpeech({ cal: await calendar(), meals: plan.meals || [], rules: rotations(), tz })));
       }
-      case 'AMAZON.HelpIntent': return Response.json(say('You can say: add milk to groceries, add call the dentist to tasks, show the calendar, start the slideshow, wake up, play videos, what\'s for dinner, or the rundown.', false));
+      case 'FitnessIntent': {
+        // Fitness on the frame while it's read out: an AI summary of each sharing person's rings, week
+        // and workouts, or the plain facts (fitness-speech.js).
+        // An unreadable guest setting counts as on: better say nothing than read it to guests.
+        const [tz, isDemo, g] = await Promise.all([zoneOf(sys), demo(), guest().catch(() => ({ on: true }))]);
+        if (g.on && !isDemo) { note.fitness = 'hidden: guest mode'; return Response.json(say('Fitness is hidden while guest mode is on.')); }
+        const wall = wallClock(tz);
+        const people = isDemo ? demoFitness(wall) : ((await fitness().catch(() => ({}))).people || []);
+        const [result] = await Promise.all([fitnessSpeech(env, fitnessFacts(people, wall, tz)), people.length ? sent('show', { tab: 'fitness' }).catch(() => false) : false]);
+        note.fitness = result.source + (result.problem ? ': ' + result.problem : '');
+        return Response.json(say(result.speech));
+      }
+      // Guest mode (guest.js): nothing personal on the frame while there's company, until turned off.
+      case 'GuestOnIntent': await setGuest(true); return Response.json(say('Guest mode is on. Personal things, like Fitness, are hidden until you turn it off.'));
+      // Off only from the frame (behind its PIN) or the phone app: anyone can talk to an Echo.
+      case 'GuestOffIntent': return Response.json(say('To turn off guest mode, use the frame\'s Settings or the Kitchen Frame app.'));
+      case 'AMAZON.HelpIntent': return Response.json(say('You can say: add milk to groceries, add call the dentist to tasks, show the calendar, start the slideshow, wake up, play videos, what\'s for dinner, the rundown, or how\'s my fitness.', false));
       case 'PlayPodcastIntent': return Response.json(await playPodcast(env, slot(intent, 'show'), (await podcasts().catch(() => ({}))).shows || []));
       case 'AMAZON.PauseIntent': return Response.json(pause());
       case 'AMAZON.ResumeIntent': return Response.json(await resume(env, audio));

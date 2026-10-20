@@ -54,6 +54,17 @@ Thoughts to try in a branch and measure on the frame, not plans:
 - **Countdowns:** "12 days to the beach" for chosen events, on Home or the clock screen.
 - **Two columns per day** in Upcoming when a day is busy.
 
+## Fitness
+
+- **A "check your rings" nudge, opt in per person:** a frame notice in the evening (say 7 PM) when a
+  ring is behind for the time of day, gone by itself once the ring closes or at 10 PM, never kept
+  in the notices history. A setting on the phone (Settings → Apple Health), off by default; maybe
+  spoken on one Echo instead, if a notice turns out too easy to ignore.
+- **Another person's rings:** HealthKit only gives an app its phone owner's data, so
+  the Kitchen Frame app on their phone, or a Shortcut posting the same numbers.
+- **Who is asking Alexa:** with Alexa voice profiles, "how's my fitness" could answer for the
+  speaker only, rather than everyone sharing.
+
 ## Lists
 
 - **Aisles for Groceries from Todoist, by AI:** group the list into sections (Produce, Dairy,
@@ -85,8 +96,11 @@ erroring (`lib/watchdog.js`). Next:
 
 - **Smoke test as a deploy gate:** `scripts/smoke.mjs` already opens every screen of a new build on
   the real data and in demo mode and fails on any error (it would have stopped the white frame of
-  2026-10-19). Run it from `npm run deploy` before `wrangler deploy`, with a way around it for an
-  emergency fix.
+  2026-10-19). Run it from `npm run deploy` before `wrangler deploy`, gated on its exit code, with a
+  way around it for an emergency fix. Two things to fix first: `vite preview` (with the Cloudflare
+  plugin) runs the Worker locally against an empty local KV, so "real data" isn't the live Worker's
+  stored data (Fitness, notices, Paprika); and one run had 19 of 30 screens fail that passed on a
+  rerun, so retry a failing screen once and print why it failed.
 - **Roll back on its own:** after a deploy, if the frame hasn't checked in on the new build within a
   few minutes, `wrangler rollback` to the version before and say so.
 - **Tell someone when the frame goes quiet:** a Home Assistant notification to a phone when the frame
@@ -106,11 +120,14 @@ erroring (`lib/watchdog.js`). Next:
 ## Operations and security
 
 - **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).
+- **See what the frame is showing, from the phone:** a button in the phone app sends a `screenshot`
+  command (the same path as show and wake); the page asks the kiosk app, which already has root, to
+  run `screencap`, so video, the doorbell camera and the slideshow show too. A small JPEG goes to the
+  Worker, kept a few minutes behind the frame key, and the phone shows it with the time taken. Needs
+  a new kiosk app, and network ADB is off, so the frame is plugged into the Mac by USB for the install.
+  Drawing the page to an image in the browser instead would miss video and load the frame's CPU.
 - **A PIN for Settings:** unlocking has one (Settings → Home). Settings changes are logged and the
   last 10 versions kept, so a PIN there waits until a change slips by unnoticed.
-- **Calmer calendar blips on the status page:** a feed that fails once (a sports site refusing a
-  cloud server now and then) shows red "failing" until the next fetch. Amber "last fetch failed,
-  showing the copy from 12 min ago" instead, and red only after a few hours without a good fetch.
 
 ## Home Assistant
 

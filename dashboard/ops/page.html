@@ -103,8 +103,16 @@
     if (c) {
       // Saved only when something changed or hourly (worker HEARTBEAT_MS), so under ~75 min is normal.
       const old = Date.now() - Date.parse(c.updated) > 75 * 60000;
-      const each = (c.names || []).map((n, i) => [n || 'Calendar ' + (i + 1), (c.events[i] || 0) + ' events']);
-      for (const e of c.errors || []) each.push([((c.names || [])[e.cal] || 'calendar ' + e.cal), 'failing: ' + e.error, 'bad']);
+      // A failing feed on its own row: amber while its saved copy is under two days old (the frame
+      // still shows those events), red when older or empty. Mac bridge calendars have no saved-copy
+      // time and stay red.
+      const failing = new Map((c.errors || []).map((e) => [e.cal, e]));
+      const each = (c.names || []).map((n, i) => {
+        const e = failing.get(i), count = (c.events[i] || 0) + ' events';
+        if (!e) return [n || 'Calendar ' + (i + 1), count];
+        const fresh = 'since' in e && (e.since ? Date.now() - Date.parse(e.since) < 48 * 3600000 : c.events[i] > 0);
+        return [n || 'Calendar ' + (i + 1), count + ' · last fetch failed (' + e.error + ')' + (e.since ? ', showing the copy from ' + ago(e.since) : ''), fresh ? 'warn' : 'bad'];
+      });
       box.append(group('Calendar', [['Updated', ago(c.updated), old ? 'warn' : '']], each));
     }
     const lists = Object.entries(d.lists || {}).map(([name, l]) => {
@@ -132,9 +140,21 @@
       box.append(group('Mac bridge', rows));
     }
     const p = d.paprika || {};
+    // Checked every 15 minutes (the Paprika cron); KV is written only when a recipe or the meal plan
+    // changed, so "changed" can be hours old while "Last checked" is minutes. Amber past 45 minutes.
+    const late = !p.checked || Date.now() - Date.parse(p.checked) > 45 * 60000;
     if (p.configured) box.append(group('Paprika', p.error ? [['Sync', p.error, 'bad']]
-      : [['Recipes', String(p.recipes)], ['Synced', p.updated ? ago(p.updated) : 'never'], ...(p.remaining ? [['Still to fetch', String(p.remaining)]] : [])]));
+      : [['Recipes', String(p.recipes)], ['Recipes changed', p.updated ? ago(p.updated) : 'never'], ['Meal plan changed', p.mealsUpdated ? ago(p.mealsUpdated) : 'never'],
+        ['Last checked', p.checked ? ago(p.checked) : 'not yet', late ? 'warn' : ''], ...(p.checkError ? [['Last check failed', p.checkError, 'bad']] : []),
+        ...(p.remaining ? [['Still to fetch', String(p.remaining)]] : [])]));
     box.append(group('Spotify', [['Status', d.spotify && d.spotify.configured ? 'connected' : 'not set up']]));
+    // Fitness (worker/fitness.js): each phone sends when it has news, and not while it's locked, so a
+    // quiet night is normal. Amber past 12 hours; red past 36, when the phone app has likely stopped
+    // (its free signing lapses after 7 days) or lost Health access.
+    const fit = d.fitness;
+    if (fit && (fit.error || fit.people.length)) box.append(group('Fitness', fit.error ? [['Status', fit.error, 'bad']]
+      : fit.people.map((p) => { const h = (Date.now() - Date.parse(p.updated)) / 3600000;
+        return [p.name, 'sent ' + ago(p.updated) + (p.reason ? ' · ' + p.reason.toLowerCase() : '') + ' · ' + p.days + ' days, ' + p.workouts + ' workouts', h > 36 ? 'bad' : h > 12 ? 'warn' : '']; })));
   }
 
   // The day as a strip: one block per check-in (10 minutes), coloured by what the frame showed;

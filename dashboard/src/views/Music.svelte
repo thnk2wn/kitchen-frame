@@ -277,6 +277,7 @@
     const sendNow = () => { lastSent = Date.now(); if (volPlayer) run('media_player', 'volume_set', { volume_level: volume / 100 }, volPlayer); };
     if (Date.now() - lastSent > 250) sendNow(); else timer = setTimeout(sendNow, 250);
   }
+  let failedArt = $state(null); // a cover that didn't load (NowPlaying.svelte does the same)
 </script>
 
 <div class="wrap" class:compact={spotify && playlists.length} style="--art:calc(100vh - {spotify && playlists.length ? 374 : 224}px)">
@@ -293,8 +294,9 @@
           <img src={starting.thumbnail} alt="" />
         {:else if starting}
           <span class="noart"><Icon name="music" size={96} /></span>
-        {:else if player.entity_picture}
-          <img src={haUrl(player.entity_picture)} alt="" />
+        {:else if player.entity_picture && failedArt !== player.entity_picture}
+          <!-- A cover that doesn't load shows the note rather than a broken image. -->
+          <img src={haUrl(player.entity_picture)} alt="" onerror={() => (failedArt = player.entity_picture)} />
         {:else}
           <span class="noart" class:demo={fake()}><Icon name="music" size={96} /></span>
         {/if}

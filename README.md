@@ -26,15 +26,20 @@ lists other frames that work.
 | --- | --- | --- |
 | ![Media: videos](docs/images/videos-light.jpg) | ![Media: podcasts](docs/images/podcasts-light.jpg) | ![Weather radar](docs/images/weather-light.jpg) |
 
+| Fitness, from each person's iPhone | A workout (tap it) | An event (tap it) |
+| --- | --- | --- |
+| ![Fitness](docs/images/fitness-light.jpg) | ![Workout](docs/images/workout-dark.jpg) | ![Event](docs/images/event-light.jpg) |
+
 Screenshots use the built-in demo mode (Settings → About → Demo mode, or `?demo=on`): the calendar,
-lists, rotations and notices are invented, the meal plan is made from Paprika recipes, and the slideshow
+lists, rotations, notices and two people's fitness are invented, the meal plan is made from Paprika recipes, and the slideshow
 shows stock photos from [Lorem Picsum](https://picsum.photos). With Home Assistant connected, House and
 Media show the real devices and speakers under made-up names (`DEMO_NAMES`, so "Mom" rather than a
 real name), stock camera pictures and public playlists, and the radar is centred on Kansas City rather
 than home. The weather is real. It's also handy for showing the frame to people without your own
 calendar and lists on it. `?tab=`, `?media=tv|videos|podcasts`, `?open=<recipe id>`,
-`?explore=<category>`, `?timer=Pasta:7`, `?weather=<day>` (with `&radar` for the radar) and
-`?settings=<tab>` set up a particular screen.
+`?explore=<category>`, `?timer=Pasta:7`, `?weather=<day>` (with `&radar` for the radar),
+`?settings=<tab>`, `?workout=<n>` and `?fitnessday=<n>` (with `?tab=fitness`), `?notices=<n>` and
+`?np=off` (nothing playing) set up a particular screen.
 
 ## Thanks
 
@@ -77,23 +82,24 @@ Each feature links to its page in [`docs/`](docs/), which has the setup and the 
 | **[Rotations](docs/rotations.md)** | New | Who's up early with the kids, whose turn for bedtime, on Home's Today card. |
 | **[Timers](docs/timers.md)** | New | Tap a time, then a name (Pasta, Oven). Times in recipe directions are buttons. A chip on every screen, then a chime, a full-screen alert and an Echo announcement. |
 | **[Lists](docs/lists.md)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds), with priorities, due times, aisles and flags. Tap an item to edit it; ticking one gives a few seconds to undo. |
-| **[Alexa](docs/alexa.md)** | New | Your own private Alexa skill: "Alexa, ask Kitchen Frame to add eggs to groceries" (the frame then shows the list), show a tab, start the slideshow, play a group of videos or a podcast on the Echo, what's for dinner, or the rundown of the day. What each Echo heard and what the skill did are logged on the status page. |
+| **[Alexa](docs/alexa.md)** | New | Your own private Alexa skill: "Alexa, ask Kitchen Frame to add eggs to groceries" (the frame then shows the list), show a tab, start the slideshow, play a group of videos or a podcast on the Echo, what's for dinner, the rundown of the day, how's my fitness (an AI summary of the rings, the week and workouts), or guest mode on. What each Echo heard and what the skill did are logged on the status page. |
 
 ### At a glance
 
 | Feature | | What it does |
 | --- | --- | --- |
+| **[Fitness](docs/fitness.md)** | New | Each person's Activity rings, steps and recent workouts from their own iPhone: a Fitness tab with the last 7 days (tap a day), streaks and today against their usual, workout details (tap one), and their rings on Home under the clock. Behind on a ring stands out; all three closed gets a check. **Guest mode** hides it all while there's company. |
 | **[Weather](docs/weather.md)** | Updated | The UV right now on Home (for sunscreen) and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, the day's peak UV, sun times, and a **radar** of the last hour and the next two. |
-| **[Calendar](docs/calendar.md)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details, a map of where it is, and notes on the calendars you choose, hide any calendar per frame, `#private` to keep an event off the frame, and `#quiet` to show it but never announce it. |
+| **[Calendar](docs/calendar.md)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details, a map of where it is, and notes on the calendars you choose, hide any calendar per frame, `#private` to keep an event off the frame, and `#quiet` to show it but never announce it. A failing feed is retried less and less often while its last good events stay up, and a feed that rarely changes (a season's games) can be fetched only every few hours. |
 | **Settings** | Updated | In tabs (Display, Announcements, Home, About), backed up to the Worker (after a reset the frame takes its choices back), with the version and build time on About, and a QR code to pair the iPhone app. Demo mode shows invented calendars and lists, and with Home Assistant connected, the real House and Media under made-up names. |
 | **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours); a red night clock that brightens a little when someone's in the room. Classic iCloud shared album links work for the slideshow, and through the Mac, album videos play in it and photos show when and where they were taken. |
-| **[Status page](docs/frame.md#status-page-optional)** | New | A private page behind GitHub sign-in: is the frame online and what is it running, a day's timeline, its event log, the Alexa log, and the health of everything behind the dashboard. |
+| **[Status page](docs/frame.md#status-page-optional)** | New | A private page behind GitHub sign-in: is the frame online and what is it running, a day's timeline, its event log, the Alexa log, and the health of everything behind the dashboard: each feed, the Paprika sync's last check, each phone's last fitness send. |
 
 ### On your phone
 
 | Feature | | What it does |
 | --- | --- | --- |
-| **[iPhone app](ios/README.md)** | New | Share a photo or video from Photos to the frame, full screen with pinch-to-zoom and when and where it was taken, or a YouTube link to play there. A remote to show any screen, start the slideshow or wake it. Pairs by scanning a QR code on the frame; built with Xcode, not from the App Store. |
+| **[iPhone app](ios/README.md)** | New | Share a photo or video from Photos to the frame, full screen with pinch-to-zoom and when and where it was taken, or a YouTube link to play there. A remote to show any screen, start the slideshow, wake it or turn on guest mode. Its owner's Activity rings and workouts for [Fitness](docs/fitness.md), from Apple Health. The status page as an Ops tab. Pairs by scanning a QR code on the frame; built with Xcode, not from the App Store. |
 
 ## How it fits together
 
@@ -311,6 +317,14 @@ it streams. Every HA event entity with device class `doorbell` is watched, with 
 so there's nothing to configure in the usual case (`DOORBELL` / `DOORBELL_CAMERA` override it).
 [docs/doorbell.md](docs/doorbell.md).
 
+### Fitness
+
+With each person's iPhone app: their Activity rings, steps and recent workouts on a Fitness tab
+(today, the last 7 days, streaks and today against their usual, a workout's details on a tap) and
+their rings on Home. Only those numbers leave the phone, and average heart rate only if its owner
+turns it on. **Guest mode** (on the frame, the app's Remote tab, or Alexa to turn it on) hides it while guests
+are over. [docs/fitness.md](docs/fitness.md).
+
 ### Notices
 
 With Home Assistant: short banners from its automations that clear themselves ("Garage freezer is 18°F"), red,
@@ -330,7 +344,8 @@ speaker's own back afterwards. [docs/announcements.md](docs/announcements.md).
 ### Alexa
 
 A skill of your own on your Amazon account, in development, never published: "Alexa, ask Kitchen Frame
-to add eggs to groceries", "…show the calendar", "…play Trucks videos", "…what's for dinner", "…for the rundown".
+to add eggs to groceries", "…show the calendar", "…play Trucks videos", "…what's for dinner", "…for the rundown",
+"…how's my fitness", "…we have guests".
 [docs/alexa.md](docs/alexa.md).
 
 ### Messages from agents
@@ -342,8 +357,10 @@ aloud. [docs/messages.md](docs/messages.md).
 
 A small app built with Xcode (a free Apple account is enough for your own phone). From the share sheet,
 a photo or video shows full screen on the frame (pinch to zoom, with when and where it was taken),
-and a YouTube link plays there. It's also a remote for showing any screen, starting the slideshow or
-waking the frame. It pairs by scanning a QR code in the frame's Settings. [ios/README.md](ios/README.md).
+and a YouTube link plays there. It's also a remote for showing any screen, starting the slideshow,
+waking the frame or turning on guest mode; sends its owner's Activity rings and workouts for
+[Fitness](docs/fitness.md); and has the status page as an Ops tab. It pairs by scanning a QR code in
+the frame's Settings. [ios/README.md](ios/README.md).
 
 ## The frame
 

@@ -9,8 +9,10 @@ struct API: Sendable {
         var errorDescription: String? { message }
     }
 
-    private func send(_ path: String, method: String = "GET", body: Data? = nil, contentType: String? = nil, timeout: TimeInterval = 30) async throws -> Data {
-        var req = URLRequest(url: pairing.url.appending(path: path), timeoutInterval: timeout)
+    private func send(_ path: String, method: String = "GET", query: [URLQueryItem] = [], body: Data? = nil, contentType: String? = nil, timeout: TimeInterval = 30) async throws -> Data {
+        var url = pairing.url.appending(path: path)
+        if !query.isEmpty { url.append(queryItems: query) }
+        var req = URLRequest(url: url, timeoutInterval: timeout)
         req.httpMethod = method
         req.setValue("Bearer " + pairing.key, forHTTPHeaderField: "Authorization")
         if let contentType { req.setValue(contentType, forHTTPHeaderField: "Content-Type") }
@@ -54,6 +56,29 @@ struct API: Sendable {
     /// Asks the frame to report what it's showing now (it answers within a second or two).
     func checkIn() async throws {
         _ = try await send("api/frame/checkin", method: "POST")
+    }
+
+    // MARK: Fitness
+
+    // Sending is in Fitness.swift (FitnessSync), which only the app has, not the share extension.
+
+    /// Stops the frame showing this phone's person's rings (worker/fitness.js), by the phone's id.
+    func removeFitness(id: String) async throws {
+        _ = try await send("api/fitness", method: "DELETE", query: [URLQueryItem(name: "id", value: id)])
+    }
+
+    // MARK: Guest mode
+
+    /// Guest mode (worker/guest.js): nothing personal (Fitness) on the frame, until it's turned off.
+    struct Guest: Decodable, Sendable { var on: Bool }
+
+    func guest() async throws -> Guest {
+        try JSONDecoder().decode(Guest.self, from: try await send("api/frame/guest"))
+    }
+
+    func setGuest(_ on: Bool) async throws -> Guest {
+        struct Body: Encodable { var on: Bool }
+        return try JSONDecoder().decode(Guest.self, from: try await send("api/frame/guest", method: "POST", body: try json(Body(on: on)), contentType: "application/json"))
     }
 
     /// show (with a tab), slideshow, wake or close: the same commands Alexa sends.

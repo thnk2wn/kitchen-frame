@@ -3,6 +3,12 @@ import SwiftUI
 @main
 struct KitchenFrameApp: App {
     @State private var model = AppModel()
+    @Environment(\.scenePhase) private var phase
+
+    init() {
+        // Every launch, including the background ones HealthKit makes for new Activity data.
+        FitnessSync.shared.startIfEnabled()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -10,6 +16,15 @@ struct KitchenFrameApp: App {
                 .environment(model)
                 // The frame's pairing QR code, opened from the iPhone camera.
                 .onOpenURL { model.pair(with: $0) }
+                // Opening the app sends the latest rings, whatever background delivery managed.
+                .onChange(of: phase, initial: true) { _, now in
+                    // Asks for any Health access added since it was turned on (iOS shows the sheet only for new
+                    // kinds of data), then sends.
+                    if now == .active { Task {
+                        if FitnessSync.shared.enabled { try? await FitnessSync.shared.requestAccess() }
+                        await FitnessSync.shared.send(reason: "App opened")
+                    } }
+                }
                 #if DEBUG
                 // For the simulator: -pairLink kitchenframe://pair?… pairs without the "Open in" prompt.
                 .task {
@@ -39,7 +54,9 @@ final class AppModel {
         pairingProblem = nil
     }
 
-    func unpair() {
+    /// Fitness sharing stops first, while the pairing still reaches the frame to remove this person.
+    func unpair() async {
+        if FitnessSync.shared.enabled { await FitnessSync.shared.stop() }
         PairingStore.clear()
         pairing = nil
     }
@@ -97,15 +114,84 @@ struct SettingsView: View {
                     Button("Unpair this phone", role: .destructive) { confirming = true }
                 }
                 Section {
+                    NavigationLink { FitnessSettingsView() } label: { LabeledContent("Apple Health", value: FitnessSync.shared.summary) }
+                }
+                Section {
                     LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—")
                 }
             }
             .navigationTitle("Settings")
             .confirmationDialog("Unpair this phone?", isPresented: $confirming, titleVisibility: .visible) {
-                Button("Unpair", role: .destructive) { model.unpair() }
+                Button("Unpair", role: .destructive) { Task { await model.unpair() } }
             } message: {
                 Text("You can pair again from the frame’s Settings.")
             }
+        }
+    }
+}
+
+/// Settings → Apple Health: whether this phone sends its owner's Activity rings to the frame, under
+/// what name, heart rate or not, and the sends of the last day (to see how far behind background
+/// updates run), on a page of its own.
+struct FitnessSettingsView: View {
+    @State private var sync = FitnessSync.shared
+    @State private var problem: String?
+
+    var body: some View {
+        Form {
+        Section {
+            Toggle("Share Fitness on the frame", isOn: Binding(get: { sync.enabled }, set: { on in Task { await turn(on) } }))
+                .disabled(!FitnessSync.available || sync.name.trimmingCharacters(in: .whitespaces).isEmpty)
+            TextField("Your name on the frame", text: Binding(get: { sync.name }, set: { sync.name = $0 }))
+                .textContentType(.givenName)
+                .disabled(sync.enabled)
+            if sync.enabled {
+                Toggle("Average heart rate on workouts", isOn: Binding(get: { sync.heartRate }, set: { on in Task { await heart(on) } }))
+                Button(sync.sending ? "Sending…" : "Send now") { Task { await sync.send(reason: "Send now") } }
+                    .disabled(sync.sending)
+            }
+            if let problem { Text(problem).foregroundStyle(.red) }
+        } footer: {
+            Text("Shows your Activity rings, today’s steps and your last few workouts (time, distance, calories, climb, effort and the weather, and average heart rate if you turn it on) on the frame’s Fitness tab, nothing else from Health. It sends when you open this app and when Health has new data, usually within the hour while your phone is unlocked now and then. Turn it off to hide yourself on the frame; turned back on, you’re there again in seconds. Guest mode (the Remote tab) hides everyone’s, with other personal things.")
+        }
+        if sync.enabled, !sync.recent.isEmpty {
+            Section {
+                ForEach(sync.recent) { s in
+                    LabeledContent {
+                        Text(s.error ?? "Sent").foregroundStyle(s.error == nil ? Color.secondary : Color.red)
+                    } label: {
+                        Text(s.reason)
+                        Text(s.at.formatted(.relative(presentation: .named)))
+                    }
+                }
+            } header: {
+                Text("Sends today")
+            } footer: {
+                Text("The last 24 hours, newest first: “App opened” is this app, “Health update” is Health waking it in the background.")
+            }
+        }
+        }
+        .navigationTitle("Apple Health")
+    }
+
+    /// Heart rate needs its own Health access, asked for when it's turned on; then it's sent at once.
+    private func heart(_ on: Bool) async {
+        problem = nil
+        sync.heartRate = on
+        if on { do { try await sync.requestAccess() } catch { problem = error.localizedDescription } }
+        await sync.send(reason: on ? "Heart rate on" : "Heart rate off")
+    }
+
+    private func turn(_ on: Bool) async {
+        problem = nil
+        guard on else { await sync.stop(); return }
+        do {
+            try await sync.requestAccess()
+            sync.enabled = true
+            sync.startIfEnabled()
+            await sync.send(reason: "Turned on")
+        } catch {
+            problem = error.localizedDescription
         }
     }
 }

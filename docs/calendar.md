@@ -57,6 +57,7 @@ All optional, comma-separated, in the same order as `CALENDAR_URLS`:
 | --- | --- |
 | `CALENDAR_NAMES` | Names in the frame's **Calendars** list, when a feed's own name isn't useful (Exchange calls everything "Calendar"). |
 | `CALENDAR_DETAILS` | `yes` for calendars whose events open with their details when tapped; others (unset or `no`) don't. See [Event details](#event-details). |
+| `CALENDAR_REFRESH` | Hours between fetches of that feed (blank: every 10 minutes). For a feed that rarely changes, such as a season's game schedule, or a site that refuses a cloud server asking often. |
 | `CALENDAR_COLORS` | Each calendar's colour, to match your phone say: `red`, `orange`, `yellow`, `green`, `teal`, `blue`, `indigo`, `purple`, `pink`, `brown`, `gray`, or `#rrggbb`. Unset ones rotate through red, blue, green, purple, orange, teal. Named colours have light and dark versions that follow the frame's theme. |
 
 On the frame, **Calendars** (on Home or the Calendar tab) shows or hides each calendar on that device;
@@ -112,7 +113,9 @@ A cron job fetches every feed into KV every 10 minutes (a calendar from the Mac 
 when it changes instead), and writes KV only when something changed (or
 hourly, to show it's alive). The frame asks the Worker every 5 minutes; Settings → **Reload** pulls
 fresh from the feeds right away. If one feed fails, its last good events stay up and the others carry
-on.
+on, and that feed is tried again after 10 minutes, then 20, 40 and so on, up to 6 hours. The status
+page shows it on the calendar's own row: amber while its last good copy is under two days old, red
+after that.
 
 The free Workers plan allows 10 ms of CPU per cron run (Workers Paid allows 30 s). Old one-off events
 are skipped before parsing and long-running repeats are fast-forwarded, so a typical family calendar

@@ -20,10 +20,12 @@
     expectFor(player, 'media_play_pause');
     callService('media_player', 'media_play_pause', {}, { entity_id: player.entity_id }).catch(() => {});
   }
+  let failedArt = $state(null); // the picture that didn't load, so the next song's is tried
 </script>
 
 <div class="np" class:card class:slim class:tall={cover > 0} class:sheet={card} style={cover ? '--cover:' + cover + 'px' : ''} role="button" tabindex="0" title={player.media_title} onclick={openIt} onkeydown={(e) => e.key === 'Enter' && openIt()}>
-  {#if player.entity_picture}<img src={haUrl(player.entity_picture)} alt="" />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
+  <!-- A cover that fails to load (Home Assistant's art proxy can) shows the note, not a broken image. -->
+  {#if player.entity_picture && failedArt !== player.entity_picture}<img src={haUrl(player.entity_picture)} alt="" onerror={() => (failedArt = player.entity_picture)} />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
   {#if card}
     <div class="txt">
       <div class="title">{player.media_title}</div>

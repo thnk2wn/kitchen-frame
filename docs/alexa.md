@@ -33,6 +33,8 @@ same and give the same advice. (Use two words for the name; Amazon discourages o
 | play Trucks videos · play videos | Plays that Media → Videos group on the frame, least recently played first, muted until someone taps it (the frame's browser needs a tap before it plays sound) |
 | play Science Friday podcast · play my podcast | Plays a podcast on the Echo (Apple Podcasts through the Mac: [music](music.md#podcasts-apple-podcasts-through-the-mac)): that show's half-played or newest episode, or the one just picked on the frame; "pause", "resume", "start over" and "stop" work while it plays |
 | what's for dinner | Says tonight's dinner from the Paprika meal plan, and opens its recipe on the frame (Recipes → Meals when there are several) |
+| how's my fitness · how are my rings · check my rings | Shows Fitness on the frame and reads a short summary for each person sharing ([fitness](fitness.md)): how today is going, a streak or pattern from the week, the latest workout and, if a ring is open, a small suggestion. Worded by a model on Workers AI from the numbers, or the plain numbers when it isn't available. Not while guest mode is on |
+| we have guests · turn on guest mode | Guest mode on: personal things (Fitness) hidden on the frame while guests are over ([fitness](fitness.md#guest-mode)). Turning it off is on the frame or the phone app, not by voice |
 | what's on my calendar today · the rundown | Shows Home on the frame and reads its Today card in order: who's up early, today's meals, today's events, bedtime ([rotations](rotations.md)), at the Echo's own time |
 
 In demo mode the frame tells the Worker, and the rundown and dinner read the frame's invented day.

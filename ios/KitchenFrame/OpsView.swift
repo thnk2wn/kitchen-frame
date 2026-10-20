@@ -65,10 +65,18 @@ struct OpsReport: Sendable {
             var rows = [Row(label: "Updated", value: updated.map { ago($0, now) } ?? "never", level: mins(updated) > 75 ? .warn : .ok)]
             let names = c["names"] as? [String] ?? []
             let events = c["events"] as? [String: Any] ?? [:]
-            for (i, n) in names.enumerated() { rows.append(Row(label: n.isEmpty ? "Calendar \(i + 1)" : n, value: "\(events[String(i)] as? Int ?? 0) events")) }
-            for e in c["errors"] as? [[String: Any]] ?? [] {
-                let i = e["cal"] as? Int ?? -1
-                rows.append(Row(label: names.indices.contains(i) ? names[i] : "Calendar", value: "failing: " + (e["error"] as? String ?? "?"), level: .bad))
+            // A failing feed on its own row, as the page shows it: amber while its saved copy is under
+            // two days old, red when older or empty (and for Mac bridge calendars, which have no copy time).
+            var failing: [Int: [String: Any]] = [:]
+            for e in c["errors"] as? [[String: Any]] ?? [] { if let i = e["cal"] as? Int { failing[i] = e } }
+            for (i, n) in names.enumerated() {
+                let count = events[String(i)] as? Int ?? 0
+                let label = n.isEmpty ? "Calendar \(i + 1)" : n
+                guard let e = failing[i] else { rows.append(Row(label: label, value: "\(count) events")); continue }
+                let since = date(e["since"])
+                let fresh = e.keys.contains("since") && (since.map { now.timeIntervalSince($0) < 48 * 3600 } ?? (count > 0))
+                rows.append(Row(label: label, value: "\(count) events · last fetch failed (\(e["error"] as? String ?? "?"))" + (since.map { ", showing the copy from " + ago($0, now) } ?? ""),
+                                level: fresh ? .warn : .bad))
             }
             r.groups.append(Group(title: "Calendar", rows: rows))
         }
@@ -94,8 +102,9 @@ struct OpsReport: Sendable {
             }
             if let p = m["photos"] as? [String: Any] {
                 let showing = p["showing"] as? Int ?? 0
-                rows.append(Row(label: "Photos", value: "\(p["album"] as? String ?? "") · \(showing) showing" + (date(p["changed"]).map { " · changed " + ago($0, now) } ?? ""),
-                                level: showing > 0 ? .ok : .warn))
+                rows.append(Row(label: "Photos", value: "\(p["album"] as? String ?? "") · \(showing) showing", level: showing > 0 ? .ok : .warn))
+                // Its own row: on the end of the one above it wrapped mid-phrase on a phone.
+                if let changed = date(p["changed"]) { rows.append(Row(label: "Photos changed", value: ago(changed, now))) }
                 if let s = p["storage"] as? [String: Any], let bytes = s["bytes"] as? Double, let limit = s["limit"] as? Double, limit > 0 {
                     let share = bytes / limit
                     rows.append(Row(label: "Storage", value: "\(mb(bytes)) of \(mb(limit)) (\(Int((share * 100).rounded()))%) · \(s["photos"] as? Int ?? 0) photos, \(s["videos"] as? Int ?? 0) videos",
@@ -114,10 +123,32 @@ struct OpsReport: Sendable {
             var rows: [Row]
             if let e = p["error"] as? String { rows = [Row(label: "Sync", value: e, level: .bad)] }
             else {
-                rows = [Row(label: "Recipes", value: "\(p["recipes"] as? Int ?? 0)"), Row(label: "Synced", value: date(p["updated"]).map { ago($0, now) } ?? "never")]
+                // As the page: what changed when, and when the 15-minute check last ran (amber past 45).
+                let checked = date(p["checked"])
+                rows = [Row(label: "Recipes", value: "\(p["recipes"] as? Int ?? 0)"),
+                        Row(label: "Recipes changed", value: date(p["updated"]).map { ago($0, now) } ?? "never"),
+                        Row(label: "Meal plan changed", value: date(p["mealsUpdated"]).map { ago($0, now) } ?? "never"),
+                        Row(label: "Last checked", value: checked.map { ago($0, now) } ?? "not yet", level: mins(checked) > 45 ? .warn : .ok)]
+                if let e = p["checkError"] as? String { rows.append(Row(label: "Last check failed", value: e, level: .bad)) }
                 if let left = p["remaining"] as? Int, left > 0 { rows.append(Row(label: "Still to fetch", value: "\(left)")) }
             }
             r.groups.append(Group(title: "Paprika", rows: rows))
+        }
+        // Fitness: as the page shows it, amber past 12 hours without a send, red past 36.
+        if let fit = d["fitness"] as? [String: Any] {
+            if let e = fit["error"] as? String { r.groups.append(Group(title: "Fitness", rows: [Row(label: "Status", value: e, level: .bad)])) }
+            else if let people = fit["people"] as? [[String: Any]], !people.isEmpty {
+                // Two short rows each (when, then why), which fit a phone's width.
+                let rows = people.flatMap { p -> [Row] in
+                    let sent = date(p["updated"])
+                    let hours = mins(sent) / 60
+                    var rows = [Row(label: p["name"] as? String ?? "?", value: "sent " + (sent.map { ago($0, now) } ?? "never"),
+                                    level: hours > 36 ? .bad : hours > 12 ? .warn : .ok)]
+                    if let why = p["reason"] as? String { rows.append(Row(label: "Reason", value: why)) }
+                    return rows
+                }
+                r.groups.append(Group(title: "Fitness", rows: rows))
+            }
         }
 
         // The frame's event log, newest first: what it noticed, warnings and errors coloured.

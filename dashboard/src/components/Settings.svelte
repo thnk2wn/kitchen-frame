@@ -78,6 +78,13 @@
   import { presence, presenceArea, ignored, setIgnored } from '../lib/presence.svelte.js';
   import { recent } from '../lib/log.svelte.js';
   import { pin, pinAvailable, confirmPin, enterPin, savePin, removePin } from '../lib/pin.svelte.js';
+  import { fitness, setGuest } from '../lib/fitness.svelte.js';
+  // Guest mode off asks for the unlock PIN when there is one, so a guest can't just turn it off.
+  async function guestOff() {
+    if (!fitness.guest.on) return;
+    if (pin.set && !(await confirmPin('Enter PIN to turn off guest mode'))) return;
+    await setGuest(false).catch(() => {});
+  }
   // The unlock PIN: set it twice; changing or removing it needs the current one first.
   async function newPin() {
     let first = await enterPin('New unlock PIN', 'Four digits');
@@ -136,6 +143,16 @@
       </div>
     </div>
     <p class="hint">Auto follows sunrise and sunset.</p>
+
+    {#if !ui.demo}
+    <div class="row">
+      <span>Guest mode<small>{fitness.guest.on ? 'Personal things, like Fitness, are hidden until it’s turned off' : 'Hides personal things, like Fitness, while guests are here'}</small></span>
+      <div class="seg">
+        <button class:on={!fitness.guest.on} onclick={guestOff}>Off</button>
+        <button class:on={fitness.guest.on} onclick={() => setGuest(true).catch(() => {})}>On</button>
+      </div>
+    </div>
+    {/if}
 
     <div class="row">
       <span>Clock screen color<small>The clock shown when the frame is idle</small></span>

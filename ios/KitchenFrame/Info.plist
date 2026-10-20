@@ -31,5 +31,7 @@
 	<string>1</string>
 	<key>KeychainGroup</key>
 	<string>$(AppIdentifierPrefix)$(BUNDLE_ID_PREFIX).kitchenframe.shared</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Shows your Activity rings, steps and recent workouts on the kitchen frame’s Fitness tab. Nothing else from Health is sent.</string>
 </dict>
 </plist>
