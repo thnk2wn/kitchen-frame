@@ -34,3 +34,13 @@ test('trends: a day with no ring data (no goals) breaks a streak rather than cou
   const t = view(person(6, (i) => (i === 3 ? { moveGoal: null, exerciseGoal: null, standGoal: null, move: null, exercise: null, stand: null } : closed), closed), now).trends;
   assert.equal(t.moveStreak, 3); // today and the two days after the empty one
 });
+
+test('view: earlier days but none for today is waiting for the Watch, not behind', () => {
+  const p = person(5, () => closed, closed);
+  p.days.pop();
+  const v = view(p, now);
+  assert.equal(v.waiting, true);
+  assert.equal(v.empty, false);
+  assert.equal(view(person(5, () => closed, closed), now).waiting, false);
+  assert.equal(view({ id: 'a', name: 'Alex', updated: now.toISOString(), days: [] }, now).waiting, false);
+});

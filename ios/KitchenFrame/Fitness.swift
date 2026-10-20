@@ -113,7 +113,10 @@ final class FitnessSync {
     }
 
     /// A background wake-up. Each one may be a new launch, so the last send is remembered on disk:
-    /// ring changes at most every 15 minutes (they come in bursts as the Watch syncs), workouts every 2.
+    /// at most one send every 2 minutes, for the burst when several kinds of data change at one Watch
+    /// sync. No longer than that: iOS wakes the app at most hourly per kind, so a wake-up skipped here
+    /// can be the only one that hour (a send from the iPhone's own steps, then the Watch's rings
+    /// minutes later, left the frame on no rings for an hour).
     /// (Observers also fire once when they start, so a launch shows up here too.)
     private func sendFromBackground(workout: Bool) async {
         // A send already under way: wait for it (and the one it queues) before reporting done to
@@ -121,8 +124,17 @@ final class FitnessSync {
         while sending { try? await Task.sleep(for: .milliseconds(200)) }
         let key = workout ? "fitness.lastWorkoutSend" : "fitness.lastRingSend"
         let last = defaults.object(forKey: key) as? Date ?? .distantPast
-        guard Date.now.timeIntervalSince(last) >= (workout ? 2 : 15) * 60 else { return }
+        guard Date.now.timeIntervalSince(last) >= 2 * 60 else { return }
         if await send(reason: workout ? "Health update (workouts)" : "Health update (rings)") { defaults.set(Date.now, forKey: key) }
+    }
+
+    /// The frame's Refresh (its notification's link opened the app): sends now and says how it went,
+    /// for the banner. Opening the app sends too, so one may already be under way: then its result
+    /// answers (it read Health just now). Nil when sharing is off or has no name, so nothing was sent.
+    func answerFrame() async -> Sent? {
+        let asked = Date.now.addingTimeInterval(-10)
+        if !(await send(reason: "Frame asked")) { while sending { try? await Task.sleep(for: .milliseconds(200)) } }
+        return history.first { $0.at >= asked }
     }
 
     /// Reads today and the past week and sends it. Errors are kept for Settings, not thrown; true if sent.
@@ -180,6 +192,9 @@ final class FitnessSync {
         var steps: Double?
         var meters: Double?
         var workouts: [Workout]
+        /// When the newest active-energy reading ends: how current the rings are, which a send time
+        /// isn't (a send early in the day can come before the Watch has synced).
+        var dataAt: Date?
     }
 
     private func read(reason: String) async throws -> Report {
@@ -192,6 +207,7 @@ final class FitnessSync {
         async let steps = sum(Self.steps, unit: .count(), since: today)
         async let meters = sum(Self.walkRun, unit: .meter(), since: today)
         async let workouts = recentWorkouts(since: cal.date(byAdding: .day, value: -14, to: today)!)
+        async let dataAt = latestEnd(Self.energy, since: cal.date(byAdding: .day, value: -2, to: today)!)
         let (stepsBy, workoutBy) = (try await dailySteps, try await dailyWorkout)
         let days = try await rings.map { d in
             var d = d
@@ -200,7 +216,7 @@ final class FitnessSync {
             return d
         }
         return Report(id: phoneId, name: name, reason: reason, unit: Locale.current.measurementSystem == .metric ? "km" : "mi",
-                      days: days, steps: try await steps, meters: try await meters, workouts: try await workouts)
+                      days: days, steps: try await steps, meters: try await meters, workouts: try await workouts, dataAt: try await dataAt)
     }
 
     /// "2026-10-19" for the day a Date falls on here.
@@ -260,6 +276,14 @@ final class FitnessSync {
         let predicate = HKSamplePredicate.quantitySample(type: type, predicate: HKQuery.predicateForSamples(withStart: start, end: nil))
         let stats = try await HKStatisticsQueryDescriptor(predicate: predicate, options: .cumulativeSum).result(for: store)
         return stats?.sumQuantity()?.doubleValue(for: unit)
+    }
+
+    /// The end of the newest sample of a type since a time, if any.
+    private func latestEnd(_ type: HKQuantityType, since start: Date) async throws -> Date? {
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: type, predicate: HKQuery.predicateForSamples(withStart: start, end: nil))],
+            sortDescriptors: [SortDescriptor(\.endDate, order: .reverse)], limit: 1)
+        return try await descriptor.result(for: store).first?.endDate
     }
 
     private func recentWorkouts(since start: Date) async throws -> [Report.Workout] {

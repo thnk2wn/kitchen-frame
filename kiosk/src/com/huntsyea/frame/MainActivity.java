@@ -229,6 +229,72 @@ public class MainActivity extends Activity {
     public float getBrightness() {
       return getSharedPreferences(PREFS, MODE_PRIVATE).getFloat("brightness", -1f);
     }
+
+    /**
+     * The phone app's Screenshot (dashboard/src/lib/screenshot.js): captures the screen as root
+     * (screencap sees everything, video and the camera pop-up too, which drawing the page wouldn't),
+     * shrinks it to 1280 wide and PUTs it as a JPEG to the dashboard's own Worker. Off the UI thread;
+     * the page hears how it went through window.frameShotDone(ok, why).
+     *
+     * The address is the kiosk's, never the caller's: Android 8's WebView gives this bridge to every
+     * frame in the page, embeds (YouTube) included, so one could otherwise send the screen anywhere.
+     * The page passes only the dashboard key, which the Worker checks.
+     */
+    @JavascriptInterface
+    public void captureTo(final String auth) {
+      final Uri home = url == null ? null : Uri.parse(url);
+      new Thread(() -> {
+        String why = null;
+        try {
+          if (home == null || !"https".equals(home.getScheme())) throw new Exception("no dashboard address set");
+          upload("https://" + home.getAuthority() + "/api/frame/screenshot", auth, capture());
+        } catch (Exception e) {
+          why = e.getMessage() != null ? e.getMessage() : e.toString();
+          Log.w(TAG, "screenshot: " + why);
+        }
+        final String js = "window.frameShotDone && window.frameShotDone(" + (why == null) + ", " + org.json.JSONObject.quote(why == null ? "" : why) + ")";
+        runOnUiThread(() -> web.evaluateJavascript(js, null));
+      }, "screenshot").start();
+    }
+  }
+
+  /** The screen as a JPEG, 1280 wide (plenty to read on a phone, and small on the frame's slow Wi-Fi). */
+  static byte[] capture() throws Exception {
+    Process p = Runtime.getRuntime().exec(new String[] {"su", "-c", "screencap -p"});
+    java.io.ByteArrayOutputStream png = new java.io.ByteArrayOutputStream();
+    try (java.io.InputStream in = p.getInputStream()) {
+      byte[] buf = new byte[65536];
+      for (int n; (n = in.read(buf)) > 0; ) png.write(buf, 0, n);
+    }
+    int rc = p.waitFor();
+    android.graphics.Bitmap full = android.graphics.BitmapFactory.decodeByteArray(png.toByteArray(), 0, png.size());
+    if (full == null) throw new Exception("screencap gave no image (su exit " + rc + ")");
+    int w = Math.min(1280, full.getWidth()), h = Math.round(full.getHeight() * (w / (float) full.getWidth()));
+    android.graphics.Bitmap small = android.graphics.Bitmap.createScaledBitmap(full, w, h, true);
+    java.io.ByteArrayOutputStream jpeg = new java.io.ByteArrayOutputStream();
+    small.compress(android.graphics.Bitmap.CompressFormat.JPEG, 82, jpeg);
+    full.recycle();
+    small.recycle();
+    return jpeg.toByteArray();
+  }
+
+  static void upload(String url, String auth, byte[] jpeg) throws Exception {
+    HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+    try {
+      c.setRequestMethod("PUT");
+      c.setDoOutput(true);
+      c.setConnectTimeout(15000);
+      c.setReadTimeout(30000);
+      c.setFixedLengthStreamingMode(jpeg.length);
+      c.setRequestProperty("Authorization", auth);
+      c.setRequestProperty("Content-Type", "image/jpeg");
+      try (java.io.OutputStream out = c.getOutputStream()) { out.write(jpeg); }
+      int code = c.getResponseCode();
+      if (code / 100 != 2) throw new Exception("upload answered " + code);
+      Log.i(TAG, "screenshot: uploaded " + jpeg.length + " bytes");
+    } finally {
+      c.disconnect();
+    }
   }
 
   /** The clock starts at 2008-12-31 on every power-up; anything before 2024 is that, not real. */

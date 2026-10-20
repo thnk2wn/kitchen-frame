@@ -22,6 +22,7 @@
   import EventSheet from './components/EventSheet.svelte';
   import TaskSheet from './components/TaskSheet.svelte';
   import UndoToast from './components/UndoToast.svelte';
+  import ShotNote from './components/ShotNote.svelte';
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
   import SharedMedia from './components/SharedMedia.svelte';
@@ -157,6 +158,7 @@
   <Safe name="Event details" quiet><EventSheet /></Safe>
   <Safe name="Task details" quiet><TaskSheet /></Safe>
   <Safe name="Undo" quiet><UndoToast /></Safe>
+  <Safe name="Screenshot note" quiet><ShotNote /></Safe>
   <Safe name="Notices" quiet><NoticeSheet /></Safe>
   <Safe name="Timer alert" quiet><TimerAlert /></Safe>
   <Safe name="PIN" quiet><PinPad /></Safe>

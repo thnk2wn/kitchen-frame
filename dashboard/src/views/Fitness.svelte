@@ -6,8 +6,8 @@
   import Icon from '../components/Icon.svelte';
   import { ui, clock } from '../lib/state.svelte.js';
   import { time, dayKey } from '../lib/format.js';
-  import { view, nudge, distance, workoutIcon, RING_COLORS, RING_COLORS_LIGHT } from '../lib/fitness.js';
-  import { fitnessPeople } from '../lib/fitness.svelte.js';
+  import { view, nudge, distance, workoutIcon, replayBeat, RING_COLORS, RING_COLORS_LIGHT } from '../lib/fitness.js';
+  import { fitnessPeople, canAsk, askPhone, askState } from '../lib/fitness.svelte.js';
   import WorkoutSheet from '../components/WorkoutSheet.svelte';
   // The workout open in its sheet, with whose it is: { w, unit, who }.
   let open = $state(null);
@@ -21,6 +21,8 @@
 
   let people = $derived(fitnessPeople(ui.demo, clock.now).map((p) => view(p, clock.now)));
   let light = $derived(ui.theme === 'light');
+  // Replays the rings' and Behind's animations every few minutes (lib/fitness.js replayBeat).
+  let beat = $derived(replayBeat(clock.now));
   let colors = $derived(light ? RING_COLORS_LIGHT : RING_COLORS);
   const letter = (d) => d.toLocaleDateString(undefined, { weekday: 'narrow' });
   function when(d) {
@@ -56,33 +58,52 @@
     const min = Math.max(0, Math.round((clock.now - Date.parse(iso)) / 60000));
     return min < 2 ? 'just now' : min < 60 ? min + ' min ago' : min < 24 * 60 ? Math.round(min / 60) + ' hr ago' : when(new Date(iso));
   }
+  // How current the numbers are: the newest Watch reading the phone had (dataAt), else when it sent
+  // (apps from before dataAt). A recent send can still carry old data, before the Watch syncs.
+  function asOf(p) {
+    if (!p.dataAt) return 'Updated ' + ago(p.updated);
+    const d = new Date(p.dataAt);
+    return 'Watch data as of ' + (dayKey(d) === dayKey(clock.now) ? time(d) : when(d));
+  }
 </script>
 
 <div class="fitness" class:one={people.length === 1} class:many={people.length > 2}>
   {#each people as p (p.id)}
     {@const t = p.today}
     {@const n = nudge(t, clock.now)}
+    {@const a = canAsk(ui.demo) ? askState(p, clock.now) : null}
     <section class="sheet person" class:stale={p.stale}>
       <header>
         <h2>{p.name}</h2>
         <div class="meta">
           {#if p.steps != null}<b class="num">{Math.round(p.steps).toLocaleString()} steps{p.meters != null ? ' · ' + distance(p.meters, p.unit) : ''}</b>{/if}
-          <span class:old={p.stale}>Updated {ago(p.updated)}</span>
+          <!-- Refresh, on the same line: a notification to their phone through Home Assistant
+               (lib/fitness.svelte.js askPhone), while asking its state instead of the time. -->
+          <span class="asof">
+            {#if !a || a.state === 'ask'}<span class:old={p.stale}>{asOf(p)}</span>{/if}
+            {#if a && a.state === 'ask'}<button class="ask" onclick={() => askPhone(p, ui.demo)}><Icon name="reload" size={14} />Refresh</button>
+            {:else if a && a.state === 'asking'}<span class="asking">Asked {p.name}’s phone…</span>
+            {:else if a && a.state === 'asked'}<span>{asOf(p)} · asked at {time(a.at)}</span>
+            {:else if a}<span class="old">Couldn’t ask (Home Assistant)</span>{/if}
+          </span>
         </div>
       </header>
       <div class="today">
-        <Rings move={p.rings.move} exercise={p.rings.exercise} stand={p.rings.stand} size={people.length > 2 ? 120 : 140} {light} celebrate pulse={p.empty ? null : n.ring} />
+        {#key beat}<Rings move={p.rings.move} exercise={p.rings.exercise} stand={p.rings.stand} size={people.length > 2 ? 120 : 140} {light} celebrate pulse={p.empty || p.waiting ? null : n.ring} />{/key}
+        <!-- Waiting for the Watch: a dash, not a 0 that reads as nothing done. -->
         <dl>
-          <div><dt style="color:{colors.move}">Move</dt><dd class="num">{t.move}<span>/{t.moveGoal} kcal</span></dd></div>
-          <div><dt style="color:{colors.exercise}">Exercise</dt><dd class="num">{t.exercise}<span>/{t.exerciseGoal} min</span></dd></div>
-          <div><dt style="color:{colors.stand}">Stand</dt><dd class="num">{t.stand}<span>/{t.standGoal} hrs</span></dd></div>
+          <div><dt style="color:{colors.move}">Move</dt><dd class="num">{p.waiting ? '–' : t.move}<span>/{t.moveGoal} kcal</span></dd></div>
+          <div><dt style="color:{colors.exercise}">Exercise</dt><dd class="num">{p.waiting ? '–' : t.exercise}<span>/{t.exerciseGoal} min</span></dd></div>
+          <div><dt style="color:{colors.stand}">Stand</dt><dd class="num">{p.waiting ? '–' : t.stand}<span>/{t.standGoal} hrs</span></dd></div>
         </dl>
       </div>
       {#if p.empty}
         <p class="nudge">No ring data yet. Check the phone’s Health access for Kitchen Frame.</p>
+      {:else if p.waiting}
+        <p class="nudge">Today’s rings haven’t come from the Watch yet</p>
       {:else}
       <p class="nudge" class:done={n.done} class:behind={!!n.ring} style={n.ring ? `--n:${colors[n.ring]}` : ''}>
-        <b>{#if n.ring}<span class="pulse"></span>{/if}{n.headline}</b>
+        <b>{#if n.ring}{#key beat}<span class="pulse"></span>{/key}{/if}{n.headline}</b>
         {#if n.left.length}<span class="togo">to go</span>{#each n.left as l (l.ring)}<span class="chip" style="--c:{colors[l.ring]}">{l.text}</span>{/each}{/if}
       </p>
       {/if}
@@ -111,7 +132,7 @@
           {#each chipsFor(p.trends) as c (c.text)}<span class="trend {c.tone}"><Icon name={c.icon} size={15} />{#if c.parts}{#each c.parts as x, i (x.label)}{i ? ' · ' : ''}{x.label} <b class={x.tone}>{x.value}</b>{/each}{:else}{c.text}{/if}{#if c.note}<i>{c.note}</i>{/if}</span>{/each}
         </div>
       {/if}
-      <div class="wh">Recent workouts<i>last 2 weeks</i></div>
+      <div class="wh">Recent workouts</div>
       <ul class="workouts">
         <!-- The latest four: what fits under the trends on the frame (the phone sends up to five). -->
         {#each p.workouts.slice(0, 4) as w, i (i)}
@@ -145,6 +166,11 @@
   .meta { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; font-size: 14px; color: var(--secondary); }
   .meta b { font-size: 17px; font-weight: 600; color: var(--label); }
   .meta .old { color: var(--orange-text); font-weight: 600; }
+  .asof { display: flex; align-items: center; gap: 2px; }
+  /* Padding makes it big enough to hit on the frame without making the line taller. */
+  .ask { display: flex; align-items: center; gap: 4px; margin: -10px -10px -10px 0; padding: 10px; font-size: 14px; font-weight: 600; color: var(--blue-text); }
+  .ask:active { opacity: .6; }
+  .asking { color: var(--blue-text); font-weight: 600; }
   /* Old numbers: still shown, but faded so they don't read as now. */
   .stale .today, .stale .nudge, .stale .week { opacity: .45; }
   .none { color: var(--secondary); font-size: 16px; }
@@ -157,10 +183,11 @@
   .nudge { display: flex; align-items: center; gap: 8px; white-space: nowrap; margin: 12px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--fill); font-size: 17px; font-weight: 600;
     box-shadow: inset 4px 0 0 var(--n, var(--secondary)); }
   .nudge b { margin-right: auto; display: flex; align-items: center; gap: 8px; }
-  /* Behind: the headline in the ring's colour, with a dot that pulses a few times when it appears
-     (transform and opacity only, then still: nothing animating for long on the frame's GPU). */
+  /* Behind: the headline in the ring's colour, with a dot that pulses for about 8 s when it appears
+     and again every few minutes (beat); transform and opacity only, then still, so nothing animates
+     for long on the frame's GPU. */
   .behind b { color: var(--n); font-weight: 800; }
-  .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--n); animation: pulse 1.2s ease-in-out 4; }
+  .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--n); animation: pulse 1.2s ease-in-out 7; }
   @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.6); opacity: .5; } }
   .togo { font-size: 14px; font-weight: 600; color: var(--secondary); }
   .chip { padding: 2px 8px; border-radius: 8px; font-size: 15px; font-weight: 700; color: var(--label); box-shadow: inset 0 -3px 0 var(--c); background: var(--sheet); }
@@ -178,7 +205,6 @@
   @keyframes pop { from { opacity: 0; } to { opacity: 1; } }
   /* Its own section: a rule and room above, then the list (at least 12px, more when there's space). */
   .wh { display: flex; align-items: baseline; gap: 6px; margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--sep); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--secondary); }
-  .wh i { font-style: normal; font-weight: 500; text-transform: none; letter-spacing: 0; }
   .day { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 14px; font-weight: 600; color: var(--secondary); }
   .today-col span { color: var(--label); }
   .trends { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; margin: 2px 0 12px; }

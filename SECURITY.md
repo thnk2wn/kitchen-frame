@@ -47,6 +47,16 @@ None of these are ever in the repository: they live in `wrangler secret`, the gi
   listens on the Mac only; `relay-gate.py` passes just the video signalling, and only with the
   token. With Ring cameras through ring-mqtt, its streams need a password once they're exposed for
   the relay, which means Home Assistant's own cameras need it in their addresses too (docs/house.md).
+- **Acting on the frame is home-only.** The phone app's Remote and Screenshot, and sharing a video or
+  photo to the frame, are accepted only from the frame's own network: the IPv4 address or IPv6 /64
+  its check-ins (and the Mac bridge's) come from (`worker/home.js`). Reading (Ops), fitness sends and
+  guest mode work from anywhere. This stops a lost phone driving the frame or seeing its screen from
+  elsewhere; it doesn't stop someone holding the key itself, who could check in as the frame.
+  `HOME_ONLY=off` turns it off.
+- **Screenshots are kept briefly.** Only the latest, in the message room, deleted 10 minutes after it
+  was taken; the frame says "Screenshot sent to a phone" each time. The kiosk app uploads only to the
+  dashboard's own address, never to one a page passes it (Android 8's WebView shares the kiosk's
+  bridge with embedded frames, like YouTube's).
 - **The bridge asks only for what it's given to do** (Reminders, Calendar, Photos, each only when a
   source is set to come through the Mac), and only reads, except the Reminders lists you chose.
 

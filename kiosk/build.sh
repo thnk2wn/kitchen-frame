@@ -7,8 +7,8 @@
 # Then:  ./build.sh && adb install -r build/frame.apk
 set -euo pipefail
 
-VERSION_NAME=1.6
-VERSION_CODE=7
+VERSION_NAME=1.7
+VERSION_CODE=8
 MIN_SDK=23
 TARGET_SDK=27
 

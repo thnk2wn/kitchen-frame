@@ -82,10 +82,12 @@ onError(() => {
   errorTimer = setTimeout(() => { errorTimer = null; lastErrorSend = Date.now(); checkIn(); }, 60000);
 });
 
-// "Check in now" from the Worker (frame-status.sh --now, the status page): at most every 10 s.
+// "Check in now" from the Worker (frame-status.sh --now, the status page, the phone's Remote after a
+// tap) and "reload": at most every 10 s. Other commands (show, screenshot…) don't count, or a
+// check-in asked for right after a tab change would be dropped.
 let lastAsked = 0;
 if (typeof window !== 'undefined') window.addEventListener('frame-command', (e) => {
-  if (!kiosk() || Date.now() - lastAsked < 10000) return;
+  if (!kiosk() || (e.detail !== 'checkin' && e.detail !== 'reload') || Date.now() - lastAsked < 10000) return;
   lastAsked = Date.now();
   if (e.detail === 'checkin') checkIn();
   // A reload sends what's logged first, and says why it happened.

@@ -71,3 +71,9 @@ test('save, list and remove: one entry per phone; the same name on two phones st
   await removeFitness(env, 'not-an-id');
   assert.equal((await saveFitness(env, {})).status, 400);
 });
+
+test('cleanFitness: dataAt (the newest Watch reading) kept as a time, else null', () => {
+  assert.equal(cleanFitness({ id: ID1, name: 'Alex', days: [], dataAt: '2026-10-20T12:20:00Z' }).dataAt, '2026-10-20T12:20:00.000Z');
+  assert.equal(cleanFitness({ id: ID1, name: 'Alex', days: [], dataAt: 'soon' }).dataAt, null);
+  assert.equal(cleanFitness({ id: ID1, name: 'Alex', days: [] }).dataAt, null);
+});

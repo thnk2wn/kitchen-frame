@@ -10,6 +10,30 @@ struct API: Sendable {
     }
 
     private func send(_ path: String, method: String = "GET", query: [URLQueryItem] = [], body: Data? = nil, contentType: String? = nil, timeout: TimeInterval = 30) async throws -> Data {
+        let (data, res) = try await exchange(path, method: method, query: query, body: body, contentType: contentType, timeout: timeout)
+        let status = res?.statusCode ?? 0
+        guard (200..<300).contains(status) else {
+            let said = Self.errorText(data)
+            throw Failure(message: said ?? (status == 401 ? "The frame didn’t accept this phone’s key. Pair it again." : "The frame’s server answered \(status)."))
+        }
+        return data
+    }
+
+    /// The Worker's { error } text, whatever else the answer carries (home-only refusals add home: false).
+    private static func errorText(_ data: Data) -> String? {
+        struct Said: Decodable { var error: String? }
+        return (try? JSONDecoder().decode(Said.self, from: data))?.error
+    }
+
+    /// Whether this phone is on the frame's home network, where Remote and Screenshot work
+    /// (dashboard/worker/home.js). Nil when it couldn't be asked.
+    func atHome() async -> Bool? {
+        struct Home: Decodable { var home: Bool }
+        return try? JSONDecoder().decode(Home.self, from: try await send("api/frame/home")).home
+    }
+
+    /// One request with the dashboard key, whatever it answers (send() turns anything but 2xx into a Failure).
+    private func exchange(_ path: String, method: String = "GET", query: [URLQueryItem] = [], body: Data? = nil, contentType: String? = nil, timeout: TimeInterval = 30) async throws -> (Data, HTTPURLResponse?) {
         var url = pairing.url.appending(path: path)
         if !query.isEmpty { url.append(queryItems: query) }
         var req = URLRequest(url: url, timeoutInterval: timeout)
@@ -18,15 +42,34 @@ struct API: Sendable {
         if let contentType { req.setValue(contentType, forHTTPHeaderField: "Content-Type") }
         req.httpBody = body
         let (data, res) = try await URLSession.shared.data(for: req)
-        let status = (res as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(status) else {
-            let said = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
-            throw Failure(message: said ?? (status == 401 ? "The frame didn’t accept this phone’s key. Pair it again." : "The frame’s server answered \(status)."))
-        }
-        return data
+        return (data, res as? HTTPURLResponse)
     }
 
     private func json(_ value: some Encodable) throws -> Data { try JSONEncoder().encode(value) }
+
+    // MARK: Screenshot
+
+    /// What the frame's screen shows now (dashboard/worker/screenshot.js): asks it, then waits up to
+    /// 30 s for its kiosk app to capture and upload a JPEG. The frame says if it couldn't.
+    func screenshot() async throws -> (image: Data, takenAt: Date) {
+        struct Asked: Decodable { var asked: Double; var sent: Int; var error: String? }
+        let asked = try JSONDecoder().decode(Asked.self, from: try await send("api/frame/screenshot/request", method: "POST", body: Data("{}".utf8), contentType: "application/json"))
+        if asked.sent == 0 { throw Failure(message: asked.error ?? "The frame isn’t connected right now.") }
+        for _ in 0..<30 {
+            try await Task.sleep(for: .seconds(1))
+            let (data, res) = try await exchange("api/frame/screenshot", query: [URLQueryItem(name: "since", value: String(Int(asked.asked)))])
+            switch res?.statusCode {
+            case 200:
+                let at = Double(res?.value(forHTTPHeaderField: "X-Taken-At") ?? "") ?? Date.now.timeIntervalSince1970 * 1000
+                return (data, Date(timeIntervalSince1970: at / 1000))
+            case 404: continue
+            default:
+                let said = Self.errorText(data)
+                throw Failure(message: said ?? "The frame’s server answered \(res?.statusCode ?? 0).")
+            }
+        }
+        throw Failure(message: "No screenshot came back. The frame may be off, or its kiosk app older than 1.7.")
+    }
 
     func post(_ path: String, json value: [String: String], timeout: TimeInterval = 30) async throws -> Data {
         try await send(path, method: "POST", body: try json(value), contentType: "application/json", timeout: timeout)

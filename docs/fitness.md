@@ -10,19 +10,22 @@ their numbers, through the [iPhone app](../ios/README.md); nothing else from Hea
 
 - **Today:** the three rings and their numbers against the person's own goals, today's steps and
   distance, and a line on how the day is going against the time of day: on track, behind on a ring
-  (in that ring's colour, which pulses a few times), or all three closed (a check in the rings, and a
-  small bounce once as the tab opens).
+  (in that ring's colour, which pulses for a few seconds as the tab opens and again every 5 minutes
+  through the day), or all three closed (a check in the rings, and a small bounce as the tab opens).
 - **The last 7 days** as small rings. Tap one for that day's numbers, steps and minutes of workouts.
 - **Trends**, from the last 4 weeks: a streak (days in a row with Move closed, or all three), today's
   steps and exercise against the person's usual by this time of day, and how many days had a workout.
-- **Recent workouts** from the last 2 weeks. Tap one for its details: time, distance, active and total
-  calories, elevation gain, pace or speed, the effort the Watch recorded, the weather, and average heart
-  rate if its owner chose to share it.
+- **Recent workouts:** the latest 4 (the phone sends up to 5 from the last 2 weeks). Tap one for its
+  details: time, distance, active and total calories, elevation gain, pace or speed, the effort the
+  Watch recorded, the weather, and average heart rate if its owner chose to share it.
 - **Home:** each person's rings under the clock when notices and Now Playing leave room (with the three
   numbers, or a short status when it's tight), else small rings beside the date. Tap to open Fitness.
 
-Numbers a few hours old are faded with "Updated 4 hr ago", so a phone that stopped sending never looks
-current.
+Each person shows "Watch data as of 8:20 AM": the newest reading their phone had from the Watch, which
+is how current the rings are (a phone can send without anything new). Numbers a few hours old are
+faded, so a phone that stopped sending never looks current. A send that came before the phone had the day's rings from the Watch (first thing in the
+morning, from the iPhone's own steps) shows "Today's rings haven't come from the Watch yet" rather than
+zeros.
 
 ## Set it up
 
@@ -47,10 +50,19 @@ after 12 hours and red after 36.
 After the app is installed or updated, open it once: iOS doesn't wake an app in the background until
 it has run.
 
+### Refresh
+
+With Home Assistant and its Companion app on each phone, each person on the Fitness tab has a
+**Refresh**: it sends a notification to their phone, and tapping it opens Kitchen Frame, which sends
+at once (the tap matters: a locked phone can't read Health in the background). The frame updates as
+soon as the send arrives. Add [`script.frame_fitness_refresh`](../homeassistant/scripts/frame-fitness-refresh.yaml)
+with a branch per person; Refresh shows only once that script exists. After asking, the frame says
+"Asked …" and won't ask that phone again for 10 minutes unless it answers.
+
 ## Guest mode
 
 Hides personal things on the frame while guests are over; for now, Fitness: no tab, no rings on Home,
-and Alexa won't read it. Turn it on from the frame (Settings → Display → Guest mode), the app's **Remote** tab, or Alexa ("we
+and Alexa won't read it. Turn it on from the frame (Settings → Display → Guest mode), the app's **Settings**, or Alexa ("we
 have guests"); turn it off from the frame (which asks for the unlock PIN when one is set) or the app.
 Not by voice: anyone in the kitchen can talk to an Echo. It stays on until turned off. While it's on, the Worker sends nobody's fitness
 to the frame at all.

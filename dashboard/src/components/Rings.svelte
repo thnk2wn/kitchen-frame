@@ -2,9 +2,10 @@
   // Three concentric activity rings (move outside, exercise, stand inside). Values are shares of each
   // goal; past 100% the ring stays full (Apple draws a second lap; not worth it at this size).
   // size: px across; light: the darker set of colours for light backgrounds.
-  // When all three are closed a check sits in the middle; celebrate: also a one-off bounce and a glow
-  //   fading out (the Fitness tab, as it appears). pulse: a ring ('move', 'exercise' or 'stand') that
-  //   pulses a few times, the one furthest behind. Animations are transform and opacity only, and end.
+  // When all three are closed a check sits in the middle; celebrate: also a bounce and a glow fading
+  //   out, three times (the Fitness tab, as it appears). pulse: a ring ('move', 'exercise' or
+  //   'stand') that pulses for about 8 s, the one furthest behind. Animations are transform and
+  //   opacity only, and end; the views replay them now and then (lib/fitness.js replayBeat).
   import { RING_COLORS, RING_COLORS_LIGHT } from '../lib/fitness.js';
   let { move = 0, exercise = 0, stand = 0, size = 120, light = false, celebrate = false, pulse = null } = $props();
   let colors = $derived(light ? RING_COLORS_LIGHT : RING_COLORS);
@@ -45,10 +46,10 @@
 <style>
   .rings { position: relative; display: inline-block; flex: none; }
   svg { display: block; }
-  .celebrate svg { animation: bounce .9s ease-out 1; }
-  .glow { position: absolute; inset: 0; border-radius: 50%; border: 4px solid; opacity: 0; animation: glow 1.4s ease-out .2s 1; }
+  .celebrate svg { animation: bounce 1.2s ease-out 3; }
+  .glow { position: absolute; inset: 0; border-radius: 50%; border: 4px solid; opacity: 0; animation: glow 1.2s ease-out .2s 3; }
   @keyframes bounce { 0% { transform: scale(.92); } 45% { transform: scale(1.06); } 100% { transform: scale(1); } }
   @keyframes glow { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(1.3); opacity: 0; } }
-  .pulse { animation: ring-pulse 1.4s ease-in-out 4; }
+  .pulse { animation: ring-pulse 1.4s ease-in-out 6; }
   @keyframes ring-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 </style>

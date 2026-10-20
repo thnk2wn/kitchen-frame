@@ -322,7 +322,7 @@ so there's nothing to configure in the usual case (`DOORBELL` / `DOORBELL_CAMERA
 With each person's iPhone app: their Activity rings, steps and recent workouts on a Fitness tab
 (today, the last 7 days, streaks and today against their usual, a workout's details on a tap) and
 their rings on Home. Only those numbers leave the phone, and average heart rate only if its owner
-turns it on. **Guest mode** (on the frame, the app's Remote tab, or Alexa to turn it on) hides it while guests
+turns it on. **Guest mode** (on the frame, the app's Settings, or Alexa to turn it on) hides it while guests
 are over. [docs/fitness.md](docs/fitness.md).
 
 ### Notices
