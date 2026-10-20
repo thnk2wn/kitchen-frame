@@ -1,12 +1,14 @@
 <script>
+  import { formatDate } from '../lib/format.js';
   // A camera full screen, opened by tapping it on the House tab: live video when the camera offers
   // it through Home Assistant (WebRTC, as the doorbell pop-up uses), otherwise its picture refreshed
-  // every few seconds. Closes itself after OPEN_MS, so a battery camera isn't left streaming.
+  // every few seconds. Closes itself OPEN_MS after video starts, so a battery camera isn't left streaming.
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import { startLive } from '../lib/doorbell.svelte.js';
   import { relayServes, startRelayLive } from '../lib/relay.js';
   import { ha, haUrl } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { log } from '../lib/log.svelte.js';
 
   // onsnap: asks the camera for a new picture (a Ring camera's "Take Snapshot" through ring-mqtt), for
@@ -34,7 +36,7 @@
   const taken = (p, now) => {
     if (!p || !p.t) return '';
     const s = Math.max(0, Math.round((now - p.t) / 1000));
-    return (p.real ? 'taken ' : 'loaded ') + new Date(p.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + ' (' + (s < 90 ? s + ' s' : Math.round(s / 60) + ' min') + ' ago)';
+    return (p.real ? 'taken ' : 'loaded ') + formatDate(new Date(p.t), { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + ' (' + (s < 90 ? s + ' s' : Math.round(s / 60) + ' min') + ' ago)';
   };
   // Where the video comes from: 'relay' (the camera relay on the home network, sharp and with sound,
   // when it serves this camera: lib/relay.js), 'stream' (entity through Home Assistant), 'sound'
@@ -55,6 +57,7 @@
     return false;
   };
   const OPEN_MS = 2 * 60 * 1000;
+  const WAITING_MS = 3 * 60 * 1000; // the same while live video is still starting
   const STILL_MS = 5000;
   const SNAP_MS = 15000;
   let video = $state();
@@ -85,11 +88,29 @@
   const RETRY_MS = 10000;
   const KEYFRAME_WAIT_MS = 30000;
   const ANSWER_WAIT_MS = 30000; // for Home Assistant's answer when the stream has to start up first
+  // The relay answers only once its transcoder has video, and a cold Ring session plus the transcoder
+  // took 28–70 s on 2026-10-20 (go2rtc's #starttimeout=60 on the relay's sources matches this).
+  const RELAY_ANSWER_WAIT_MS = 65000;
   // The first big picture's wait, logged when slow (it has taken a minute on the frame's Wi-Fi).
   const openedAt = Date.now();
   // When the current source started (reset by Sound / Sharper, not by a fallback), for the
   // "Starting… N s" count.
   let sourceAt = $state(openedAt);
+  // Open to live video, whatever retries and fallbacks it took: what the person waited, once per view
+  // (camera.live times only the attempt that worked).
+  let liveLogged = false;
+  $effect(() => {
+    if (!live || liveLogged) return;
+    liveLogged = true;
+    log('camera.view_live', { camera: entity, via: mode || 'stream', ms: Date.now() - openedAt });
+  });
+  // The still reloads every few seconds: a failing one is logged once per view, not each time.
+  let stillFailLogged = false;
+  function stillFailed() {
+    if (stillFailLogged) return;
+    stillFailLogged = true;
+    log('camera.still_failed', { camera: entity }, 'warn');
+  }
   let firstStill = true;
   function stillLoaded() {
     if (!firstStill) return;
@@ -129,8 +150,8 @@
         // same source again at once (the second start is warm and quick) before any fallback.
         if (stop && stop.failed && stop.failed()) return giveUp('offer failed');
         // No answer yet: the stream is still starting up (a transcoder spinning up, ring-mqtt starting
-        // the Ring session). Give it ANSWER_WAIT_MS before falling back.
-        if (stop && stop.answered && !stop.answered() && Date.now() - startedAt < ANSWER_WAIT_MS) {
+        // the Ring session). Give it ANSWER_WAIT_MS (the relay RELAY_ANSWER_WAIT_MS) before falling back.
+        if (stop && stop.answered && !stop.answered() && Date.now() - startedAt < (cam.startsWith('relay:') ? RELAY_ANSWER_WAIT_MS : ANSWER_WAIT_MS)) {
           if (!waitedAnswer) { waitedAnswer = true; log('camera.waiting_answer', { camera: cam }); }
           retry = setTimeout(check, 3000);
           return;
@@ -166,8 +187,16 @@
     untrack(attempt);
     // onclose and onsnap are read only when called: the House tab passes new functions whenever any
     // state changes, and reading them here would restart the video every few seconds.
-    const close = setTimeout(() => onclose(), OPEN_MS);
-    return () => { gone = true; clearTimeout(close); clearTimeout(retry); if (stop) stop(); };
+    return () => { gone = true; clearTimeout(retry); if (stop) stop(); };
+  });
+  // Closes OPEN_MS after live video starts, or WAITING_MS after the current source started (opening, a
+  // fallback, Sound / Sharper) while nothing plays, so a slow start doesn't eat the watching time (on 2026-10-20 a
+  // 72 s start left under a minute of video) and a fallback still gets its turn.
+  $effect(() => {
+    source; // restart the clock when video starts or the source changes
+    // Not playing yet: long enough for two relay tries (2 × RELAY_ANSWER_WAIT_MS) before its fallback.
+    const close = setTimeout(() => onclose(), live ? OPEN_MS : WAITING_MS);
+    return () => clearTimeout(close);
   });
   // The "(25 s ago)" counts on while there's no live video (its own clock: tick reloads the picture).
   let clockNow = $state(Date.now());
@@ -200,7 +229,7 @@
 
 <div class="cam" role="dialog" aria-label={name}>
   <div class="media">
-    {#if still}<img src={still} alt="" class:hide={live} onload={stillLoaded} onerror={() => log('camera.still_failed', { camera: entity }, 'warn')} />{/if}
+    {#if still}<img {@attach haImage(still)} alt="" class:hide={live} onload={stillLoaded} onerror={stillFailed} />{/if}
     {#if !still && !live}<div class="wait"><Icon name="camera" size={56} /></div>{/if}
     <!-- svelte-ignore a11y_media_has_caption -->
     <!-- A transparent poster: WebView otherwise draws a big play icon before the first frame. -->

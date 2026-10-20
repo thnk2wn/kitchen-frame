@@ -6,7 +6,7 @@
   };
   import Icon from './Icon.svelte';
   import { ui, calendar, photos, paprika, loadPaprika, setSetting, calendarNames } from '../lib/state.svelte.js';
-  import { calColorVars } from '../lib/format.js';
+  import { calColorVars, formatDate } from '../lib/format.js';
   import { say as realSay, setSay as realSetSay, speakers, speaker, speak } from '../lib/announce.svelte.js';
   // Demo mode shows Announcements set up, on invented speakers, without touching the real settings
   // (and nothing is said in demo mode).
@@ -47,12 +47,12 @@
   let reloading = $state(false);
   // The running version: the hash in the page's script name (a new deploy changes it).
   // A time today ("10:15 PM"), or with its day ("Wed 3:12 PM").
-  const when = (t) => { const d = new Date(t); return d.toDateString() === new Date().toDateString() ? time(d) : d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }); };
+  const when = (t) => { const d = new Date(t); return d.toDateString() === new Date().toDateString() ? time(d) : formatDate(d, { weekday: 'short', hour: 'numeric', minute: '2-digit' }); };
   const version = ((/assets\/index-([\w-]+)\.js/.exec(document.documentElement.innerHTML) || [])[1] || 'dev').slice(0, 6);
   // And when it was built (vite.config.js), e.g. "Oct 15, 10:24 PM".
   /* global __BUILT_AT__, __RELEASE__ */
   const release = typeof __RELEASE__ === 'string' ? __RELEASE__ : '';
-  const built = typeof __BUILT_AT__ === 'string' ? new Date(__BUILT_AT__).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  const built = typeof __BUILT_AT__ === 'string' ? formatDate(new Date(__BUILT_AT__), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
   // Brightness goes through the kiosk app (window.FrameKiosk); not available in a normal browser.
   const kiosk = typeof window !== 'undefined' ? window.FrameKiosk : null;
@@ -432,7 +432,7 @@
     {#if showLog}
       <ol class="events">
         {#each recent as e, i (i)}
-          <li class={e.level}><span class="num">{new Date(e.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span><b>{e.event}</b><small>{logLine(e)}</small></li>
+          <li class={e.level}><span class="num">{time(new Date(e.t))}</span><b>{e.event}</b><small>{logLine(e)}</small></li>
         {:else}<li>Nothing yet.</li>{/each}
       </ol>
     {/if}

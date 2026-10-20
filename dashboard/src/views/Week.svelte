@@ -3,7 +3,7 @@
   import Icon from '../components/Icon.svelte';
   import { clock, calendar, loadCalendar, canOpen, openEvent } from '../lib/state.svelte.js';
   import CalendarPicker from '../components/CalendarPicker.svelte';
-  import { calVars, eventsOn, addDays, time, isPast } from '../lib/format.js';
+  import { calVars, eventsOn, addDays, time, isPast, formatDate } from '../lib/format.js';
   import Month from './Month.svelte';
 
   const WEEKS = 5;   // week view pages through five weeks
@@ -18,9 +18,9 @@
     const day = addDays(clock.now, week * 7 + i);
     return { day, i, today: week === 0 && i === 0, events: eventsOn(calendar.data ? calendar.data.events : [], day) };
   }));
-  const short = (d) => d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const short = (d) => formatDate(d, { month: 'short', day: 'numeric' });
   let label = $derived(view === 'month'
-    ? new Date(clock.now.getFullYear(), clock.now.getMonth() + month, 1).toLocaleDateString([], { month: 'long', year: 'numeric' })
+    ? formatDate(new Date(clock.now.getFullYear(), clock.now.getMonth() + month, 1), { month: 'long', year: 'numeric' })
     : week === 0 ? 'This week' : week === 1 ? 'Next week' : short(days[0].day) + ' – ' + short(days[6].day));
   // The arrows page whichever view is showing.
   let page = $derived(view === 'month' ? month : week);
@@ -62,7 +62,7 @@
       {#each days as d (d.i)}
         <section class="day">
           <header>
-            <span class="dow">{d.day.toLocaleDateString([], { weekday: 'short' })}</span>
+            <span class="dow">{formatDate(d.day, { weekday: 'short' })}</span>
             <span class="num date" class:today={d.today}>{d.day.getDate()}</span>
           </header>
           <!-- Busy days scroll inside their column; nothing is hidden behind a count. -->

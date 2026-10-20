@@ -1,4 +1,5 @@
 <script>
+  import { formatDate } from '../lib/format.js';
   // Media → Podcasts: the shows followed in Apple Podcasts (through the Mac bridge; lib/podcasts.svelte.js),
   // most listened to first, then a row for each group in PODCASTS_EXTRA (someone else's shows). Continue: episodes half played here or on the phone. Tap a show for its
   // episodes with their descriptions; tap an episode to play it on the frame from where it was left.
@@ -38,7 +39,7 @@
   const day = (iso) => {
     const d = new Date(iso);
     if (isNaN(d)) return '';
-    return Date.now() - d < 6 * 86400000 ? d.toLocaleDateString([], { weekday: 'short' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return Date.now() - d < 6 * 86400000 ? formatDate(d, { weekday: 'short' }) : formatDate(d, { month: 'short', day: 'numeric' });
   };
   const left = (e) => { const at = pod.ep && pod.ep.id === e.id ? pod.position : startAt(e); return e.seconds && at > 30 ? length(Math.max(60, e.seconds - at)) + ' left' : ''; };
   const pct = (e) => { const at = pod.ep && pod.ep.id === e.id ? pod.position : startAt(e); return e.seconds && at > 30 ? Math.min(100, (100 * at) / e.seconds) : 0; };

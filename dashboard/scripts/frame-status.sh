@@ -1,6 +1,6 @@
 #!/bin/bash
 # What the frame last reported (lib/checkin.js, worker/frame.js): dashboard and kiosk versions, the
-# WebView, when the page loaded, what it's showing, and how long ago it checked in. It checks in
+# WebView, when the page loaded, what it's showing, its memory (kiosk 1.8), and how long ago it checked in. It checks in
 # every 10 minutes, so "minutes ago" over about 12 means it's off, offline or not in the kiosk app.
 # Also whether the dashboard it runs is the one deployed now. Usage: scripts/frame-status.sh
 # With --log, also the frame's recent events (lib/log.svelte.js), oldest first; --log N for the last N.
@@ -33,6 +33,12 @@ print(f"Dashboard    {(s.get('release') + '  build ') if s.get('release') else '
 print(f"Kiosk app    {s.get('kiosk') or 'before 1.6'}   WebView {s.get('webview')}")
 print(f"Loaded       {s.get('loadedAt')}")
 print(f"Showing      {s.get('screen')} · tab {s.get('tab')} · Home Assistant {s.get('ha')}")
+m = s.get('memory') or {}
+day = [h['m'] for h in (s.get('history') or []) if h.get('m') is not None]
+if m.get('pss') is not None:
+    print(f"Memory       {m['pss']} MB" + (f" (last day {min(day)}–{max(day)})" if len(day) > 1 else '')
+          + (f" · frame {m['avail']} of {m['total']} MB free" if m.get('avail') is not None else '')
+          + (f" · app up {m['upMin'] // 60} h {m['upMin'] % 60} m" if m.get('upMin', -1) >= 0 else '') + (' · LOW' if m.get('low') else ''))
 if mode == '--log':
     events = (s.get('log') or [])[-count:]
     print(f"\nLast {len(events)} events (sent with each check-in, so up to 10 minutes behind):")

@@ -87,7 +87,18 @@
         ['Showing', f.screen + ' · ' + (f.tab || '') + ' tab'],
         ['Home Assistant', f.ha, f.ha === 'connected' ? 'ok' : 'bad'],
         ['Dashboard', f.release ? f.release + ' · build ' + f.version : f.version], ['Kiosk app', f.kiosk || 'before 1.6'], ['WebView', f.webview],
-        ['Page loaded', f.loadedAt ? ago(f.loadedAt) + ' (' + at(f.loadedAt) + ')' : null]]));
+        ['Page loaded', f.loadedAt ? ago(f.loadedAt) + ' (' + at(f.loadedAt) + ')' : null],
+        ['Memory', memoryText(f), f.memory && f.memory.low ? 'bad' : '']]));
+  }
+
+  // Kiosk 1.8 reports the app's memory (WebView included) with each check-in; the day's range comes
+  // from the timeline, so a slow creep shows as a wide one.
+  function memoryText(f) {
+    const m = f.memory;
+    if (!m || m.pss == null) return f.kiosk ? 'needs kiosk 1.8' : null;
+    const day = (f.history || []).map((h) => h.m).filter((x) => x != null);
+    return m.pss + ' MB' + (day.length > 1 ? ' (today ' + Math.min(...day) + '–' + Math.max(...day) + ')' : '')
+      + (m.avail != null ? ' · frame ' + m.avail + ' MB free of ' + m.total : '') + (m.low ? ' · LOW' : '');
   }
 
   // One small group per part of the backend, each with its own heading.
@@ -171,7 +182,7 @@
       if (t < start) continue;
       const from = Math.max(start, t - 10 * 60000);
       if (from > cursor + 60000) strip.append(el('span', { style: `width:${((from - cursor) / span) * 100}%;background:var(--gap)`, title: 'no check-in' }));
-      strip.append(el('span', { style: `width:${((t - Math.max(from, cursor)) / span) * 100}%;background:${colour(h)}`, title: at(h.t) + ': ' + h.screen + (h.ha !== 'connected' ? ', HA ' + h.ha : '') }));
+      strip.append(el('span', { style: `width:${((t - Math.max(from, cursor)) / span) * 100}%;background:${colour(h)}`, title: at(h.t) + ': ' + h.screen + (h.ha !== 'connected' ? ', HA ' + h.ha : '') + (h.m != null ? ', ' + h.m + ' MB' : '') }));
       cursor = t;
     }
     box.append(strip);

@@ -5,6 +5,7 @@
   import Icon from '../components/Icon.svelte';
   import MediaSwitch from '../components/MediaSwitch.svelte';
   import { ha, haUrl, callService, tvAudio } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { ui } from '../lib/state.svelte.js';
   import { fakeMedia as fake, nm } from '../lib/demo-media.svelte.js';
 
@@ -114,7 +115,7 @@
     <div class="top" class:noremote={!keys}>
       <section class="sheet now">
         <div class="head">
-          <div class="art">{#if art}<img src={art} alt="" />{:else}<span class="noart" class:demo={fake()}><Icon name="tv" size={48} /></span>{/if}</div>
+          <div class="art">{#if art}<img {@attach haImage(art)} alt="" />{:else}<span class="noart" class:demo={fake()}><Icon name="tv" size={48} /></span>{/if}</div>
           <div class="txt">
             {#if app}<div class="app">{app}</div>{/if}
             {#if off}<h1 class="idle">Off</h1>

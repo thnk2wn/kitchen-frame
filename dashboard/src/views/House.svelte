@@ -3,6 +3,7 @@
   import Icon from '../components/Icon.svelte';
   import CameraView from '../components/CameraView.svelte';
   import { ha, haUrl } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { ui, cameraRefresh } from '../lib/state.svelte.js';
   import { pin, allowUnlock } from '../lib/pin.svelte.js';
   import { emojiHtml } from '../lib/emoji.js';
@@ -154,7 +155,9 @@
   const loadingSrc = new Set();
   function swapIn(id, url) {
     if (!url || shown[id] === url || loadingSrc.has(url)) return;
-    if (!shown[id]) { shown = { ...shown, [id]: url }; return; } // the first one: show it as it loads
+    // The first one shows as it loads. A picture lib/ha-image.js fetches (http Home Assistant on the https
+    // page) keeps the old one on screen until the new one has arrived, so it needs no preload either.
+    if (!shown[id] || (location.protocol === 'https:' && url.startsWith('http:'))) { shown = { ...shown, [id]: url }; return; }
     loadingSrc.add(url);
     const img = new Image();
     img.onload = img.onerror = () => { loadingSrc.delete(url); shown = { ...shown, [id]: url }; };
@@ -271,7 +274,7 @@
               {:else if item.kind === 'camera'}
                 {@const src = liveDemo() ? stockCam(label(item), ii) : shown[item.entity] || camSrc(item.entity, shots[item.entity])}
                 <button class="tile sheet camera" onclick={() => !still && (viewing = { entity: item.entity, stream: streamOf(item.entity), warm: warmOf(item.entity), name: label(item).replace(/\s*live view$/i, '') })} aria-label={'Open ' + label(item)}>
-                  {#if src && !houseDemo.on}<img {src} alt="" decoding="async" />{:else}<span class="noimg" class:demo={houseDemo.on}><Icon name="camera" size={30} /></span>{/if}
+                  {#if src && !houseDemo.on}<img {@attach haImage(src)} alt="" decoding="async" />{:else}<span class="noimg" class:demo={houseDemo.on}><Icon name="camera" size={30} /></span>{/if}
                   <span class="cap"><span class="cname">{label(item).replace(/\s*live view$/i, '')}</span>{#if !still && camAge(item.entity)}<span class="age"><Icon name="reload" size={13} /> {camAge(item.entity)}</span>{/if}</span>
                 </button>
               {:else if item.kind === 'text'}

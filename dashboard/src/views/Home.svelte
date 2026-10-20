@@ -1,9 +1,25 @@
+<script module>
+  // The room under the clock, from the last time Home was shown. Starting from it (rather than 0) lays
+  // a return to Home out right the first time; from 0, the rings moved and Home laid out twice (about
+  // 110 ms on the frame). The binding below still measures it, and corrects it if it has changed.
+  let lastSlotH = 0;
+</script>
+
 <script>
   import { rotationLines } from '../lib/rotations.js';
+  import { onMount } from 'svelte';
   import Txt from '../components/Txt.svelte';
   // What's playing (or paused within the last 30 minutes), from App, which also feeds the top bar.
   let { playing = null } = $props();
-  let slotH = $state(0);
+  let slotH = $state(lastSlotH);
+  $effect(() => { lastSlotH = slotH; });
+  // Opening Home draws what shows first (the first FIRST_ROWS of Upcoming and of each list) and the rows
+  // further down, out of sight in the scrolling cards, right after that first paint: the tab appears
+  // sooner on the frame, and the rest is there before anyone could scroll to it. Counts use full lists.
+  const FIRST_ROWS = 8;
+  let settled = $state(false);
+  onMount(() => { requestAnimationFrame(() => setTimeout(() => (settled = true))); });
+  const first = (items) => (settled ? items : items.slice(0, FIRST_ROWS));
   let showPlaying = $derived(!!playing && slotH >= 78);
   // Rings under the clock need about 52px of room (the slot's padding is 18px).
   let ringsBelow = $derived(!showPlaying && ringPeople.length > 0 && slotH >= 70);
@@ -58,6 +74,18 @@
   // Upcoming's days, with a Tomorrow for tomorrow's rotations even when it has no events.
   let upcomingShown = $derived(dutiesAt('tomorrow').length && (!upcomingDays.length || upcomingDays[0].name !== 'Tomorrow')
     ? [{ name: 'Tomorrow', events: [] }, ...upcomingDays] : upcomingDays);
+  // Before the first paint: only the days holding Upcoming's first FIRST_ROWS events.
+  let upcomingFirst = $derived.by(() => {
+    if (settled) return upcomingShown;
+    let left = FIRST_ROWS;
+    const out = [];
+    for (const d of upcomingShown) {
+      if (left <= 0) break;
+      out.push(d.events.length > left ? { ...d, events: d.events.slice(0, left) } : d);
+      left -= d.events.length;
+    }
+    return out;
+  });
   function openMeal(m) {
     if (!m.id) return;
     ui.openRecipe = { id: m.id, title: m.title };
@@ -166,7 +194,7 @@
         </div>
       {/each}
       <!-- No "Upcoming" heading: each day's own heading, with its line above, says it. -->
-      {#each upcomingShown as d (d.name)}
+      {#each upcomingFirst as d (d.name)}
         <div class="day-head">{d.name}</div>
         {#if d.name === 'Tomorrow'}
           {#each dutiesAt('tomorrow') as r (r.name)}
@@ -213,7 +241,7 @@
       {#if list.items}<span class="count num">{items.length}</span>{/if}
     </header>
     <div class="scroll" style="--min:{name === 'todo' ? 300 : 230}px">
-      {#each items as item (item.id)}
+      {#each first(items) as item (item.id)}
         <TaskRow {item} now={clock.now} ondone={(i) => completeItem(name, i)} onopen={(i) => (ui.task = { list: name, id: i.id })} brief={name === 'groceries'}
           person={item.assignee ? list.people?.[item.assignee] : null}
           section={item.section ? (list.sections || []).find((x) => x.id === item.section)?.name : null} />

@@ -1,4 +1,5 @@
 <script>
+  import { compareText } from '../lib/format.js';
   // Media → Videos: the YouTube videos and playlists chosen in the Worker's YOUTUBE_VIDEOS setting,
   // a row of big thumbnails per group, for kids to pick from. A tap plays it full screen
   // (YouTubePlayer, shown by App over every screen); the tap is also what lets it play with sound.
@@ -22,7 +23,7 @@
     const words = norm(filter).split(/\s+/).filter(Boolean);
     let list = g.videos.map((v, i) => ({ ...v, i })).filter((v) => words.every((w) => norm(v.title).includes(w)));
     list = videoSort[g.name] === 'az'
-      ? list.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
+      ? list.sort((a, b) => compareText(a.title, b.title, { numeric: true, sensitivity: 'base' }))
       : list.sort((a, b) => (videoPlays[b.id] || 0) - (videoPlays[a.id] || 0) || a.i - b.i);
     return { name: g.name, videos: list };
   }).filter((g) => g.videos.length || !filter.trim()));

@@ -1,6 +1,7 @@
 <script>
   import Icon from './Icon.svelte';
   import { haUrl, callService } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { nm } from '../lib/demo-media.svelte.js';
   import { ui } from '../lib/state.svelte.js';
   import { busy, expectFor } from '../lib/pending.svelte.js';
@@ -25,7 +26,7 @@
 
 <div class="np" class:card class:slim class:tall={cover > 0} class:sheet={card} style={cover ? '--cover:' + cover + 'px' : ''} role="button" tabindex="0" title={player.media_title} onclick={openIt} onkeydown={(e) => e.key === 'Enter' && openIt()}>
   <!-- A cover that fails to load (Home Assistant's art proxy can) shows the note, not a broken image. -->
-  {#if player.entity_picture && failedArt !== player.entity_picture}<img src={haUrl(player.entity_picture)} alt="" onerror={() => (failedArt = player.entity_picture)} />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
+  {#if player.entity_picture && failedArt !== player.entity_picture}<img {@attach haImage(haUrl(player.entity_picture))} alt="" onerror={() => (failedArt = player.entity_picture)} />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
   {#if card}
     <div class="txt">
       <div class="title">{player.media_title}</div>

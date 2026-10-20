@@ -2,7 +2,7 @@
 // so it reports to the Worker instead: what it's running and showing, every 10 minutes and on load,
 // and a copy of its Settings choices whenever they change. After a reset (a firmware update wiped
 // it once) the frame finds its storage empty and takes its settings back from here.
-//   POST /api/frame/status    { version, release, webview, kiosk, loadedAt, screen, tab, ha, settings?, events? }
+//   POST /api/frame/status    { version, release, webview, kiosk, loadedAt, screen, tab, ha, memory?, settings?, events? }
 //   GET  /api/frame/status    -> the last check-in, with when it arrived and the last 200 events
 //                                (scripts/frame-status.sh, --log for the events)
 // Events (src/lib/log.svelte.js) are written to the Worker's log one by one, as structured entries
@@ -13,6 +13,10 @@
 //                                settings }, where changes says what the next version changed
 // A change to a setting someone chose is also logged as a "settings.changed" event, with what changed
 // ("frame-night.on: true → false"), so it shows with the frame's events and on the status page.
+// memory comes from kiosk 1.8 (window.FrameKiosk.getMemory, in MB): kept with the status, the app's
+// total in each timeline entry, and one data point per check-in in Workers Analytics Engine (the
+// METRICS dataset, when bound) for trends past a day: scripts/frame-metrics.sh queries it. Events
+// about live video and the frame's stability get a point each too (TRACKED, index "event").
 // Kept in KV (the CALENDAR namespace): "frame:status" on each check-in (about 150 writes a day), and
 // "frame:settings" only when the settings changed, with "frame:settings:history" when one a person
 // chose did. Only the kiosk app checks in, not a browser.
@@ -72,6 +76,58 @@ export function settingsChanges(before = {}, after = {}) {
 }
 
 const clip = (v, max) => (typeof v === 'string' ? v.slice(0, max) : undefined);
+// The kiosk's memory report, numbers only: anything else the page sends is dropped.
+const MEMORY_KEYS = ['pss', 'native', 'java', 'avail', 'total', 'upMin', 'bootMin'];
+function cleanMemory(m) {
+  if (!m || typeof m !== 'object') return undefined;
+  const out = {};
+  for (const k of MEMORY_KEYS) if (Number.isFinite(m[k]) && m[k] >= 0 && m[k] < 1e7) out[k] = Math.round(m[k]);
+  if (typeof m.low === 'boolean') out.low = m.low;
+  return Object.keys(out).length ? out : undefined;
+}
+// Events worth following over weeks, one Analytics Engine point each (index "event"): how long live
+// video took from opening a camera or a ring (camera.view_live, doorbell.live), each attempt and its route, when it falls back or fails (camera.*, doorbell.ring), and how
+// stable the frame is (page loads and their reason, its own reloads, Home Assistant drops, a part that
+// failed, the API failing or slow). blobs: event, what it was about (camera, doorbell, reason, path or
+// part), level, dashboard build, why/step; double1 its duration in ms (-1 without one; ha.connected's
+// downtime), double2 when it happened (epoch seconds: events arrive with the next check-in).
+const TRACKED = new Set(['camera.view_live', 'doorbell.live', 'camera.live', 'camera.live_error', 'camera.relay_offline', 'camera.fallback', 'camera.not_playing',
+  'camera.no_live', 'camera.ice', 'camera.still', 'camera.still_slow', 'camera.still_failed', 'doorbell.ring',
+  'app.load', 'frame.selfreload', 'ha.disconnected', 'ha.connected', 'ui.error', 'api.failed', 'api.slow']);
+const MAX_EVENT_POINTS = 200; // Analytics Engine takes up to 250 writes per request; the memory point is one
+function writeEventMetrics(env, events, build) {
+  if (!env.METRICS) return;
+  let n = 0;
+  for (const e of events) {
+    if (!TRACKED.has(e.event) || e.test || n >= MAX_EVENT_POINTS) continue;
+    const about = e.camera || e.doorbell || e.reason || e.path || e.part || '';
+    const ms = Number.isFinite(e.ms) ? e.ms : typeof e.downFor === 'string' && /^\d+ s$/.test(e.downFor) ? parseInt(e.downFor, 10) * 1000 : -1;
+    const at = Date.parse(e.t);
+    try {
+      env.METRICS.writeDataPoint({
+        indexes: ['event'],
+        blobs: [e.event, String(about).slice(0, 100), e.level || 'info', build || '', String(e.why || e.step || e.to || e.via || '').slice(0, 100)],
+        doubles: [ms, Number.isFinite(at) ? Math.round(at / 1000) : -1],
+      });
+      n++;
+    } catch (err) { console.warn({ source: 'frame', message: 'metrics write failed', error: String(err) }); return; }
+  }
+}
+
+// One point per check-in: blobs say what it was running and showing, doubles are the numbers
+// (double1 pss … double7 bootMin, in MEMORY_KEYS order; double8 minutes since the page loaded).
+function writeMetrics(env, status) {
+  if (!env.METRICS || !status.memory) return;
+  const m = status.memory;
+  const pageMin = status.loadedAt ? Math.max(0, Math.round((Date.parse(status.receivedAt) - Date.parse(status.loadedAt)) / 60000)) : -1;
+  try {
+    env.METRICS.writeDataPoint({
+      indexes: ['frame'],
+      blobs: [status.version || '', status.webview || '', status.kiosk || '', status.screen || '', status.tab || '', status.ha || ''],
+      doubles: [...MEMORY_KEYS.map((k) => (m[k] == null ? -1 : m[k])), Number.isFinite(pageMin) ? pageMin : -1],
+    });
+  } catch (e) { console.warn({ source: 'frame', message: 'metrics write failed', error: String(e) }); }
+}
 
 export async function saveStatus(env, body) {
   const b = body || {};
@@ -83,7 +139,7 @@ export async function saveStatus(env, body) {
   const status = {
     version: clip(b.version, 40), release: clip(b.release, 60), webview: clip(b.webview, 40), kiosk: clip(b.kiosk, 40),
     loadedAt: clip(b.loadedAt, 40), screen: clip(b.screen, 20), tab: clip(b.tab, 20), ha: clip(b.ha, 20),
-    receivedAt: new Date().toISOString(),
+    memory: cleanMemory(b.memory), receivedAt: new Date().toISOString(),
   };
   // The settings first: what a person changed goes into this check-in's events.
   let saveSettings = null, version = null;
@@ -104,7 +160,9 @@ export async function saveStatus(env, body) {
   // Keep the log and a day of check-ins (the status page's timeline) across check-ins.
   const prev = (await env.CALENDAR.get(STATUS, 'json')) || {};
   status.log = (prev.log || []).concat(events).slice(-KEEP_EVENTS);
-  status.history = (prev.history || []).concat({ t: status.receivedAt, screen: status.screen, ha: status.ha, v: status.version }).slice(-KEEP_HISTORY);
+  status.history = (prev.history || []).concat({ t: status.receivedAt, screen: status.screen, ha: status.ha, v: status.version, ...(status.memory ? { m: status.memory.pss } : {}) }).slice(-KEEP_HISTORY);
+  writeMetrics(env, status);
+  writeEventMetrics(env, events, status.version);
   await env.CALENDAR.put(STATUS, JSON.stringify(status));
   if (saveSettings) await env.CALENDAR.put(SETTINGS, saveSettings);
   if (version) {

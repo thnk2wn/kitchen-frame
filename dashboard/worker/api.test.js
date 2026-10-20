@@ -450,6 +450,50 @@ test('frame: events from the check-in are logged and the last ones kept with the
   assert.equal(logged[0].message, 'frame ha.disconnected');
 });
 
+test('frame: kiosk memory is kept with the status and the timeline, and written as a metric', async () => {
+  const store = new Map();
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const points = [];
+  const fenv = { ...env, CALENDAR: kv, METRICS: { writeDataPoint: (p) => points.push(p) } };
+  const call = (method, body) => worker.fetch(new Request('https://frame.test/api/frame/status', { method, headers: { Authorization: 'Bearer k' }, body: body && JSON.stringify(body) }), fenv, {});
+  await call('POST', { version: 'a', screen: 'awake', tab: 'home', loadedAt: new Date(Date.now() - 30 * 60000).toISOString(),
+    memory: { pss: 153.4, native: 9, java: 1, avail: 1465, total: 1957, low: false, upMin: 72, bootMin: 72, evil: 'x', neg: -5 } });
+  await call('POST', { version: 'a', screen: 'clock' }); // an older kiosk: no memory, nothing written
+  const st = await (await call('GET')).json();
+  assert.equal(st.memory, undefined);
+  assert.deepEqual(st.history.map((h) => h.m), [153, undefined]);
+  assert.equal(points.length, 1);
+  assert.deepEqual(points[0].indexes, ['frame']);
+  assert.deepEqual(points[0].blobs.slice(0, 1), ['a']);
+  assert.deepEqual(points[0].doubles.slice(0, 7), [153, 9, 1, 1465, 1957, 72, 72]);
+  assert.ok(points[0].doubles[7] >= 29 && points[0].doubles[7] <= 31); // minutes since the page loaded
+  await call('POST', { version: 'a', memory: { pss: 160, evil: 'x', low: true } });
+  assert.deepEqual((await (await call('GET')).json()).memory, { pss: 160, low: true });
+});
+
+test('frame: video and stability events get a metric each; other events and test rings don\'t', async () => {
+  const store = new Map();
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const points = [];
+  const fenv = { ...env, CALENDAR: kv, METRICS: { writeDataPoint: (p) => points.push(p) } };
+  const t = '2026-10-20T21:00:00Z';
+  await worker.fetch(new Request('https://frame.test/api/frame/status', { method: 'POST', headers: { Authorization: 'Bearer k' }, body: JSON.stringify({ version: 'b1', events: [
+    { t, event: 'camera.live', camera: 'relay:front_door', ms: 9800, size: '1280x1280' },
+    { t, event: 'camera.relay_offline', camera: 'front_door', ms: 2510, level: 'warn' },
+    { t, event: 'ha.connected', downFor: '42 s' },
+    { t, event: 'app.load', reason: 'deploy' },
+    { t, event: 'doorbell.ring', doorbell: 'Front Door', test: true },
+    { t, event: 'podcast.play', show: 'x' },
+  ] }) }), fenv, {});
+  const ev = points.filter((p) => p.indexes[0] === 'event');
+  assert.deepEqual(ev.map((p) => p.blobs[0]), ['camera.live', 'camera.relay_offline', 'ha.connected', 'app.load']);
+  assert.deepEqual(ev[0].blobs.slice(0, 4), ['camera.live', 'relay:front_door', 'info', 'b1']);
+  assert.deepEqual(ev[0].doubles, [9800, Date.parse(t) / 1000]);
+  assert.equal(ev[1].blobs[2], 'warn');
+  assert.equal(ev[2].doubles[0], 42000);
+  assert.deepEqual([ev[3].blobs[1], ev[3].doubles[0]], ['deploy', -1]);
+});
+
 test('auth cookie: a request with the key gets it; images then load with it, without the key in the URL', async () => {
   const call = (path, headers = {}) => worker.fetch(new Request('https://frame.test' + path, { headers }), { ...env, ALBUM_URL: '' }, {});
   const first = await call('/api/photos', { Authorization: 'Bearer k' });

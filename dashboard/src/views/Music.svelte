@@ -1,9 +1,11 @@
 <script>
+  import { compareText } from '../lib/format.js';
   import { untrack } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import SortButton from '../components/SortButton.svelte';
   import MediaSwitch from '../components/MediaSwitch.svelte';
   import { ha, haUrl, callService, send } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { ui } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
   import { shown, busy, expectFor } from '../lib/pending.svelte.js';
@@ -114,7 +116,7 @@
   // too; whichever is later wins.
   const lastPlayed = (pl) => Math.max(played[pl.title] || 0, spotifyPlayed[pl.media_content_id] || 0);
   let sorted = $derived(order === 'az'
-    ? [...playlists].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+    ? [...playlists].sort((a, b) => compareText(a.title, b.title, { sensitivity: 'base' }))
     : playlists.map((pl, i) => ({ pl, i, at: lastPlayed(pl) })).sort((a, b) => b.at - a.at || a.i - b.i).map((x) => x.pl));
 
   // Scroll the playing playlist's card into view when it becomes the one playing.
@@ -296,7 +298,7 @@
           <span class="noart"><Icon name="music" size={96} /></span>
         {:else if player.entity_picture && failedArt !== player.entity_picture}
           <!-- A cover that doesn't load shows the note rather than a broken image. -->
-          <img src={haUrl(player.entity_picture)} alt="" onerror={() => (failedArt = player.entity_picture)} />
+          <img {@attach haImage(haUrl(player.entity_picture))} alt="" onerror={() => (failedArt = player.entity_picture)} />
         {:else}
           <span class="noart" class:demo={fake()}><Icon name="music" size={96} /></span>
         {/if}
