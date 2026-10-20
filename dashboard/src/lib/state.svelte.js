@@ -1,6 +1,6 @@
 // Shared app state and the pollers that fill it. Each feed polls only while something on screen
 // needs it (see start()), one request at a time, and unchanged results don't touch the screen.
-import { loadFitness } from './fitness.svelte.js';
+import { loadFitness, refreshFitness } from './fitness.svelte.js';
 import { api, cached, remember, changed, forget, mediaUrl } from './api.js';
 import { log } from './log.svelte.js';
 import { dayKey, recipeTitle, setCalendarColors } from './format.js';
@@ -342,7 +342,7 @@ function connectMessages() {
       if (d.command === 'refresh' && d.what === 'meals') loadMeals();
       // A phone just sent its Activity rings (worker/fitness.js). KV can serve the old copy for up to a
       // minute after a write, so fetch again a minute later rather than waiting for the 10-minute poll.
-      if (d.command === 'refresh' && d.what === 'fitness') { loadFitness(); setTimeout(loadFitness, 70000); }
+      if (d.command === 'refresh' && d.what === 'fitness') { refreshFitness(); setTimeout(loadFitness, 70000); }
       // "Hide notifications", "close that": whatever sheet is over the screen.
       if (d.command === 'media' && d.id) {
         lastTouch = Date.now();

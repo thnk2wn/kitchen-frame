@@ -116,6 +116,9 @@ final class FitnessSync {
     /// ring changes at most every 15 minutes (they come in bursts as the Watch syncs), workouts every 2.
     /// (Observers also fire once when they start, so a launch shows up here too.)
     private func sendFromBackground(workout: Bool) async {
+        // A send already under way: wait for it (and the one it queues) before reporting done to
+        // HealthKit, which ends the background time the queued send needs.
+        while sending { try? await Task.sleep(for: .milliseconds(200)) }
         let key = workout ? "fitness.lastWorkoutSend" : "fitness.lastRingSend"
         let last = defaults.object(forKey: key) as? Date ?? .distantPast
         guard Date.now.timeIntervalSince(last) >= (workout ? 2 : 15) * 60 else { return }

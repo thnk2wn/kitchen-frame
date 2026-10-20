@@ -29,3 +29,8 @@ test('trends: steps and exercise against the usual by this time of day; workout 
   assert.equal(view(person(3, () => ({ steps: 8000 }), { steps: 100 }), now).trends.steps, null);
   assert.equal(view(p, new Date(2026, 9, 19, 7, 0)).trends.steps, null);
 });
+
+test('trends: a day with no ring data (no goals) breaks a streak rather than counting', () => {
+  const t = view(person(6, (i) => (i === 3 ? { moveGoal: null, exerciseGoal: null, standGoal: null, move: null, exercise: null, stand: null } : closed), closed), now).trends;
+  assert.equal(t.moveStreak, 3); // today and the two days after the empty one
+});

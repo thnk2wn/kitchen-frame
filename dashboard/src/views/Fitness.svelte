@@ -116,7 +116,7 @@
         <!-- The latest four: what fits under the trends on the frame (the phone sends up to five). -->
         {#each p.workouts.slice(0, 4) as w, i (i)}
           <li><button class="workout" onclick={() => (open = { w, unit: p.unit, who: p.name })}>
-            <!-- One line each, so three fit under the trends on the frame; a tap has the rest. -->
+            <!-- One line each, so four fit under the trends on the frame; a tap has the rest. -->
             <span class="wi"><Icon name={workoutIcon(w.kind)} size={18} /></span>
             <span class="wt"><b>{w.type}</b><span>{when(new Date(w.start))}</span></span>
             <span class="wn num">{Math.round(w.minutes || 0)} min<span>{w.meters ? distance(w.meters, p.unit) : w.kcal ? Math.round(w.kcal) + ' kcal' : ''}</span></span>

@@ -51,8 +51,10 @@ const paceAt = (now) => Math.max(0.05, Math.min(1, (now.getHours() + now.getMinu
 //     4 weeks and today, out of how many days the phone sent.
 export function trends(days, byDate, now) {
   // A Move goal of 0 (Move set in minutes, which HealthKit reports apart): judged on exercise and stand alone.
-  const moveDone = (d) => (d.moveGoal > 0 ? d.move >= d.moveGoal : d.exercise >= d.exerciseGoal);
-  const closed = (d, all) => d && moveDone(d) && (!all || (d.exercise >= d.exerciseGoal && d.stand >= d.standGoal));
+  // A day with no goals at all (no ring data that day) never counts as closed.
+  const met = (v, goal) => goal > 0 && v != null && v >= goal;
+  const moveDone = (d) => (d.moveGoal > 0 ? met(d.move, d.moveGoal) : met(d.exercise, d.exerciseGoal));
+  const closed = (d, all) => !!d && moveDone(d) && (!all || (met(d.exercise, d.exerciseGoal) && met(d.stand, d.standGoal)));
   const streak = (all) => {
     let n = 0, i = closed(byDate.get(dayKey(now)), all) ? 0 : 1;
     while (closed(byDate.get(dayKey(addDays(now, -i))), all)) { n++; i++; }
@@ -91,7 +93,7 @@ export function nudge(t, now) {
   ];
   // A goal of 0 (Move set in minutes) isn't a ring to close here.
   const open = rings.filter((r) => r.left > 0 && (r.ring !== 'move' || t.moveGoal > 0));
-  if (!open.length) return { done: true, headline: 'All three rings closed', left: [] };
+  if (!open.length) return { done: true, headline: t.moveGoal > 0 ? 'All three rings closed' : 'Rings closed', left: [] };
   const behind = open.filter((r) => r.share < pace * 0.8).sort((a, b) => a.share - b.share)[0];
   return {
     ring: behind ? behind.ring : null,

@@ -23,7 +23,7 @@ export async function addLog(env, entry) {
 const FITNESS = /\b(fitness|rings?|activity)\b/i;
 export function heardEntry(b = {}) {
   if (!b.heard) return null;
-  const reply = FITNESS.test(String(b.heard)) && b.reply ? '(fitness summary, not kept)' : s(b.reply);
+  const reply = (FITNESS.test(String(b.heard)) || /fitness/i.test(String(b.intent || ''))) && b.reply ? '(fitness summary, not kept)' : s(b.reply);
   return { source: 'alexa', device: s(b.device, 80), heard: s(b.heard), intent: s(b.intent, 80), reply, at: s(b.at, 40) };
 }
 

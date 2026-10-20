@@ -10,12 +10,15 @@ export const fitness = $state({ people: cached('fitness') || [], loaded: !!cache
 
 // One fetch at a time; one asked for while another is under way (guest mode just turned on, say)
 // runs after it, so it can't be lost behind an answer from before the change.
-let busy = false, again = false;
+// gen: bumped when guest mode is set here, so an answer to a fetch from before can't undo it.
+let busy = false, again = false, gen = 0;
 export async function loadFitness() {
   if (busy) { again = true; return; }
   busy = true;
+  const asked = gen;
   try {
     const data = await api('/api/fitness');
+    if (asked !== gen) { again = true; return; }
     fitness.guest = data.guest || { on: false };
     changed('fitness-guest', fitness.guest);
     if (changed('fitness', data.people || [])) fitness.people = data.people || [];
@@ -33,6 +36,12 @@ export const fitnessPeople = (demo, now) => (demo ? demoFitness(now) : fitness.g
 // Settings' Guest mode switch: the Worker hides fitness (and tells the phones and Alexa), then the
 // frame reloads what it may show.
 export async function setGuest(on) {
+  gen++;
   fitness.guest = await api('/api/frame/guest', { method: 'POST', body: JSON.stringify({ on }) });
+  changed('fitness-guest', fitness.guest);
   await loadFitness();
 }
+
+// The Worker says something changed (a phone sent, or guest mode was set elsewhere): any answer already
+// on its way is from before, so it's dropped and the fetch made again.
+export function refreshFitness() { gen++; loadFitness(); }
