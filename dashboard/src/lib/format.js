@@ -1,12 +1,28 @@
+// toLocaleTimeString / toLocaleDateString build a new Intl formatter on every call, which is slow on the
+// frame's CPU (Home formats dozens of times as it opens). Keep one formatter per set of options; the
+// text is the same. A formatter keeps the time zone it was made in, so a change of the frame's zone
+// shows after the next reload (daylight saving is within a zone, so it's unaffected).
+const formatters = new Map();
+export function formatDate(d, options) {
+  const key = JSON.stringify(options);
+  let f = formatters.get(key);
+  if (!f) formatters.set(key, (f = new Intl.DateTimeFormat([], options)));
+  return f.format(d);
+}
+const TIME = { hour: 'numeric', minute: '2-digit' };
+const LONG_DATE = { weekday: 'long', month: 'long', day: 'numeric' };
+const SHORT_DATE = { weekday: 'short', month: 'short', day: 'numeric' };
+const WEEKDAY = { weekday: 'short' };
+
 export function time(d) {
-  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return formatDate(d, TIME);
 }
 // Lock-screen style: "5:20", no AM/PM.
 export function clockTime(d) {
   return time(d).split(/\s/)[0];
 }
 export function longDate(d) {
-  return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  return formatDate(d, LONG_DATE);
 }
 export function dayKey(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -82,7 +98,7 @@ export function dueLabel(due, now) {
   if (due === today) return 'Today';
   if (due === tomorrow) return 'Tomorrow';
   const [y, m, d] = due.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return formatDate(new Date(y, m - 1, d), SHORT_DATE);
 }
 // WMO weather codes (Open-Meteo) -> label + icon name + icon tint.
 export function weatherInfo(code, day = true) {
@@ -116,14 +132,14 @@ export function dayInfo(d) {
   return { ...weatherInfo(d.code), label: d.short };
 }
 export function dow(date) {
-  return new Date(date + 'T12:00').toLocaleDateString([], { weekday: 'short' });
+  return formatDate(new Date(date + 'T12:00'), WEEKDAY);
 }
 
 // "Tomorrow" or "Wed, Oct 21" for an event's start day (all-day events are plain dates).
 export function dayName(e, now) {
   const day = e.allDay ? new Date(e.start + 'T12:00') : new Date(e.start);
   if (dayKey(day) === dayKey(addDays(now, 1))) return 'Tomorrow';
-  return day.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  return formatDate(day, SHORT_DATE);
 }
 
 // Recipe titles without asides: "Algerian Kefta (Meatballs)" -> "Algerian Kefta".

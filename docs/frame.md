@@ -13,11 +13,13 @@ and IP address are deliberately not recorded here.
 
 | | |
 | --- | --- |
-| Model / firmware | Pastigio `FRAME156` · `FrameO.DP105F.v2026010414` (10-12); `FrameO.DP105F.v2026051219` by 10-14 (see below) |
+| Model / firmware | Pastigio `FRAME156` · `FrameO.DP105F.v2026010414` (10-12); `FrameO.DP105F.v2026051219` by 10-14 (see below). On that firmware `ro.product.model` reads `FRAME157` (build `192611`, upstream's units `192521`); same 15.6" frame |
 | Android | 8.1.0 (API 27), security patch 2020-11-05, SELinux permissive |
-| SoC / RAM | Rockchip RK3326, 32-bit userspace (`armeabi-v7a`) · 951 MB |
+| SoC / RAM | Rockchip RK3326 (quad Cortex-A35), 32-bit userspace (`armeabi-v7a`) · 2 GB (`MemTotal` 1.9 GiB on 2026-10-20; 951 MB was recorded on 10-12, before the firmware reset). `ro.config.low_ram=true`, so Android treats it as a low-memory device |
+| GPU | Mali-G31, OpenGL ES 3.2 (`dumpsys SurfaceFlinger`) |
+| `/system` | Plain ext4 on `mmcblk2p11`, read-only, 1.4 GB with 652 MB free. **No dm-verity:** `androidboot.veritymode=enforcing` is on the kernel command line, but there's no `dm-*` device, so root can remount it read-write (checked 2026-10-20) |
 | Screen | 1920×1080 at 170 dpi (the dashboard was designed for 1280×800 and must be adapted) |
-| WebView | 106.0.5249.126, already current, no swap needed |
+| WebView | 106.0.5249.126 from the vendor; **138.0.7204.63** since 2026-10-20 ([webview.md](webview.md)) |
 | Root | `su -c id` returns uid 0 with no prompt (still true on the 2026-05 firmware). Any app on the frame can get root: install nothing untrusted |
 | Home app | `net.frameo.frame` (Frameo) |
 | Network ADB | off (nothing listening on 5555) |
@@ -50,7 +52,9 @@ and IP address are deliberately not recorded here.
 | 2026-10-12 | Frameo off | `pm disable-user --user 0 net.frameo.frame` | `pm enable net.frameo.frame` (photos and settings untouched) |
 | 2026-10-12 | Kiosk made the Home app | `cmd package set-home-activity com.huntsyea.frame/.MainActivity` | `cmd package set-home-activity net.frameo.frame/.ui.activities.AWaitForDeferredInitCompleted` after re-enabling Frameo |
 
-Nothing under `/system` or any flash partition has been written. No backup taken (owner's choice).
+Nothing under `/system` or any flash partition was written in this first setup, and no backup was taken
+then. Since then: a full firmware backup (2026-10-14, below), and WebView 138 in `/system` (2026-10-20,
+[webview.md](webview.md)).
 
 ### Found reset, set up again (2026-10-14)
 
@@ -63,7 +67,7 @@ change). Redone over USB:
 | Change | Command | Undo |
 | --- | --- | --- |
 | Vendor and Rockchip updaters off | `pm disable-user --user 0 com.muxintu.app.mxota` and `android.rockchip.update.service` | `pm enable …` |
-| Kiosk 1.4 installed, URL set (now 1.7: 1.5 sets the clock itself at boot from a server's Date header, so the dashboard loads in seconds, not after Android's 100 s time sync; 1.6 reports its version to the page, makes the two-finger hold more forgiving, and keeps only the dashboard's address, not the setup link's key and token; 1.7, 2026-10-20, takes screenshots for the phone app as root (`screencap`) and uploads them only to the dashboard's own Worker) | `adb install -r kiosk/build/frame.apk`, then `am start … -d "'$(dashboard/scripts/frame-url.sh)'"` (dashboard key and HA settings) | `adb uninstall com.huntsyea.frame` |
+| Kiosk 1.4 installed, URL set (now 1.8: 1.5 sets the clock itself at boot from a server's Date header, so the dashboard loads in seconds, not after Android's 100 s time sync; 1.6 reports its version to the page, makes the two-finger hold more forgiving, and keeps only the dashboard's address, not the setup link's key and token; 1.7, 2026-10-20, takes screenshots for the phone app as root (`screencap`) and uploads them only to the dashboard's own Worker; 1.8, 2026-10-20, reports its memory with the check-in (`getMemory`)) | `adb install -r kiosk/build/frame.apk`, then `am start … -d "'$(dashboard/scripts/frame-url.sh)'"` (dashboard key and HA settings) | `adb uninstall com.huntsyea.frame` |
 | Kiosk made the Home app | `cmd package set-home-activity com.huntsyea.frame/.MainActivity`, plus **Always** on Android's "Select a Home app" dialog | as above |
 | Frameo hidden for the user (not just disabled) | `pm uninstall -k --user 0 net.frameo.frame` (keeps its data) | `cmd package install-existing net.frameo.frame` |
 | Boot animation: the frame's mark and name (`FRAME_NAME` in `.frame.vars`, default "Kitchen Frame") fading in (`kiosk/bootanimation/build.sh`) | `adb push build/bootanimation.zip /data/local/tmp/`, then as root: `mount -o remount,rw /oem; mkdir -p /oem/media; cp /data/local/tmp/bootanimation.zip /oem/media/; chmod 755 /oem/media; chmod 644 /oem/media/bootanimation.zip; chcon u:object_r:oemfs:s0 /oem/media /oem/media/bootanimation.zip; sync; mount -o remount,ro /oem`. Android 8.1 plays `/oem/media/bootanimation.zip` before `/system/media/`'s; `/oem` is outside verified boot, so `/system` is untouched. Preview without a reboot: `setprop service.bootanim.exit 0; start bootanim` (then `setprop service.bootanim.exit 1; stop bootanim`) | As root: `mount -o remount,rw /oem; rm -r /oem/media; mount -o remount,ro /oem` (the stock animation comes back) |

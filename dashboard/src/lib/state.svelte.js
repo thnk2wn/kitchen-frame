@@ -440,9 +440,11 @@ export function setListSort(name, order) {
   listSort[name] = order;
   try { localStorage.setItem('frame-sort-' + name, order); } catch {}
 }
+// One collator for every A–Z sort (localeCompare with options builds a new one per comparison).
+const byName = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 export function sortList(name, items) {
   if (listSort[name] !== 'az') return items;
-  return [...items].sort((a, b) => a.content.localeCompare(b.content, undefined, { sensitivity: 'base', numeric: true }));
+  return [...items].sort((a, b) => byName.compare(a.content, b.content));
 }
 
 // Optimistic: the row disappears on tap and comes back if Todoist refuses. The completion is only

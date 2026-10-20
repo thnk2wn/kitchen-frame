@@ -23,6 +23,8 @@ const CHECKED = 'frame-settings-checked'; // set once this storage has been chec
 
 const kiosk = () => typeof window !== 'undefined' && !!window.FrameKiosk;
 const loadedAt = new Date().toISOString();
+// The kiosk's own memory report (1.8+): the app as Android counts it, WebView included.
+const memory = () => { try { return window.FrameKiosk.getMemory ? JSON.parse(window.FrameKiosk.getMemory()) : undefined; } catch { return undefined; } };
 const version = () => ((/assets\/index-([\w-]+)\.js/.exec(document.documentElement.innerHTML) || [])[1] || 'dev').slice(0, 8);
 /* global __RELEASE__ */
 const release = () => (typeof __RELEASE__ === 'string' ? __RELEASE__ : ''); // "v1.0.0+3 (a1b2c3d)", from vite.config.js
@@ -46,7 +48,7 @@ export async function checkIn() {
   try {
     await api('/api/frame/status', { method: 'POST', body: JSON.stringify({
       version: version(), release: release(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] || '',
-      kiosk: window.FrameKiosk.getVersion ? window.FrameKiosk.getVersion() : '',
+      kiosk: window.FrameKiosk.getVersion ? window.FrameKiosk.getVersion() : '', memory: memory(),
       loadedAt, screen: ui.idle ? (night.active ? 'night' : 'clock') : 'awake', tab: ui.tab, ha: ha.status,
       ...(changed ? { settings: now } : {}), ...(events.length ? { events } : {}),
     }) });

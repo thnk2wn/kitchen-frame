@@ -1,12 +1,13 @@
 <script>
   // A camera full screen, opened by tapping it on the House tab: live video when the camera offers
   // it through Home Assistant (WebRTC, as the doorbell pop-up uses), otherwise its picture refreshed
-  // every few seconds. Closes itself after OPEN_MS, so a battery camera isn't left streaming.
+  // every few seconds. Closes itself OPEN_MS after video starts, so a battery camera isn't left streaming.
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import { startLive } from '../lib/doorbell.svelte.js';
   import { relayServes, startRelayLive } from '../lib/relay.js';
   import { ha, haUrl } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { log } from '../lib/log.svelte.js';
 
   // onsnap: asks the camera for a new picture (a Ring camera's "Take Snapshot" through ring-mqtt), for
@@ -85,11 +86,22 @@
   const RETRY_MS = 10000;
   const KEYFRAME_WAIT_MS = 30000;
   const ANSWER_WAIT_MS = 30000; // for Home Assistant's answer when the stream has to start up first
+  // The relay answers only once its transcoder has video, and a cold Ring session plus the transcoder
+  // took 28–70 s on 2026-10-20 (go2rtc's #starttimeout=60 on the relay's sources matches this).
+  const RELAY_ANSWER_WAIT_MS = 65000;
   // The first big picture's wait, logged when slow (it has taken a minute on the frame's Wi-Fi).
   const openedAt = Date.now();
   // When the current source started (reset by Sound / Sharper, not by a fallback), for the
   // "Starting… N s" count.
   let sourceAt = $state(openedAt);
+  // Open to live video, whatever retries and fallbacks it took: what the person waited, once per view
+  // (camera.live times only the attempt that worked).
+  let liveLogged = false;
+  $effect(() => {
+    if (!live || liveLogged) return;
+    liveLogged = true;
+    log('camera.view_live', { camera: entity, via: mode || 'stream', ms: Date.now() - openedAt });
+  });
   let firstStill = true;
   function stillLoaded() {
     if (!firstStill) return;
@@ -129,8 +141,8 @@
         // same source again at once (the second start is warm and quick) before any fallback.
         if (stop && stop.failed && stop.failed()) return giveUp('offer failed');
         // No answer yet: the stream is still starting up (a transcoder spinning up, ring-mqtt starting
-        // the Ring session). Give it ANSWER_WAIT_MS before falling back.
-        if (stop && stop.answered && !stop.answered() && Date.now() - startedAt < ANSWER_WAIT_MS) {
+        // the Ring session). Give it ANSWER_WAIT_MS (the relay RELAY_ANSWER_WAIT_MS) before falling back.
+        if (stop && stop.answered && !stop.answered() && Date.now() - startedAt < (cam.startsWith('relay:') ? RELAY_ANSWER_WAIT_MS : ANSWER_WAIT_MS)) {
           if (!waitedAnswer) { waitedAnswer = true; log('camera.waiting_answer', { camera: cam }); }
           retry = setTimeout(check, 3000);
           return;
@@ -166,8 +178,14 @@
     untrack(attempt);
     // onclose and onsnap are read only when called: the House tab passes new functions whenever any
     // state changes, and reading them here would restart the video every few seconds.
+    return () => { gone = true; clearTimeout(retry); if (stop) stop(); };
+  });
+  // Closes OPEN_MS after live video starts (after opening, if it never does), so a slow start doesn't
+  // eat the watching time: on 2026-10-20 a 72 s start left under a minute of video before it closed.
+  $effect(() => {
+    live; // restart the clock when video starts
     const close = setTimeout(() => onclose(), OPEN_MS);
-    return () => { gone = true; clearTimeout(close); clearTimeout(retry); if (stop) stop(); };
+    return () => clearTimeout(close);
   });
   // The "(25 s ago)" counts on while there's no live video (its own clock: tick reloads the picture).
   let clockNow = $state(Date.now());
@@ -200,7 +218,7 @@
 
 <div class="cam" role="dialog" aria-label={name}>
   <div class="media">
-    {#if still}<img src={still} alt="" class:hide={live} onload={stillLoaded} onerror={() => log('camera.still_failed', { camera: entity }, 'warn')} />{/if}
+    {#if still}<img {@attach haImage(still)} alt="" class:hide={live} onload={stillLoaded} onerror={() => log('camera.still_failed', { camera: entity }, 'warn')} />{/if}
     {#if !still && !live}<div class="wait"><Icon name="camera" size={56} /></div>{/if}
     <!-- svelte-ignore a11y_media_has_caption -->
     <!-- A transparent poster: WebView otherwise draws a big play icon before the first frame. -->

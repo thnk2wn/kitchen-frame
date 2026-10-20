@@ -4,6 +4,7 @@
   import SortButton from '../components/SortButton.svelte';
   import MediaSwitch from '../components/MediaSwitch.svelte';
   import { ha, haUrl, callService, send } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { ui } from '../lib/state.svelte.js';
   import { api } from '../lib/api.js';
   import { shown, busy, expectFor } from '../lib/pending.svelte.js';
@@ -296,7 +297,7 @@
           <span class="noart"><Icon name="music" size={96} /></span>
         {:else if player.entity_picture && failedArt !== player.entity_picture}
           <!-- A cover that doesn't load shows the note rather than a broken image. -->
-          <img src={haUrl(player.entity_picture)} alt="" onerror={() => (failedArt = player.entity_picture)} />
+          <img {@attach haImage(haUrl(player.entity_picture))} alt="" onerror={() => (failedArt = player.entity_picture)} />
         {:else}
           <span class="noart" class:demo={fake()}><Icon name="music" size={96} /></span>
         {/if}

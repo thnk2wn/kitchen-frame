@@ -1,7 +1,7 @@
 <script>
   import EventRow from '../components/EventRow.svelte';
   import { clock, calendar } from '../lib/state.svelte.js';
-  import { calVars, eventsOn, addDays, dayKey } from '../lib/format.js';
+  import { calVars, eventsOn, addDays, dayKey, formatDate } from '../lib/format.js';
 
   // A month of dots (iPhone Calendar style) beside the chosen day's events. offset: months from now.
   let { offset = 0 } = $props();
@@ -28,7 +28,7 @@
   let lastOffset = offset;
   $effect(() => { if (offset !== lastOffset) { lastOffset = offset; picked = null; } });
   let selected = $derived(cells.find((c) => c.key === picked) || cells.find((c) => (offset === 0 ? c.today : c.inMonth && c.day.getDate() === 1)));
-  const WEEKDAYS = Array.from({ length: 7 }, (_, i) => new Date(2026, 1, i + 1).toLocaleDateString([], { weekday: 'short' })); // Feb 1 2026 is a Sunday
+  const WEEKDAYS = Array.from({ length: 7 }, (_, i) => formatDate(new Date(2026, 1, i + 1), { weekday: 'short' })); // Feb 1 2026 is a Sunday
 </script>
 
 <div class="month">
@@ -48,7 +48,7 @@
 
   <section class="sheet list">
     {#if selected}
-      <h2>{selected.day.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
+      <h2>{formatDate(selected.day, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>
       <div class="events">
         {#each selected.events as e (e.uid + e.start)}
           <EventRow event={e} now={clock.now} />

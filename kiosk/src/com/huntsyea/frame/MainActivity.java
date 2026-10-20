@@ -1,6 +1,7 @@
 package com.huntsyea.frame;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -8,8 +9,10 @@ import android.graphics.Color;
 import android.net.http.SslError;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Debug;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
@@ -223,6 +226,31 @@ public class MainActivity extends Activity {
     @JavascriptInterface
     public String getVersion() {
       try { return getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception e) { return ""; }
+    }
+
+    /**
+     * Memory for the page's check-in (1.8), as JSON, in MB: pss is this app's total as Android counts
+     * it (the WebView runs in this process here, so it's the dashboard's too; the page itself only sees
+     * a rounded-off JS heap), native and java its heaps, avail and total the frame's, low whether
+     * Android considers memory low, and upMin / bootMin how long the app and the frame have been up.
+     */
+    @JavascriptInterface
+    public String getMemory() {
+      try {
+        Debug.MemoryInfo mi = new Debug.MemoryInfo();
+        Debug.getMemoryInfo(mi);
+        ActivityManager.MemoryInfo sys = new ActivityManager.MemoryInfo();
+        ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(sys);
+        long up = android.os.Build.VERSION.SDK_INT >= 24 ? SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime() : -1;
+        return "{\"pss\":" + mi.getTotalPss() / 1024
+            + ",\"native\":" + mi.nativePss / 1024
+            + ",\"java\":" + mi.dalvikPss / 1024
+            + ",\"avail\":" + sys.availMem / (1024 * 1024)
+            + ",\"total\":" + sys.totalMem / (1024 * 1024)
+            + ",\"low\":" + sys.lowMemory
+            + ",\"upMin\":" + (up < 0 ? -1 : up / 60000)
+            + ",\"bootMin\":" + SystemClock.elapsedRealtime() / 60000 + "}";
+      } catch (Exception e) { return "{}"; }
     }
 
     @JavascriptInterface

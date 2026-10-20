@@ -5,7 +5,7 @@
   import Rings from '../components/Rings.svelte';
   import Icon from '../components/Icon.svelte';
   import { ui, clock } from '../lib/state.svelte.js';
-  import { time, dayKey } from '../lib/format.js';
+  import { time, dayKey, formatDate } from '../lib/format.js';
   import { view, nudge, distance, workoutIcon, replayBeat, RING_COLORS, RING_COLORS_LIGHT } from '../lib/fitness.js';
   import { fitnessPeople, canAsk, askPhone, askState } from '../lib/fitness.svelte.js';
   import WorkoutSheet from '../components/WorkoutSheet.svelte';
@@ -24,10 +24,10 @@
   // Replays the rings' and Behind's animations every few minutes (lib/fitness.js replayBeat).
   let beat = $derived(replayBeat(clock.now));
   let colors = $derived(light ? RING_COLORS_LIGHT : RING_COLORS);
-  const letter = (d) => d.toLocaleDateString(undefined, { weekday: 'narrow' });
+  const letter = (d) => formatDate(d, { weekday: 'narrow' });
   function when(d) {
     const days = Math.round((new Date(dayKey(clock.now) + 'T00:00') - new Date(dayKey(d) + 'T00:00')) / 864e5);
-    const day = days === 0 ? 'Today' : days === 1 ? 'Yesterday' : d.toLocaleDateString(undefined, { weekday: 'long' });
+    const day = days === 0 ? 'Today' : days === 1 ? 'Yesterday' : formatDate(d, { weekday: 'long' });
     return day + ', ' + time(d);
   }
   // The trend chips, on one line: a streak, today's steps and exercise against the usual by this time
@@ -119,7 +119,7 @@
           {@const d = p.week[dayOpen.i]}
           {@const r = d.raw}
           <div class="bubble" class:first={dayOpen.i === 0} class:last={dayOpen.i === 6} style="left:{(dayOpen.i / 6) * 100}%" role="status">
-            <b>{d.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</b>
+            <b>{formatDate(d.date, { weekday: 'short', month: 'short', day: 'numeric' })}</b>
             <span class="num"><i style="color:{colors.move}">{Math.round(r.move || 0)}</i>/{Math.round(r.moveGoal || 0)} kcal · <i style="color:{colors.exercise}">{Math.round(r.exercise || 0)}</i>/{Math.round(r.exerciseGoal || 0)} min · <i style="color:{colors.stand}">{Math.round(r.stand || 0)}</i>/{Math.round(r.standGoal || 0)} hrs</span>
             {#if r.steps != null || r.workoutMinutes}<span class="sub num">{[r.steps != null ? Math.round(r.steps).toLocaleString() + ' steps' : '', r.workoutMinutes ? Math.round(r.workoutMinutes) + ' min of workouts' : ''].filter(Boolean).join(' · ')}</span>{/if}
           </div>

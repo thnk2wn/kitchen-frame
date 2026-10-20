@@ -3,6 +3,7 @@
   import Icon from '../components/Icon.svelte';
   import CameraView from '../components/CameraView.svelte';
   import { ha, haUrl } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { ui, cameraRefresh } from '../lib/state.svelte.js';
   import { pin, allowUnlock } from '../lib/pin.svelte.js';
   import { emojiHtml } from '../lib/emoji.js';
@@ -271,7 +272,7 @@
               {:else if item.kind === 'camera'}
                 {@const src = liveDemo() ? stockCam(label(item), ii) : shown[item.entity] || camSrc(item.entity, shots[item.entity])}
                 <button class="tile sheet camera" onclick={() => !still && (viewing = { entity: item.entity, stream: streamOf(item.entity), warm: warmOf(item.entity), name: label(item).replace(/\s*live view$/i, '') })} aria-label={'Open ' + label(item)}>
-                  {#if src && !houseDemo.on}<img {src} alt="" decoding="async" />{:else}<span class="noimg" class:demo={houseDemo.on}><Icon name="camera" size={30} /></span>{/if}
+                  {#if src && !houseDemo.on}<img {@attach haImage(src)} alt="" decoding="async" />{:else}<span class="noimg" class:demo={houseDemo.on}><Icon name="camera" size={30} /></span>{/if}
                   <span class="cap"><span class="cname">{label(item).replace(/\s*live view$/i, '')}</span>{#if !still && camAge(item.entity)}<span class="age"><Icon name="reload" size={13} /> {camAge(item.entity)}</span>{/if}</span>
                 </button>
               {:else if item.kind === 'text'}

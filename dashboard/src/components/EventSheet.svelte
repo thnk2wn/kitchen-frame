@@ -6,7 +6,7 @@
   import Icon from './Icon.svelte';
   import EventMap from './EventMap.svelte';
   import { ui, clock, calendar, calendarNames, eventNotes } from '../lib/state.svelte.js';
-  import { calVars, timeRange, time, dayKey, addDays, isNow, isPast } from '../lib/format.js';
+  import { calVars, timeRange, time, dayKey, addDays, isNow, isPast, formatDate } from '../lib/format.js';
   import { reminderFor, remindsFor } from '../lib/reminders.svelte.js';
   import { say } from '../lib/announce.svelte.js';
   import { quietAt } from '../lib/night.svelte.js';
@@ -40,7 +40,7 @@
   function dayLabel(d, long = true) {
     if (dayKey(d) === dayKey(clock.now)) return 'Today';
     if (dayKey(d) === dayKey(addDays(clock.now, 1))) return 'Tomorrow';
-    return d.toLocaleDateString([], long ? { weekday: 'long', month: 'long', day: 'numeric' } : { weekday: 'short', month: 'short', day: 'numeric' });
+    return formatDate(d, long ? { weekday: 'long', month: 'long', day: 'numeric' } : { weekday: 'short', month: 'short', day: 'numeric' });
   }
   let when = $derived.by(() => {
     if (!e) return null;

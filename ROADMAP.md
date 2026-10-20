@@ -7,8 +7,8 @@ Ideas for the frame, roughly in order of interest. Nothing here is promised; wha
 
 The dashboard was built and tested in a browser at the frame's size. On a real frame:
 
-- Measure with `?diag` (fps, jank, DOM count, image megapixels, heap) on each tab, especially
-  Recipes, the slideshow and the event map.
+- Measure the event map and an open recipe page. Every tab and the clock screen were measured with
+  `dashboard/scripts/bench/` on 2026-10-20 (docs/webview.md).
 - The doorbell pop-up and chime on a real ring (live video itself was worked through on the frame
   2026-10-15/16: docs/house.md).
 - The on-screen keyboard in Lists and recipe search.
@@ -17,20 +17,12 @@ The dashboard was built and tested in a browser at the frame's size. On a real f
 
 Thoughts to try in a branch and measure on the frame, not plans:
 
-- **A newer browser engine.** The frame's WebView is 106 (late 2022). Checked 2026-10-15: it isn't
-  updatable. The firmware accepts only `com.android.webview`, a system app signed with the
-  maker's key, and `/system` is under dm-verity (enforcing), so swapping it means modifying
-  verified system files. **But:** upstream PR #139 found another FRAME156 whose `/system` is plain
-  ext4 despite `veritymode=enforcing`, and swapped in LineageOS's WebView 138 through `su` (keeping
-  the stock tree for undo, restore untested). Check ours (`mount | grep ' /system '`, any
-  `/dev/block/dm-*`) before ruling it out. Alternatives that leave `/system` alone: try the dashboard in a newer
-  browser installed alongside (Firefox, or the last Chrome for Android 8) to see if it feels faster,
-  and if it does, embed GeckoView (Firefox's engine, supports Android 8) in the kiosk app.
-- **Native clock screen.** Draw the clock and slideshow, the screen shown most of the day, with
-  Android views in the kiosk app, and hand over to the web dashboard on a touch. Others report native
-  views feeling much smoother than a WebView on these frames. Go further (Recipes scrolling, say)
-  only if it clearly feels better; a full native rewrite would give up CSS, instant deploys and
-  desktop previews.
+- **Native clock screen.** The clock screen already holds 50 frames a second on WebView 138
+  (docs/webview.md), so this is only worth it if it still doesn't feel smooth. Draw the clock and
+  slideshow, the screen shown most of the day, with Android views in the kiosk app, and hand over to
+  the web dashboard on a touch. Others report native views feeling much smoother than a WebView on
+  these frames. Go further (Recipes scrolling, say) only if it clearly feels better; a full native
+  rewrite would give up CSS, instant deploys and desktop previews.
 - **Linux instead of Android.** The frame's RK3326 is the chip in several handheld game consoles that
   run mainline Linux with an open GPU driver (Panfrost), so a current Chromium or WPE WebKit in a
   kiosk session is plausible, booted from microSD to leave Android on the eMMC untouched. The unknowns
@@ -108,6 +100,11 @@ erroring (`lib/watchdog.js`). Next:
   rerun, so retry a failing screen once and print why it failed.
 - **Roll back on its own:** after a deploy, if the frame hasn't checked in on the new build within a
   few minutes, `wrangler rollback` to the version before and say so.
+- **A reload in the night, if the numbers say so:** since 2026-10-20 each check-in carries the kiosk's
+  memory (kiosk 1.8): the status page's Memory row shows the day's range, and
+  `scripts/frame-metrics.sh 7` shows a week per hour from Workers Analytics Engine. If the app's
+  memory climbs steadily between reloads, reload the page around 3 AM (nightly or weekly) from the
+  dashboard's own clock; if it stays flat, skip it.
 - **Tell someone when the frame goes quiet:** a Home Assistant notification to a phone when the frame
   hasn't checked in for 15 minutes (the Ops tab's badge only shows when the app is open).
 - **Pull requests for larger changes,** with an adversarial review (an agent looking for data that

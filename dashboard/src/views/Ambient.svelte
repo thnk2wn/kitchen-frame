@@ -2,7 +2,7 @@
   import Txt from '../components/Txt.svelte';
   import Icon from '../components/Icon.svelte';
   import { ui, clock, calendar, weather, photos, messages, exitIdle, photosVisible } from '../lib/state.svelte.js';
-  import { clockTime, longDate, weatherInfo, time, eventsOn } from '../lib/format.js';
+  import { clockTime, longDate, weatherInfo, time, eventsOn, formatDate } from '../lib/format.js';
   import { src, takeSlide, lightOf, asVideo, takeVideo, videoSrc } from '../lib/slides.js';
   import { nowPlaying } from '../lib/ha.svelte.js';
   import { notices, iconOf, startedAt } from '../lib/notices.svelte.js';
@@ -35,7 +35,7 @@
   let brightBottom = $derived((layers.at(-1)?.items || []).some((p) => (lightOf(p.id)?.bottom ?? 0) > BRIGHT));
   const brightCorner = (p) => (lightOf(p.id)?.corner ?? 0) > BRIGHT;
 
-  const details = (p) => [p.date ? new Date(p.date).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : '', p.place || '']
+  const details = (p) => [p.date ? formatDate(new Date(p.date), { month: 'long', day: 'numeric', year: 'numeric' }) : '', p.place || '']
     .filter(Boolean).join(' · ');
 
   // A video slide: the prepared player (lib/slides.js) goes in over the still, muted, and plays until the

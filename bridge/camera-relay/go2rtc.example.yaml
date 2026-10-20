@@ -3,7 +3,9 @@
 # camera-relay.sh copies this to ~/go2rtc/go2rtc.yaml the first time; fill in the <…> parts.
 #
 # Streams run only while something watches: go2rtc starts ffmpeg when a viewer connects, and ring-mqtt
-# starts the Ring stream when ffmpeg connects to it.
+# starts the Ring stream when ffmpeg connects to it. #starttimeout=60 gives that a minute: a cold Ring
+# session plus the transcoder took 28–70 s on 2026-10-20, past go2rtc's own 30 s, which then dropped the
+# viewer (the frame waits 65 s for the relay to match, components/CameraView.svelte).
 api:
   # Loopback only. go2rtc's API can run commands (exec: sources), so it must never be open to the
   # network. The frame reaches its WebRTC signalling through relay-gate.py (port 1985), which lets
@@ -22,18 +24,23 @@ streams:
   #   <name>_av  the same video plus the camera's sound, for the frame. The sound runs in its own
   #              ffmpeg: one ffmpeg muxing both held the video seconds behind the audio, which played
   #              choppy and then froze.
-  # The video: hardware decode and scale (VideoToolbox, a few % of a core) and hardware encode;
-  # 2.5 Mbit/s, a keyframe every 2 s so a viewer starts quickly, no B-frames (the frame's decoder likes
-  # it simple). scale_vt needs both sides: 1280x718 for a 16:9 camera, 1280x1280 for a square doorbell.
+  # The video: software decode and scale, then hardware encode (VideoToolbox); 2.5 Mbit/s, a keyframe
+  # every 2 s so a viewer starts quickly, no B-frames (the frame's decoder likes it simple). scale needs
+  # both sides: 1280:718 for a 16:9 camera, 1280:1280 for a square doorbell.
+  # Software decode costs about half a core per camera, only while someone watches. Hardware decode
+  # (-hwaccel videotoolbox -hwaccel_output_format videotoolbox_vld before -i, and -vf scale_vt=w=1280:h=718)
+  # costs a few %, but on the 2019 Intel MacBook Pro here it stalled on Ring's damaged first frames:
+  # 54–120 s to a first picture on 2026-10-20 (10–14 s when the relay was set up), against 2–8 s in
+  # software. On an Apple silicon Mac it may be fine: time both (docs/house.md) before choosing.
   # exec (ffmpeg run directly), not go2rtc's ffmpeg: source: that wrapper added 5-7 s to a cold start.
   # The sound: boosted 4x with a limiter (Ring's is quiet), as Opus for WebRTC.
   # ring-mqtt's address: the add-on's port 8554 exposed on the home network, its livestream user and
   # password from the add-on's options, and the camera's id from its ring-mqtt "Info" sensor
   # (stream_Source: rtsp://…-ring-mqtt:8554/<id>_live).
   # Here: a Spotlight Cam Pro (2624x1472, which the frame can't decode). Copy the pair per camera.
-  spotlight: &spotlight "exec:/Users/<you>/go2rtc/ffmpeg -hide_banner -loglevel error -fflags nobuffer -flags low_delay -analyzeduration 1000000 -probesize 500000 -rtsp_transport tcp -hwaccel videotoolbox -hwaccel_output_format videotoolbox_vld -i rtsp://frame:<ring-mqtt livestream password>@<home assistant ip>:8554/<id>_live -an -vf scale_vt=w=1280:h=718 -c:v h264_videotoolbox -realtime true -profile:v main -b:v 2500k -maxrate 3000k -g 30 -bf 0 -pix_fmt yuv420p -rtsp_transport tcp -f rtsp {output}"
+  spotlight: &spotlight "exec:/Users/<you>/go2rtc/ffmpeg -hide_banner -loglevel error -fflags nobuffer -flags low_delay -analyzeduration 1000000 -probesize 500000 -rtsp_transport tcp -i rtsp://frame:<ring-mqtt livestream password>@<home assistant ip>:8554/<id>_live -an -vf scale=1280:718 -c:v h264_videotoolbox -realtime true -profile:v main -b:v 2500k -maxrate 3000k -g 30 -bf 0 -pix_fmt yuv420p -rtsp_transport tcp -f rtsp {output}#starttimeout=60"
   spotlight_av:
     - *spotlight
-    - "exec:/Users/<you>/go2rtc/ffmpeg -hide_banner -loglevel error -fflags nobuffer -flags low_delay -analyzeduration 1000000 -probesize 500000 -rtsp_transport tcp -i rtsp://frame:<ring-mqtt livestream password>@<home assistant ip>:8554/<id>_live -vn -map 0:a:0 -af volume=4,alimiter=limit=0.9 -c:a libopus -ar 48000 -ac 1 -b:a 48k -rtsp_transport tcp -f rtsp {output}"
+    - "exec:/Users/<you>/go2rtc/ffmpeg -hide_banner -loglevel error -fflags nobuffer -flags low_delay -analyzeduration 1000000 -probesize 500000 -rtsp_transport tcp -i rtsp://frame:<ring-mqtt livestream password>@<home assistant ip>:8554/<id>_live -vn -map 0:a:0 -af volume=4,alimiter=limit=0.9 -c:a libopus -ar 48000 -ac 1 -b:a 48k -rtsp_transport tcp -f rtsp {output}#starttimeout=60"
 log:
   level: info

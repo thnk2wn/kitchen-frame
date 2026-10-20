@@ -27,6 +27,12 @@ Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `TH
   the router's DHCP range). Then `HA_TOKEN` can belong to a **non-admin** HA user marked **Can only
   log in from the local network**, so the token is useless outside the house
   ([SECURITY.md](../SECURITY.md)).
+- **Add the dashboard's address to Home Assistant's CORS allowed origins** (Settings → System →
+  Network → CORS allowed origins, since 2026.8; before that `http: cors_allowed_origins:` in
+  `configuration.yaml`), for example `https://<your worker>.workers.dev`. Camera pictures and album
+  art are fetched from Home Assistant by the page (`lib/ha-image.js`), because a current WebView blocks
+  plain-`http` images on the `https` dashboard; without the origin they show as broken pictures. Home
+  Assistant restarts to apply it and asks you to confirm within 5 minutes, or it goes back.
 
 ## Devices
 
@@ -111,7 +117,7 @@ The Ring app's **Video Quality** setting doesn't go below 1968 wide on a Spotlig
 
 Optional, and only for cameras your frame can't decode (above). It needs an always-on Mac on the
 home network (here the one that runs the Reminders bridge), which shrinks those cameras to 1280
-wide on its video hardware, adds their sound, and the frame plays them straight from it. The setup
+wide (decoding in software, encoding on its video hardware), adds their sound, and the frame plays them straight from it. The setup
 below is for Ring cameras through ring-mqtt, the only cameras tried here. Another camera should work
 the same way in principle (go2rtc reads most cameras' RTSP streams), but untested: its stream in the
 relay's config, and a Generic Camera named `camera.<name>_stream` in Home Assistant, since that's
@@ -161,12 +167,20 @@ clocks are unrelated (sync froze the picture the moment sound was turned on).
    Security → Local Network). Until then go2rtc's ffmpeg gets "No route to host" even though the same
    command works from a shell. That's why go2rtc runs as an app: the permission belongs to an app.
 5. **The Worker:** store the relay's address with the token, from the computer you deploy from (the
-   install prints the command): `CAMERA_RELAY` = `http://<the mac>:1985/<token>/?cameras=<name>,<name>`,
-   one address per way of reaching the Mac, space-separated (its IP and its `.lan` name, say: the
-   frame uses whichever answers). `?cameras=` lists the cameras the relay serves; their `<name>`s
-   match the Home Assistant cameras.
+   install prints the command): `CAMERA_RELAY` = `http://<the mac's IP>:1985/<token>/?cameras=<name>,<name>`.
+   `?cameras=` lists the cameras the relay serves; their `<name>`s match the Home Assistant cameras.
+   More than one address (space-separated) is allowed and the frame uses whichever answers, but use
+   the IP: the frame asks Google's DNS, not the router's, so `.lan` and `.local` names don't resolve on it.
+   **Give the Mac a fixed IP.** Reserve one in the router if it can; a Google Fiber router can't, so
+   set it on the Mac, outside the router's DHCP range (next to Home Assistant's fixed address, say),
+   with System Settings → Wi-Fi → Details → TCP/IP → Configure IPv4 **Manually**, the router as router
+   and DNS, or `sudo networksetup -setmanual Wi-Fi <ip> 255.255.255.0 <router>` and
+   `sudo networksetup -setdnsservers Wi-Fi <router>` (undo: `sudo networksetup -setdhcp Wi-Fi`).
+   **Keep it awake on its charger:** System Settings → Battery → Options → **Prevent automatic sleeping
+   on power adapter when the display is off**, and Low Power Mode only on battery (or
+   `sudo pmset -c sleep 0 lowpowermode 0`; check with `pmset -g custom`).
 6. **Home Assistant (optional):** point each camera's Generic Camera at
-   `rtsp://frame:<go2rtc password>@<the mac>:8554/<name>`, so `camera.<name>_stream` (path 2) also
+   `rtsp://frame:<go2rtc password>@<the mac's IP>:8554/<name>`, so `camera.<name>_stream` (path 2) also
    goes through the Mac. Saving can time out while Home Assistant test-opens a cold stream; open the
    stream first (any player) so it's warm.
 
@@ -174,9 +188,31 @@ clocks are unrelated (sync froze the picture the moment sound was turned on).
 camera's own live view with "⚠ Video relay offline". A Doorbell Pro 2 then often still plays; a
 Spotlight Cam Pro shows pictures.
 
+On 2026-10-20 the relay showed "offline" with the Mac on, for three reasons together: the Mac was
+asleep (`sleep 1` on its charger; a sleeping Mac still answers ping through its Wi-Fi card, which hides
+it), its DHCP address had moved, so `CAMERA_RELAY` was stale, and go2rtc was still
+bound to the old address for WebRTC (`listen udp addr=` in `~/go2rtc/go2rtc.log`). After any address
+change, restart it: `launchctl kickstart -k gui/$(id -u)/local.kitchen-frame.go2rtc`. Home Assistant's
+Generic Cameras pointed at a `.lan` name that the router had given to another device; they now use
+the fixed IP too.
+
 **Measured here:** cold, the frame shows a Spotlight Cam Pro (1280×718) or a Doorbell Pro 2
-(1280×1280) in 10–14 s, a desktop browser in about 6.5 s. The Mac (a 2.3 GHz Intel i7) spends a few
-percent of a core per camera with hardware decoding (about 57% with software decoding). ring-mqtt
+(1280×1280) in 10–14 s, a desktop browser in about 6.5 s. The Mac (a 2019 MacBook Pro, 2.3 GHz Intel
+i7) spends about 57% of a core per camera decoding in software, only while someone watches.
+
+**Decode in software on an older Intel Mac.** The relay first decoded on the Mac's video hardware
+(VideoToolbox, a few % of a core). By 2026-10-20 that had become the slow part: Apple's hardware
+decoder stalled on the damaged first frames of a Ring stream, and a camera took 45–120 s to appear,
+or the frame gave up, while the same stream decoded in software gave a first picture in 2–8 s (cold
+through the whole relay, 11–16 s; the doorbell longer when it has to wake). Encoding stays on the
+hardware, which was never slow. To check a Mac, time a first frame both ways on it, with the
+camera's ring-mqtt address (wait a few seconds between runs, or ring-mqtt answers 404):
+`./ffmpeg -rtsp_transport tcp -hwaccel videotoolbox -hwaccel_output_format videotoolbox_vld -i <rtsp
+url> -an -vf scale_vt=w=1280:h=718 -c:v h264_videotoolbox -frames:v 1 -f null -` against the same
+without `-hwaccel …` and with `-vf scale=1280:718`. Apple silicon may well be fast both ways.
+go2rtc's sources also wait up to 60 s for the first video (`#starttimeout=60`) and the frame up to
+65 s for the relay to answer, since a cold Ring session can take that long; above 30 s either used
+to give up. ring-mqtt
 drops the Ring session the moment the last viewer leaves, so a request within a second of that gets
 a 404 and is retried. Ring's own sound is quiet (near silence from a quiet porch), so the relay
 boosts it 4×.

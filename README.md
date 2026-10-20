@@ -125,7 +125,9 @@ with a diagram for each side: [docs/architecture.md](docs/architecture.md).
 
 ## Getting started
 
-**Status:** this fork runs on a Pastigio FRAME156 (Android 8.1, WebView 106, 1920×1080). Its device
+**Status:** this fork runs on a Pastigio FRAME156 (Android 8.1, 1920×1080), with its WebView upgraded
+from the vendor's 106 to 138, the last for Android 8.1 ([docs/webview.md](docs/webview.md): about a
+quarter faster tab switches, and three years of security fixes). Its device
 record, every change made to it and how to undo each one are in [docs/frame.md](docs/frame.md).
 
 ### What you need

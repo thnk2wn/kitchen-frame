@@ -21,7 +21,7 @@
   import RecipePage from './RecipePage.svelte';
   import MealGroceries from '../components/MealGroceries.svelte';
   import { api, cached, remember, mediaUrl } from '../lib/api.js';
-  import { recipeTitle } from '../lib/format.js';
+  import { recipeTitle, formatDate } from '../lib/format.js';
   import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui, plainTitle } from '../lib/state.svelte.js';
   import { dayKey, addDays } from '../lib/format.js';
 
@@ -60,7 +60,7 @@
     const today = new Date();
     return Array.from({ length: 7 }, (_, i) => {
       const d = addDays(today, i), key = dayKey(d);
-      const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+      const label = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : formatDate(d, { weekday: 'long', month: 'short', day: 'numeric' });
       return { key, label, items: mealItems().filter((m) => m.date === key) };
     });
   });

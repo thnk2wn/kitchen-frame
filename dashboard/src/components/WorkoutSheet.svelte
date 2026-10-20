@@ -4,7 +4,7 @@
   // weather the Watch saved. Only what the phone sent (worker/fitness.js); no route or place.
   import Icon from './Icon.svelte';
   import { ui } from '../lib/state.svelte.js';
-  import { time } from '../lib/format.js';
+  import { time, formatDate } from '../lib/format.js';
   import { workoutIcon, distance } from '../lib/fitness.js';
   // workout: one of a person's workouts; unit: their phone's (mi or km); who: their name; onclose.
   let { workout: w, unit, who, onclose } = $props();
@@ -40,7 +40,7 @@
     w.heartRate != null && { label: 'Avg. Heart Rate', value: Math.round(w.heartRate), unit: 'BPM', color: c.heart },
   ].filter(Boolean));
   let weather = $derived(w.tempC == null ? null : (metric ? Math.round(w.tempC) : Math.round(w.tempC * 9 / 5 + 32)) + '°' + (w.humidity != null ? ' · ' + Math.round(w.humidity) + '% humidity' : ''));
-  const day = (d) => d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  const day = (d) => formatDate(d, { weekday: 'long', month: 'long', day: 'numeric' });
 </script>
 
 <div class="scrim" role="presentation" onclick={onclose}>

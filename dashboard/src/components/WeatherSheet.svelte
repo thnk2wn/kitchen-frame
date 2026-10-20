@@ -5,7 +5,7 @@
   import Icon from './Icon.svelte';
   import Radar from './Radar.svelte';
   import { ui, clock, weather } from '../lib/state.svelte.js';
-  import { weatherInfo, dayInfo, dow, time, dayKey } from '../lib/format.js';
+  import { weatherInfo, dayInfo, dow, time, dayKey, formatDate } from '../lib/format.js';
 
   let wx = $derived(weather.data);
   let i = $derived(ui.weatherDay);
@@ -27,7 +27,7 @@
     const step = rest.length > 12 && !isToday ? 2 : 1;
     return rest.filter((_, n) => n % step === 0).slice(0, 12).map((h, n) => ({ ...h, now: isToday && n === 0 }));
   });
-  const hourLabel = (h) => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: 'numeric' });
+  const hourLabel = (h) => formatDate(new Date(2000, 0, 1, h), { hour: 'numeric' });
   const dayLabel = (date, n) => (n === 0 && date === dayKey(clock.now) ? 'Today' : dow(date));
   const uvLabel = (u) => (u <= 2 ? 'Low' : u <= 5 ? 'Moderate' : u <= 7 ? 'High' : u <= 10 ? 'Very high' : 'Extreme');
   const amount = (p) => (p == null ? '—' : p <= 0 ? 'None' : metric ? p.toFixed(1) + ' mm' : p < 0.01 ? 'Trace' : p.toFixed(2) + ' in');

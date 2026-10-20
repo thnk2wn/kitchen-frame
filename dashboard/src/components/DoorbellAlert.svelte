@@ -4,7 +4,9 @@
   import Icon from './Icon.svelte';
   import { bell, dismiss, startLive } from '../lib/doorbell.svelte.js';
   import { haUrl } from '../lib/ha.svelte.js';
+  import { haImage } from '../lib/ha-image.js';
   import { time } from '../lib/format.js';
+  import { log } from '../lib/log.svelte.js';
 
   let d = $derived(bell.ringing);
   let video = $state();
@@ -26,6 +28,14 @@
   let canSwitch = $derived(!!d && !!d.video && d.video !== d.live && !sharpFailed);
   $effect(() => { if (d) { d.at; withSound = false; sharpFailed = false; muted = true; } });
 
+  // Ring to live video, once per ring (worker/frame.js keeps it as a metric).
+  let loggedRing = 0;
+  $effect(() => {
+    if (!live || !d || loggedRing === d.at) return;
+    loggedRing = d.at;
+    log('doorbell.live', { doorbell: d.name || d.entity, ms: Date.now() - d.at, test: d.test || undefined });
+  });
+
   // Start the live view when a ring opens the pop-up (or the source switches); stop it when it closes.
   $effect(() => {
     if (!d || !d.live || !video) return;
@@ -45,7 +55,7 @@
 {#if d}
   <div class="door" role="alertdialog" aria-label="{d.name} doorbell">
     <div class="media">
-      {#if still}<img src={still} alt="" class:hide={live} />{/if}
+      {#if still}<img {@attach haImage(still)} alt="" class:hide={live} />{/if}
       {#if !still && !live}<div class="wait"><Icon name="camera" size={56} /></div>{/if}
       <!-- svelte-ignore a11y_media_has_caption -->
       <!-- A transparent poster: WebView otherwise draws a big play icon before the first frame. -->
