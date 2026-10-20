@@ -2,14 +2,14 @@
   import Txt from './Txt.svelte';
   import Icon from './Icon.svelte';
   import { messages, dismissMessage } from '../lib/state.svelte.js';
-  import { time } from '../lib/format.js';
+  import { time, formatDate } from '../lib/format.js';
 
   // An agent's message, covering everything until its X is pressed. Oldest first.
   let m = $derived(messages.items[0]);
   let count = $derived(messages.items.length);
   const when = (iso) => {
     const d = new Date(iso);
-    return d.toDateString() === new Date().toDateString() ? time(d) : d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + time(d);
+    return d.toDateString() === new Date().toDateString() ? time(d) : formatDate(d, { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + time(d);
   };
 </script>
 

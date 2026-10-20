@@ -13,7 +13,9 @@ die() { echo "FAIL: $*"; exit 1; }
 [ -e "$OLD138" ] && die "$OLD138 already exists"
 
 mount -o remount,rw /system || die "remount rw failed"
-mv "$LIVE" "$OLD138" && mv "$STOCK" "$LIVE" || { echo "FAIL: move; check $LIVE by hand"; mount -o remount,ro /system; exit 1; }
+mv "$LIVE" "$OLD138" || { mount -o remount,ro /system; die "couldn't move 138 aside; nothing changed"; }
+# If the stock tree won't go into place, put 138 back so there's always a WebView.
+mv "$STOCK" "$LIVE" || { mv "$OLD138" "$LIVE"; sync; mount -o remount,ro /system; die "couldn't move stock into place; 138 put back"; }
 (cd "$LIVE" && sha256sum -c "$S/stock.sha256") || echo "WARNING: stock tree in place doesn't match"
 sync
 mount -o remount,ro /system

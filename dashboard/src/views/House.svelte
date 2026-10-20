@@ -155,7 +155,9 @@
   const loadingSrc = new Set();
   function swapIn(id, url) {
     if (!url || shown[id] === url || loadingSrc.has(url)) return;
-    if (!shown[id]) { shown = { ...shown, [id]: url }; return; } // the first one: show it as it loads
+    // The first one shows as it loads. A picture lib/ha-image.js fetches (http Home Assistant on the https
+    // page) keeps the old one on screen until the new one has arrived, so it needs no preload either.
+    if (!shown[id] || (location.protocol === 'https:' && url.startsWith('http:'))) { shown = { ...shown, [id]: url }; return; }
     loadingSrc.add(url);
     const img = new Image();
     img.onload = img.onerror = () => { loadingSrc.delete(url); shown = { ...shown, [id]: url }; };

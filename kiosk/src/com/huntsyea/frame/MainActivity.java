@@ -164,6 +164,7 @@ public class MainActivity extends Activity {
     setContentView(root);
 
     handleIntent(getIntent());
+    handler.postDelayed(measureMemory, 20000); // memory for the check-in, off the page's thread
     if (url == null) {
       url = getSharedPreferences(PREFS, MODE_PRIVATE).getString("url", null);
       // Kiosks before 1.6 saved the whole setup link, key and Home Assistant token included. Load it
@@ -214,6 +215,34 @@ public class MainActivity extends Activity {
     getWindow().setAttributes(lp);
   }
 
+  private static final long MEMORY_MS = 5 * 60 * 1000;
+  private volatile String memoryJson = "{}";
+  private final Runnable measureMemory = new Runnable() {
+    @Override public void run() {
+      new Thread(() -> memoryJson = readMemory(), "kiosk-memory").start();
+      handler.postDelayed(this, MEMORY_MS);
+    }
+  };
+
+  /** See Bridge.getMemory. Slow (reads the process's memory map): never on the UI or page thread. */
+  private String readMemory() {
+    try {
+      Debug.MemoryInfo mi = new Debug.MemoryInfo();
+      Debug.getMemoryInfo(mi);
+      ActivityManager.MemoryInfo sys = new ActivityManager.MemoryInfo();
+      ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(sys);
+      long up = android.os.Build.VERSION.SDK_INT >= 24 ? SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime() : -1;
+      return "{\"pss\":" + mi.getTotalPss() / 1024
+          + ",\"native\":" + mi.nativePss / 1024
+          + ",\"java\":" + mi.dalvikPss / 1024
+          + ",\"avail\":" + sys.availMem / (1024 * 1024)
+          + ",\"total\":" + sys.totalMem / (1024 * 1024)
+          + ",\"low\":" + sys.lowMemory
+          + ",\"upMin\":" + (up < 0 ? -1 : up / 60000)
+          + ",\"bootMin\":" + SystemClock.elapsedRealtime() / 60000 + "}";
+    } catch (Exception e) { return "{}"; }
+  }
+
   /** Exposed to the dashboard page as window.FrameKiosk. Only our dashboard loads in this WebView. */
   class Bridge {
     @JavascriptInterface
@@ -229,28 +258,16 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Memory for the page's check-in (1.8), as JSON, in MB: pss is this app's total as Android counts
-     * it (the WebView runs in this process here, so it's the dashboard's too; the page itself only sees
+     * Memory for the page's check-in, as JSON, in MB: pss is this app's total as Android counts it
+     * (the WebView runs in this process here, so it's the dashboard's too; the page itself only sees
      * a rounded-off JS heap), native and java its heaps, avail and total the frame's, low whether
      * Android considers memory low, and upMin / bootMin how long the app and the frame have been up.
+     * Measured off the page's thread every MEMORY_MS (1.9): Debug.getMemoryInfo reads the process's
+     * whole memory map, about 430 ms on the frame, which as a direct call froze the page each check-in.
      */
     @JavascriptInterface
     public String getMemory() {
-      try {
-        Debug.MemoryInfo mi = new Debug.MemoryInfo();
-        Debug.getMemoryInfo(mi);
-        ActivityManager.MemoryInfo sys = new ActivityManager.MemoryInfo();
-        ((ActivityManager) getSystemService(ACTIVITY_SERVICE)).getMemoryInfo(sys);
-        long up = android.os.Build.VERSION.SDK_INT >= 24 ? SystemClock.elapsedRealtime() - android.os.Process.getStartElapsedRealtime() : -1;
-        return "{\"pss\":" + mi.getTotalPss() / 1024
-            + ",\"native\":" + mi.nativePss / 1024
-            + ",\"java\":" + mi.dalvikPss / 1024
-            + ",\"avail\":" + sys.availMem / (1024 * 1024)
-            + ",\"total\":" + sys.totalMem / (1024 * 1024)
-            + ",\"low\":" + sys.lowMemory
-            + ",\"upMin\":" + (up < 0 ? -1 : up / 60000)
-            + ",\"bootMin\":" + SystemClock.elapsedRealtime() / 60000 + "}";
-      } catch (Exception e) { return "{}"; }
+      return memoryJson;
     }
 
     @JavascriptInterface

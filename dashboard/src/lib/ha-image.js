@@ -7,7 +7,9 @@
 //
 //   <img {@attach haImage(url)} onload={…} onerror={…} />
 //
-// load and error fire on the <img> as they would with src, so its handlers keep working.
+// load and error fire on the <img> as they would with src, so its handlers keep working. Without the
+// CORS origin the fetch fails and the <img> gets the address directly: fine on WebView 106, an error on
+// 138.
 export function haImage(url) {
   return (img) => {
     if (!url) { img.removeAttribute('src'); return; }
@@ -15,9 +17,16 @@ export function haImage(url) {
     const abort = new AbortController();
     let blobUrl = null;
     fetch(url, { signal: abort.signal })
-      .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.blob(); })
-      .then((blob) => { blobUrl = URL.createObjectURL(blob); img.src = blobUrl; })
-      .catch((e) => { if (e.name !== 'AbortError') img.dispatchEvent(new Event('error')); });
+      .then((res) => { if (!res.ok) throw Object.assign(new Error('HTTP ' + res.status), { http: true }); return res.blob(); })
+      .then((blob) => { if (abort.signal.aborted) return; blobUrl = URL.createObjectURL(blob); img.src = blobUrl; })
+      .catch((e) => {
+        if (e.name === 'AbortError' || abort.signal.aborted) return;
+        // Home Assistant answered with an error: that's the picture's error.
+        if (e.http) { img.dispatchEvent(new Event('error')); return; }
+        // The fetch itself failed (no CORS origin set in Home Assistant, or the network): load the
+        // address directly as before, which works on WebView 106 and on 138 fires the <img>'s error.
+        img.src = url;
+      });
     // A new url (or the <img> going away) stops this fetch and frees its picture.
     return () => { abort.abort(); if (blobUrl) URL.revokeObjectURL(blobUrl); };
   };

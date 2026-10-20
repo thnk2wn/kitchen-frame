@@ -171,7 +171,7 @@ clocks are unrelated (sync froze the picture the moment sound was turned on).
    `?cameras=` lists the cameras the relay serves; their `<name>`s match the Home Assistant cameras.
    More than one address (space-separated) is allowed and the frame uses whichever answers, but use
    the IP: the frame asks Google's DNS, not the router's, so `.lan` and `.local` names don't resolve on it.
-   **Give the Mac a fixed IP.** Reserve one in the router if it can; a Google Fiber router can't, so
+   **Give the Mac a fixed IP.** Reserve one in the router if it can; if it can't (some ISP routers can't),
    set it on the Mac, outside the router's DHCP range (next to Home Assistant's fixed address, say),
    with System Settings → Wi-Fi → Details → TCP/IP → Configure IPv4 **Manually**, the router as router
    and DNS, or `sudo networksetup -setmanual Wi-Fi <ip> 255.255.255.0 <router>` and

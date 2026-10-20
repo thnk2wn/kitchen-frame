@@ -9,6 +9,14 @@ export function formatDate(d, options) {
   if (!f) formatters.set(key, (f = new Intl.DateTimeFormat([], options)));
   return f.format(d);
 }
+// The same for comparing text in sorts: localeCompare with options builds a collator per comparison.
+const collators = new Map();
+export function compareText(a, b, options) {
+  const key = JSON.stringify(options || {});
+  let c = collators.get(key);
+  if (!c) collators.set(key, (c = new Intl.Collator(undefined, options)));
+  return c.compare(a, b);
+}
 const TIME = { hour: 'numeric', minute: '2-digit' };
 const LONG_DATE = { weekday: 'long', month: 'long', day: 'numeric' };
 const SHORT_DATE = { weekday: 'short', month: 'short', day: 'numeric' };

@@ -1,4 +1,5 @@
 <script>
+  import { formatDate } from '../lib/format.js';
   // A camera full screen, opened by tapping it on the House tab: live video when the camera offers
   // it through Home Assistant (WebRTC, as the doorbell pop-up uses), otherwise its picture refreshed
   // every few seconds. Closes itself OPEN_MS after video starts, so a battery camera isn't left streaming.
@@ -35,7 +36,7 @@
   const taken = (p, now) => {
     if (!p || !p.t) return '';
     const s = Math.max(0, Math.round((now - p.t) / 1000));
-    return (p.real ? 'taken ' : 'loaded ') + new Date(p.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + ' (' + (s < 90 ? s + ' s' : Math.round(s / 60) + ' min') + ' ago)';
+    return (p.real ? 'taken ' : 'loaded ') + formatDate(new Date(p.t), { hour: 'numeric', minute: '2-digit', second: '2-digit' }) + ' (' + (s < 90 ? s + ' s' : Math.round(s / 60) + ' min') + ' ago)';
   };
   // Where the video comes from: 'relay' (the camera relay on the home network, sharp and with sound,
   // when it serves this camera: lib/relay.js), 'stream' (entity through Home Assistant), 'sound'
@@ -56,6 +57,7 @@
     return false;
   };
   const OPEN_MS = 2 * 60 * 1000;
+  const WAITING_MS = 3 * 60 * 1000; // the same while live video is still starting
   const STILL_MS = 5000;
   const SNAP_MS = 15000;
   let video = $state();
@@ -102,6 +104,13 @@
     liveLogged = true;
     log('camera.view_live', { camera: entity, via: mode || 'stream', ms: Date.now() - openedAt });
   });
+  // The still reloads every few seconds: a failing one is logged once per view, not each time.
+  let stillFailLogged = false;
+  function stillFailed() {
+    if (stillFailLogged) return;
+    stillFailLogged = true;
+    log('camera.still_failed', { camera: entity }, 'warn');
+  }
   let firstStill = true;
   function stillLoaded() {
     if (!firstStill) return;
@@ -180,11 +189,13 @@
     // state changes, and reading them here would restart the video every few seconds.
     return () => { gone = true; clearTimeout(retry); if (stop) stop(); };
   });
-  // Closes OPEN_MS after live video starts (after opening, if it never does), so a slow start doesn't
-  // eat the watching time: on 2026-10-20 a 72 s start left under a minute of video before it closed.
+  // Closes OPEN_MS after live video starts, or WAITING_MS after the current source started (opening, a
+  // fallback, Sound / Sharper) while nothing plays, so a slow start doesn't eat the watching time (on 2026-10-20 a
+  // 72 s start left under a minute of video) and a fallback still gets its turn.
   $effect(() => {
-    live; // restart the clock when video starts
-    const close = setTimeout(() => onclose(), OPEN_MS);
+    source; // restart the clock when video starts or the source changes
+    // Not playing yet: long enough for two relay tries (2 × RELAY_ANSWER_WAIT_MS) before its fallback.
+    const close = setTimeout(() => onclose(), live ? OPEN_MS : WAITING_MS);
     return () => clearTimeout(close);
   });
   // The "(25 s ago)" counts on while there's no live video (its own clock: tick reloads the picture).
@@ -218,7 +229,7 @@
 
 <div class="cam" role="dialog" aria-label={name}>
   <div class="media">
-    {#if still}<img {@attach haImage(still)} alt="" class:hide={live} onload={stillLoaded} onerror={() => log('camera.still_failed', { camera: entity }, 'warn')} />{/if}
+    {#if still}<img {@attach haImage(still)} alt="" class:hide={live} onload={stillLoaded} onerror={stillFailed} />{/if}
     {#if !still && !live}<div class="wait"><Icon name="camera" size={56} /></div>{/if}
     <!-- svelte-ignore a11y_media_has_caption -->
     <!-- A transparent poster: WebView otherwise draws a big play icon before the first frame. -->

@@ -3,7 +3,7 @@
 import { loadFitness, refreshFitness } from './fitness.svelte.js';
 import { api, cached, remember, changed, forget, mediaUrl } from './api.js';
 import { log } from './log.svelte.js';
-import { dayKey, recipeTitle, setCalendarColors } from './format.js';
+import { dayKey, recipeTitle, setCalendarColors, formatDate } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
 import { DEMO_ROTATIONS } from './rotations.js';
 import { ha, haConfigured } from './ha.svelte.js';
@@ -425,7 +425,7 @@ export function loadList(name) {
       lists[name].error = null;
       // A list from Apple Reminders comes through a Mac at home (docs/lists.md); say so when it's quiet.
       lists[name].warning = waiting ? 'Waiting for the Mac to send this Reminders list.'
-        : stale ? 'The Mac last checked in ' + new Date(stale).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) + '. Changes made here will reach Reminders when it’s back.' : null;
+        : stale ? 'The Mac last checked in ' + formatDate(new Date(stale), { weekday: 'short', hour: 'numeric', minute: '2-digit' }) + '. Changes made here will reach Reminders when it’s back.' : null;
     } catch (err) {
       lists[name].error = err.message;
     }

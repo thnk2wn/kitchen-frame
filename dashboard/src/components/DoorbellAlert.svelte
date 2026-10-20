@@ -28,21 +28,22 @@
   let canSwitch = $derived(!!d && !!d.video && d.video !== d.live && !sharpFailed);
   $effect(() => { if (d) { d.at; withSound = false; sharpFailed = false; muted = true; } });
 
-  // Ring to live video, once per ring (worker/frame.js keeps it as a metric).
   let loggedRing = 0;
-  $effect(() => {
-    if (!live || !d || loggedRing === d.at) return;
-    loggedRing = d.at;
-    log('doorbell.live', { doorbell: d.name || d.entity, ms: Date.now() - d.at, test: d.test || undefined });
-  });
-
   // Start the live view when a ring opens the pop-up (or the source switches); stop it when it closes.
   $effect(() => {
     if (!d || !d.live || !video) return;
     const cam = withSound || !d.video ? d.live : d.video;
     let stop = null, gone = false;
     live = false;
-    startLive(cam, video, () => (live = true))
+    // Ring to live video, once per ring (worker/frame.js keeps it as a metric). Read from this ring's
+    // own start, so a second ring while the first one's video plays isn't logged as instant.
+    const ring = d;
+    startLive(cam, video, () => {
+      live = true;
+      if (gone || loggedRing === ring.at) return;
+      loggedRing = ring.at;
+      log('doorbell.live', { doorbell: ring.name || ring.entity, ms: Date.now() - ring.at, test: ring.test || undefined });
+    })
       .then((s) => { if (gone) s && s(); else stop = s; })
       .catch((e) => console.error('doorbell live view', e));
     // The sharp stream not playing within 10 s (a doorbell's large picture can be too much for the

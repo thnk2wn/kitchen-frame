@@ -1,4 +1,5 @@
 <script>
+  import { compareText } from '../lib/format.js';
   import { untrack } from 'svelte';
   import Icon from '../components/Icon.svelte';
   import SortButton from '../components/SortButton.svelte';
@@ -115,7 +116,7 @@
   // too; whichever is later wins.
   const lastPlayed = (pl) => Math.max(played[pl.title] || 0, spotifyPlayed[pl.media_content_id] || 0);
   let sorted = $derived(order === 'az'
-    ? [...playlists].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+    ? [...playlists].sort((a, b) => compareText(a.title, b.title, { sensitivity: 'base' }))
     : playlists.map((pl, i) => ({ pl, i, at: lastPlayed(pl) })).sort((a, b) => b.at - a.at || a.i - b.i).map((x) => x.pl));
 
   // Scroll the playing playlist's card into view when it becomes the one playing.

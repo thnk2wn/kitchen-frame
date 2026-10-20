@@ -14,7 +14,7 @@
 #   CF_ANALYTICS_TOKEN="…"       a custom API token with Account › Account Analytics › Read only
 set -euo pipefail
 cd "$(dirname "$0")/.."
-get() { sed -n "s/^$1=\"\(.*\)\"\s*$/\1/p" .frame.vars | head -1; }
+get() { sed -n "s/^$1=\"\(.*\)\"[[:space:]]*$/\1/p" .frame.vars | head -1; }
 acct=$(get CF_ACCOUNT_ID); token=$(get CF_ANALYTICS_TOKEN)
 [ -n "$acct" ] && [ -n "$token" ] || { echo "Set CF_ACCOUNT_ID and CF_ANALYTICS_TOKEN in dashboard/.frame.vars (see the top of this script)." >&2; exit 2; }
 report=memory
@@ -32,16 +32,16 @@ case $report in
   memory)
     # double1 pss, double4 avail, double6 upMin (app up), double8 minutes since the page loaded.
     res=$(query "SELECT toStartOfInterval(timestamp, INTERVAL '1' HOUR) AS hour,
-      count() AS n, round(avg(double1)) AS pss, max(double1) AS pss_max, min(double4) AS free_min,
+      sum(_sample_interval) AS n, round(avg(double1)) AS pss, max(double1) AS pss_max, min(double4) AS free_min,
       min(double8) AS page_min, argMax(blob1, timestamp) AS build
       FROM kitchen_frame_metrics WHERE index1 = 'frame' AND $since GROUP BY hour ORDER BY hour FORMAT JSON") ;;
   video|stability)
     # Events: blob1 event, blob2 about (camera, reason, …), double1 ms (-1 without one). Hourly, so
     # Python can group them into local days.
     res=$(query "SELECT toStartOfInterval(timestamp, INTERVAL '1' HOUR) AS day, blob1 AS event, blob2 AS about,
-      count() AS n, sum(if(double1 >= 0, 1, 0)) AS timed, sum(if(double1 >= 0, double1, 0.0)) AS ms_sum, max(double1) AS ms_max
+      sum(_sample_interval) AS n, sum(if(double1 >= 0, 1, 0)) AS timed, sum(if(double1 >= 0, double1, 0.0)) AS ms_sum, max(double1) AS ms_max
       FROM kitchen_frame_metrics WHERE index1 = 'event' AND $since GROUP BY day, event, about ORDER BY day FORMAT JSON")
-    checks=$(query "SELECT toStartOfInterval(timestamp, INTERVAL '1' HOUR) AS day, count() AS n
+    checks=$(query "SELECT toStartOfInterval(timestamp, INTERVAL '1' HOUR) AS day, sum(_sample_interval) AS n
       FROM kitchen_frame_metrics WHERE index1 = 'frame' AND $since GROUP BY day ORDER BY day FORMAT JSON") ;;
 esac
 
@@ -66,14 +66,17 @@ if report == 'memory':
     sys.exit()
 
 # The queries bucket by UTC hour; add those up into local days. Day -> event -> about -> totals.
+# Keyed by the local date (YYYY-MM-DD, so they sort across a new year), shown as "Tue Oct 20".
 by = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'n': 0.0, 'timed': 0.0, 'ms_sum': 0.0, 'ms_max': -1.0})))
+label = {}
+for r in rows + checks: label[local(r['day'], '%Y-%m-%d')] = local(r['day'], '%a %b %-d')
 for r in rows:
-    t = by[local(r['day'], '%a %b %-d')][r['event']][r['about']]
+    t = by[local(r['day'], '%Y-%m-%d')][r['event']][r['about']]
     for k in ('n', 'timed', 'ms_sum'): t[k] += float(r[k])
     t['ms_max'] = max(t['ms_max'], float(r['ms_max']))
 seen = defaultdict(int)
-for c in checks: seen[local(c['day'], '%a %b %-d')] += int(c['n'])
-days = sorted(set(by) | set(seen), key=lambda d: dt.datetime.strptime(d + ' 2000', '%a %b %d %Y').timetuple()[1:3])
+for c in checks: seen[local(c['day'], '%Y-%m-%d')] += int(float(c['n']))
+days = sorted(set(by) | set(seen))
 
 def n(d, ev, about=None):
     x = by[d].get(ev, {})
@@ -82,7 +85,7 @@ def n(d, ev, about=None):
 if report == 'video':
     cams = sorted({a for d in by for ev in by[d] if ev.startswith('camera.') for a in by[d][ev]} - {''})
     for d in days:
-        print(d)
+        print(label[d])
         rings = n(d, 'doorbell.ring')
         bl = [v for v in by[d].get('doorbell.live', {}).values() if v['timed']]
         if rings or bl:
@@ -106,6 +109,6 @@ else:
         reasons = ', '.join(f"{a or '?'} {int(v['n'])}" for a, v in sorted(loads.items(), key=lambda x: -x[1]['n']))
         down = by[d].get('ha.connected', {})
         down_s = sum(v['ms_sum'] for v in down.values()) / 1000
-        print(f"{d:<12} {seen.get(d, 0):>9} {n(d, 'app.load'):>6}  {reasons[:28]:<28} {n(d, 'frame.selfreload'):>12} {n(d, 'ha.disconnected'):>8} {down_s:>7.0f}s {n(d, 'ui.error'):>11} {n(d, 'api.failed'):>10}")
+        print(f"{label[d]:<12} {seen.get(d, 0):>9} {n(d, 'app.load'):>6}  {reasons[:28]:<28} {n(d, 'frame.selfreload'):>12} {n(d, 'ha.disconnected'):>8} {down_s:>7.0f}s {n(d, 'ui.error'):>11} {n(d, 'api.failed'):>10}")
     print("\n144 check-ins is a full day (one every 10 minutes); fewer means it was off, offline or reloading.")
 PY

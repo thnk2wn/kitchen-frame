@@ -77,7 +77,7 @@ unless the staged files match `new.sha256` and the live tree is exactly the stoc
 remounts `/system` read-write, builds the new tree beside the old one (root:root, 0755/0644,
 `u:object_r:system_file:s0`), checks it, moves the stock tree to `/system/kf-stock-webview`, moves the
 new one into place, checks both again, and remounts read-only. If any step fails it puts the stock tree
-back. The only thing it deletes is its own half-built copy.
+back. It only ever deletes the 138 copies it made itself, never the stock files.
 
 ```sh
 adb shell mkdir -p /data/local/tmp/kf-webview/lib/arm
@@ -157,7 +157,8 @@ The fix, deployed the same day:
   to put it back. Setup for a new install:
   [house.md](house.md#setup).
 
-If 138 is ever undone, both can stay: the fetch works on 106 too.
+If 138 is ever undone, both can stay: the fetch works on 106 too, and without the CORS origin
+`lib/ha-image.js` falls back to loading the picture directly, which 106 allows.
 
 The Home Assistant WebSocket logs "Connecting to a non-secure WebSocket server from a secure origin is
 deprecated" on 138. It still works on 138, the last WebView this frame can run, so it's a note, not a
