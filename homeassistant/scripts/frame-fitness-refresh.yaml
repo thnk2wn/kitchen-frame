@@ -1,0 +1,45 @@
+# script.frame_fitness_refresh: what the frame's Refresh on the Fitness tab calls, to ask one person's
+# phone for its latest rings (docs/fitness.md). Add it in Home Assistant: Settings → Automations &
+# Scenes → Scripts → Add script → ⋮ → Edit in YAML, paste this, make one branch per person below, and
+# save it with the id frame_fitness_refresh (the frame shows Refresh only once it exists).
+#
+# It sends a notification through the Home Assistant Companion app on that person's iPhone. Tapping it
+# opens Kitchen Frame (its link is kitchenframe://fitness/send), and the app sends straight away; a
+# locked phone can't read Health in the background, so the tap is what makes it work. The tag
+# replaces an earlier, unanswered ask rather than stacking them. To stop being asked, leave yourself
+# out, or turn off this notification in the Companion app.
+alias: Frame fitness refresh
+description: Asks a person's phone, by notification, to send its latest Activity rings to the frame.
+mode: parallel
+max: 6
+icon: mdi:run
+fields:
+  name:
+    name: Name
+    description: The person as their phone names them on the frame (Kitchen Frame → Settings → Apple Health).
+    required: true
+    selector:
+      text:
+variables:
+  note:
+    title: Kitchen Frame
+    message: Tap to send your latest Activity rings to the frame.
+    data:
+      url: kitchenframe://fitness/send
+      tag: kitchen-frame-fitness-refresh
+sequence:
+  # One branch per person: their name as the frame shows it, and their phone's notify action
+  # (Tools → Actions, search "notify.mobile_app"). A name with no branch does nothing.
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ name == 'Alex' }}"
+        sequence:
+          - action: notify.mobile_app_alex_iphone
+            data: "{{ note }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ name == 'Sam' }}"
+        sequence:
+          - action: notify.mobile_app_sam_iphone
+            data: "{{ note }}"

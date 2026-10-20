@@ -27,6 +27,8 @@
 //   POST /api/share/media            a photo or video from the phone app, shown on the frame (shared-media.js)
 //   GET  /api/share/media/:id        that photo or video
 //   POST /api/frame/command          { command: show|slideshow|wake|close|playgroup, tab?, group? } (the phone app)
+//   /api/frame/screenshot...         the frame's screen, for the phone app (screenshot.js)
+//   GET  /api/frame/home             { home }: is the caller on the frame's network (home.js)
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   GET, POST, DELETE /api/fitness   Activity rings and workouts, sent by each person's phone (fitness.js)
 //   GET, POST /api/frame/guest       guest mode: nothing personal on the frame (guest.js)
@@ -84,6 +86,8 @@ import { getRadar } from './radar.js';
 import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js';
 import { listPhotos, photoResponse, bridgeAlbum, bridgePhotoList, bridgePhotoUpload, bridgeVideoUpload, videoResponse } from './photos.js';
 import { room } from './messages.js';
+import { screenshotRoute } from './screenshot.js';
+import { atHome, homeOnly, noteHome } from './home.js';
 import { listNotices, addNotice } from './notices.js';
 import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
 import { opsSummary } from './ops.js';
@@ -162,6 +166,7 @@ async function handle(req, env, ctx) {
     // The Mac that bridges Apple Reminders (bridge/mac/) has its own token, for these routes only.
     if (url.pathname.startsWith('/api/bridge/')) {
       if (!env.BRIDGE_TOKEN || req.headers.get('Authorization') !== 'Bearer ' + env.BRIDGE_TOKEN) return json({ error: 'unauthorized' }, 401);
+      await noteHome(env, req); // the Mac is at home: its network is the frame's (home.js)
       const what = url.pathname.slice('/api/bridge/'.length);
       if (what === 'config') {
         // extras: also read sections, flags and assignees from the Reminders database (docs/lists.md).
@@ -212,6 +217,8 @@ async function handle(req, env, ctx) {
       // Also the phone app's share extension, with the dashboard key it was paired with.
       const shareToken = env.SHARE_TOKEN && same(req.headers.get('Authorization') || '', 'Bearer ' + env.SHARE_TOKEN);
       if (!shareToken && !(env.DASHBOARD_KEY && hasKey(req, env))) return json({ error: 'unauthorized' }, 401);
+      const away = await homeOnly(env, req); // only from home (home.js)
+      if (away) return away;
       const body = await req.text();
       let text = body;
       try { const j = JSON.parse(body); text = j.url || j.text || body; } catch {}
@@ -318,6 +325,7 @@ async function handle(req, env, ctx) {
       if (url.pathname === '/api/messages' && req.method === 'GET') return room(env).fetch('https://room/list');
       if (url.pathname === '/api/notices' && req.method === 'GET') return json(await listNotices(env));
       if (url.pathname === '/api/frame/status' && req.method === 'POST') {
+        await noteHome(env, req); // where the frame is is home (home.js)
         const { status, body } = await saveStatus(env, await req.json().catch(() => ({})));
         return json(body, status);
       }
@@ -331,6 +339,8 @@ async function handle(req, env, ctx) {
       if (url.pathname === '/api/frame/checkin' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'checkin' }) });
       // A photo or video shared from the phone app, shown on the frame at once (shared-media.js).
       if (url.pathname === '/api/share/media' && req.method === 'POST') {
+        const away = await homeOnly(env, req);
+        if (away) return away;
         const r = await saveShared(env, await req.formData());
         if (r.status !== 200) return json(r.body, r.status);
         const res = await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'media', id: r.id, kind: r.kind, title: r.title }) });
@@ -339,8 +349,22 @@ async function handle(req, env, ctx) {
       }
       const shared = /^\/api\/share\/media\/([0-9a-f-]{36})$/.exec(url.pathname);
       if (shared && req.method === 'GET') return sharedResponse(env, shared[1], req);
+      // Whether the caller is on the frame's home network (home.js), so the phone app can say so up front.
+      if (url.pathname === '/api/frame/home' && req.method === 'GET') return json({ home: String(env.HOME_ONLY || '').toLowerCase() === 'off' || await atHome(env, req) });
+      // The frame's screen, for the phone app (screenshot.js).
+      if (url.pathname.startsWith('/api/frame/screenshot')) {
+        // Asking for and fetching it only from home (home.js); the frame's own upload is at home anyway.
+        if (url.pathname === '/api/frame/screenshot/request' || req.method === 'GET') {
+          const away = await homeOnly(env, req);
+          if (away) return away;
+        }
+        const shot = await screenshotRoute(req, env, url);
+        if (shot) return shot;
+      }
       // The phone app's remote (ios/): the same commands Alexa sends; messages.js checks them.
       if (url.pathname === '/api/frame/command' && req.method === 'POST') {
+        const away = await homeOnly(env, req); // only from home (home.js)
+        if (away) return away;
         const { command, tab, group } = await req.json().catch(() => ({}));
         if (!['show', 'slideshow', 'wake', 'close', 'playgroup'].includes(command)) return json({ error: 'unknown command' }, 400);
         return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command, tab, group }) });

@@ -14,8 +14,12 @@ struct KitchenFrameApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                // The frame's pairing QR code, opened from the iPhone camera.
-                .onOpenURL { model.pair(with: $0) }
+                // The frame's pairing QR code, opened from the iPhone camera; or kitchenframe://fitness/send,
+                // the frame's Refresh (a Home Assistant notification's link), which sends and says so in a
+                // banner, so the person who tapped it knows it worked.
+                .onOpenURL { link in
+                    if link.host == "fitness" { Task { await model.answerFrame() } } else { model.pair(with: link) }
+                }
                 // Opening the app sends the latest rings, whatever background delivery managed.
                 .onChange(of: phase, initial: true) { _, now in
                     // Asks for any Health access added since it was turned on (iOS shows the sheet only for new
@@ -30,6 +34,8 @@ struct KitchenFrameApp: App {
                 .task {
                     let args = ProcessInfo.processInfo.arguments
                     if let i = args.firstIndex(of: "-pairLink"), args.count > i + 1, let link = URL(string: args[i + 1]) { model.pair(with: link) }
+                    // -frameAsk: as if the frame's Refresh notification was tapped (its banner, for screenshots).
+                    if args.contains("-frameAsk") { await model.answerFrame() }
                 }
                 #endif
         }
@@ -43,6 +49,19 @@ final class AppModel {
     let ops = OpsModel()
 
     var api: API? { pairing.map(API.init) }
+
+    /// The banner after the frame's Refresh notification was tapped: sending, then how it went, then gone.
+    enum FrameAsk: Equatable { case sending, sent, failed(String), off }
+    var frameAsk: FrameAsk?
+
+    func answerFrame() async {
+        frameAsk = .sending
+        let sent = await FitnessSync.shared.answerFrame()
+        frameAsk = sent.map { $0.error.map(FrameAsk.failed) ?? .sent } ?? .off
+        let shown = frameAsk
+        try? await Task.sleep(for: .seconds(shown == .sent ? 4 : 8))
+        if frameAsk == shown { frameAsk = nil }
+    }
 
     func pair(with link: URL) {
         guard let p = Pairing.from(link: link) else {
@@ -68,6 +87,14 @@ struct RootView: View {
     @State private var tab = ProcessInfo.processInfo.arguments.drop { $0 != "-tab" }.dropFirst().first ?? "remote"
 
     var body: some View {
+        content
+            .overlay(alignment: .top) {
+                if let ask = model.frameAsk { FrameAskBanner(ask: ask).transition(.move(edge: .top).combined(with: .opacity)) }
+            }
+            .animation(.snappy, value: model.frameAsk)
+    }
+
+    @ViewBuilder private var content: some View {
         if let api = model.api {
             TabView(selection: $tab) {
                 Tab("Remote", systemImage: "av.remote", value: "remote") { RemoteView(api: api) }
@@ -85,6 +112,29 @@ struct RootView: View {
         } else {
             PairView()
         }
+    }
+}
+
+/// What the frame's Refresh did, at the top of the screen after its notification was tapped.
+struct FrameAskBanner: View {
+    let ask: AppModel.FrameAsk
+
+    var body: some View {
+        HStack(spacing: 10) {
+            switch ask {
+            case .sending: ProgressView(); Text("Sending your rings to the frame…")
+            case .sent: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green); Text("Sent. The frame has your latest rings.")
+            case .failed(let why): Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange); Text("Couldn’t send: \(why)")
+            case .off: Image(systemName: "heart.slash").foregroundStyle(.secondary); Text("Fitness sharing is off. Turn it on in Settings → Apple Health.")
+            }
+        }
+        .font(.subheadline.weight(.medium))
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .background(.regularMaterial, in: .rect(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
+        .padding(.horizontal)
+        .padding(.top, 4)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -113,6 +163,7 @@ struct SettingsView: View {
                     LabeledContent("Paired with", value: model.pairing?.url.host ?? "—")
                     Button("Unpair this phone", role: .destructive) { confirming = true }
                 }
+                if let api = model.api { GuestModeSection(api: api) }
                 Section {
                     NavigationLink { FitnessSettingsView() } label: { LabeledContent("Apple Health", value: FitnessSync.shared.summary) }
                 }
@@ -127,6 +178,32 @@ struct SettingsView: View {
                 Text("You can pair again from the frame’s Settings.")
             }
         }
+    }
+}
+
+/// Settings → Guest mode: hides personal things on the frame (Fitness, for now) while guests are here.
+/// Read again each time Settings shows: it may have changed on the frame or the other phone.
+struct GuestModeSection: View {
+    let api: API
+    @State private var guest: API.Guest?
+    @State private var problem: String?
+
+    var body: some View {
+        Section {
+            Toggle("Guest mode", isOn: Binding(get: { guest?.on ?? false }, set: { on in Task { await set(on) } }))
+                .disabled(guest == nil)
+        } footer: {
+            Text(problem ?? (guest?.on == true ? "Personal things, like Fitness, are hidden on the frame. Turn this off when your guests leave." : "Hides personal things on the frame, like Fitness, while guests are here."))
+        }
+        .onAppear { Task { await load() } }
+    }
+
+    private func load() async {
+        do { guest = try await api.guest(); problem = nil } catch { problem = "Guest mode: " + error.localizedDescription }
+    }
+
+    private func set(_ on: Bool) async {
+        do { guest = try await api.setGuest(on); problem = nil } catch { problem = "Guest mode: " + error.localizedDescription }
     }
 }
 

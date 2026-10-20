@@ -12,6 +12,8 @@ What it adds over a plain browser:
   frame without a clock battery), so the dashboard loads in seconds.
 - A brightness bridge for Settings (`window.FrameKiosk.setBrightness`) and its version for the
   status page.
+- Screenshots for the phone app (`window.FrameKiosk.captureTo`, 1.7): the screen captured as root,
+  1280 wide, uploaded only to the dashboard's own Worker (`dashboard/worker/screenshot.js`).
 - An escape hatch: hold two or more fingers still for 2 seconds for Reload dashboard or Android
   settings.
 

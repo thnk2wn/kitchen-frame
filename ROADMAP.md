@@ -64,6 +64,11 @@ Thoughts to try in a branch and measure on the frame, not plans:
   the Kitchen Frame app on their phone, or a Shortcut posting the same numbers.
 - **Who is asking Alexa:** with Alexa voice profiles, "how's my fitness" could answer for the
   speaker only, rather than everyone sharing.
+- **Looked at, not planned: a Watch app for fresher rings.** A worn Watch is unlocked, so it could
+  always read Health, but watchOS only gives a reliable budget (a few runs an hour) to an app with a
+  complication on the face in use; in the background it's a handful a day. A complication slot and a
+  watchOS app to keep, for rings sooner than about an hour, with nothing for it to show that Apple's
+  Activity complication doesn't. The Fitness tab's Refresh covers "current now".
 
 ## Lists
 
@@ -120,12 +125,10 @@ erroring (`lib/watchdog.js`). Next:
 ## Operations and security
 
 - **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).
-- **See what the frame is showing, from the phone:** a button in the phone app sends a `screenshot`
-  command (the same path as show and wake); the page asks the kiosk app, which already has root, to
-  run `screencap`, so video, the doorbell camera and the slideshow show too. A small JPEG goes to the
-  Worker, kept a few minutes behind the frame key, and the phone shows it with the time taken. Needs
-  a new kiosk app, and network ADB is off, so the frame is plugged into the Mac by USB for the install.
-  Drawing the page to an image in the browser instead would miss video and load the frame's CPU.
+- **A key per phone,** instead of the one dashboard key everything shares, so a lost phone can be cut
+  off without re-pairing the rest, and only the frame can check in as the frame (today anyone with
+  the key could, which is how a leaked key gets past the home-only check). Pairing would hand each
+  phone its own key, listed (with when it was last used) and revocable in the frame's Settings.
 - **A PIN for Settings:** unlocking has one (Settings → Home). Settings changes are logged and the
   last 10 versions kept, so a PIN there waits until a change slips by unnoticed.
 

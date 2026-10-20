@@ -22,9 +22,11 @@ export function fitnessFacts(people, wall, tz, now = new Date()) {
       name: v.name,
       hour: wall.getHours(),
       minutesOld: Math.max(0, Math.round((now - Date.parse(v.updated)) / 60000)),
-      today: v.today,
-      status: n.done ? 'all three rings closed' : n.ring ? 'behind on ' + n.ring : 'on track',
-      left: n.left.map((l) => l.ring + ' ' + l.text),
+      today: v.waiting ? null : v.today,
+      // waiting: the phone sent before its Health had today's rings from the Watch; today's numbers aren't known.
+      waiting: v.waiting,
+      status: v.waiting ? 'waiting for today\'s rings from the Watch' : n.done ? 'all three rings closed' : n.ring ? 'behind on ' + n.ring : 'on track',
+      left: v.waiting ? [] : n.left.map((l) => l.ring + ' ' + l.text),
       pastDays: past.length,
       allClosedDays: past.filter((d) => d.move >= 1 && d.exercise >= 1 && d.stand >= 1).length,
       moveClosedDays: past.filter((d) => d.move >= 1).length,
@@ -56,7 +58,7 @@ export function plainSpeech(facts) {
     const who = one ? 'You\'re' : f.name + ' is';
     const status = f.status === 'all three rings closed' ? (one ? 'You\'ve' : f.name + ' has') + ' closed all three rings today.'
       : f.status === 'on track' ? who + ' on track today.' : who + ' ' + f.status + ' today.';
-    const parts = [status,
+    const parts = f.waiting ? [(one ? 'Your' : f.name + '\'s') + ' rings for today haven\'t come from the Watch yet.'] : [status,
       'Move ' + t.move + ' of ' + t.moveGoal + ' calories, exercise ' + t.exercise + ' of ' + plural(t.exerciseGoal, 'minute') + ', stand ' + t.stand + ' of ' + plural(t.standGoal, 'hour') + '.'];
     if (f.allRingsStreak >= 2) parts.push((one ? 'You\'re' : f.name + ' is') + ' on a ' + f.allRingsStreak + '-day streak of closing all three rings.');
     else if (f.moveStreak >= 2) parts.push((one ? 'You\'re' : f.name + ' is') + ' on a ' + f.moveStreak + '-day Move streak.');

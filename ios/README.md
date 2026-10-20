@@ -8,8 +8,10 @@ A companion app for the frame:
   video converted to H.264 at 960x540 and about 0.9 Mbit/s (the frame's Wi-Fi is slow), the first 3
   minutes. The Worker keeps it a day (`dashboard/worker/shared-media.js`).
 - **Remote:** show any screen on the frame, start the slideshow, wake it, or close what's open, and see
-  what the frame is displaying. **Guest mode** hides personal things on the frame (Fitness) while
-  guests are over.
+  what the frame is displaying. **Screenshot** shows the frame's screen as it is right now, full screen
+  (pinch to zoom, share): the frame's kiosk app (1.7+) captures it and the Worker keeps it 10 minutes
+  (`dashboard/worker/screenshot.js`); the frame says "Screenshot sent to a phone" afterwards.
+- **Guest mode** (Settings) hides personal things on the frame (Fitness) while guests are over.
 - **Apple Health:** Settings → Apple Health sends its owner's Activity rings, steps and recent workouts
   to the frame's [Fitness](../docs/fitness.md) tab, when the app opens and when Health has new data;
   average heart rate only if that switch is on. Each person shares from their own phone. It lists the
@@ -50,6 +52,7 @@ dashboard's address and key, so it hides itself after two minutes. Unpair from t
 | Part | Where |
 | --- | --- |
 | Remote | `POST /api/frame/command` (`show` with a `tab`, `slideshow`, `wake`, `close`), then `POST /api/frame/checkin` and `GET /api/frame/status` for what it shows |
+| Screenshot | `POST /api/frame/screenshot/request`, then `GET /api/frame/screenshot?since=` until the frame's JPEG is there |
 | Ops | `GET /api/ops/summary` (`dashboard/worker/ops.js`), what needs attention as `dashboard/ops/page.html` decides it; `KitchenFrame/OpsView.swift` |
 | Pairing | `kitchenframe://pair?url=…&key=…`, from the frame's Settings (`dashboard/src/components/Settings.svelte`); kept by `KitchenFrame/Pairing.swift` |
 | Share extension | `Share/ShareViewController.swift`; preparing photos and videos in `KitchenFrame/MediaSender.swift`; `POST /api/share/media` (or `/api/share/play` for YouTube), shown by `dashboard/src/components/SharedMedia.svelte`. It reads the pairing from a Keychain group shared with the app (open the app once after updating so it moves there). |

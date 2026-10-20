@@ -59,7 +59,8 @@ export function cleanFitness(b) {
     .sort((a, c) => c.start.localeCompare(a.start)).slice(0, 5);
   // unit: how the phone shows distances (its region's setting), so the frame matches it.
   // reason: why the phone sent (app opened, a workout saved, a Health update), for the status page.
-  return { id, name, updated: new Date().toISOString(), reason: clip(b.reason, 40) || null, unit: b.unit === 'km' ? 'km' : 'mi', days, steps: num(b.steps), meters: num(b.meters), workouts };
+  // dataAt: when the phone's newest Watch reading ends (how current the rings are); none from older apps.
+  return { id, name, updated: new Date().toISOString(), dataAt: iso(b.dataAt) || null, reason: clip(b.reason, 40) || null, unit: b.unit === 'km' ? 'km' : 'mi', days, steps: num(b.steps), meters: num(b.meters), workouts };
 }
 
 export async function listFitness(env) {

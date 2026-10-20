@@ -53,3 +53,13 @@ test('fitnessSpeech: the model words it (and is cached); slow or failing, the pl
   assert.match(down.speech, /^You're behind on stand/);
   assert.equal(cleanSpeech('ok'), null);
 });
+
+test('plainSpeech: rings not yet from the Watch are said so, not read out as zeros', () => {
+  const [f] = fitnessFacts([person('Alex', day('2026-10-18', 702, 19, 13))], wall, tz, now);
+  assert.equal(f.waiting, true);
+  assert.equal(f.today, null);
+  assert.deepEqual(f.left, []);
+  const said = plainSpeech([f]);
+  assert.match(said, /Your rings for today haven't come from the Watch yet\./);
+  assert.doesNotMatch(said, /Move 0/);
+});

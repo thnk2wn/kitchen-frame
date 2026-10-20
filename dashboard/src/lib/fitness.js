@@ -14,6 +14,20 @@ export const workoutIcon = (kind) => KIND_ICONS[kind] || 'activity';
 // A person's numbers older than this are shown dimmed, with how old they are.
 export const STALE_MS = 3 * 3600000;
 
+// The rings' animations (behind pulsing, all closed bouncing) play again every REPLAY_MS while they're
+// on screen, 6 AM to 10 PM, so a tab that's been up a while still draws the eye. A number that
+// changes on the frame's per-minute clock: {#key} on it remounts the animation, no timer of its own.
+export const REPLAY_MS = 5 * 60000;
+// Outside the day it stays at the day's last value (not 0), so 10 PM itself doesn't replay once more.
+export const replayBeat = (now) => {
+  const h = now.getHours();
+  if (h >= 6 && h < 22) return Math.floor(now.getTime() / REPLAY_MS);
+  const last = new Date(now);
+  if (h < 6) last.setDate(last.getDate() - 1);
+  last.setHours(22, 0, 0, 0);
+  return Math.floor((last.getTime() - 1) / REPLAY_MS);
+};
+
 // Today's numbers, and the last 7 days ending today (null where the phone sent nothing). A person
 // whose phone hasn't sent today yet shows 0 against their latest goals.
 export function view(p, now) {
@@ -36,6 +50,10 @@ export function view(p, now) {
     week,
     // No goals at all: the phone sent nothing for the rings (Health access off, or no Watch data yet).
     empty: !t.moveGoal && !t.exerciseGoal && !t.standGoal,
+    // Sent today, with earlier days but none for today: the phone's Health hasn't had today's rings
+    // from the Watch yet (a send from the iPhone's own steps first thing). Not zeros to fall behind
+    // on. A phone that last sent before today isn't waiting on the Watch; it shows as old instead.
+    waiting: !byDate.has(dayKey(now)) && days.length > 0 && !!p.updated && dayKey(new Date(p.updated)) === dayKey(now),
     stale: now.getTime() - updated > STALE_MS,
     trends: trends(days, byDate, now),
   };
@@ -116,10 +134,11 @@ export function demoFitness(now) {
       steps: Math.round(5200 + ((seed * 31 + i * 17) % 9) * 450), workoutMinutes: (seed + i) % 3 === 0 ? 0 : 20 + ((seed + i) % 4) * 9 };
   });
   const updated = new Date(now.getTime() - 20 * 60000).toISOString();
+  const dataAt = new Date(now.getTime() - 26 * 60000).toISOString();
   const steps = (base, per) => Math.round(base + day * per);
   return [
     {
-      id: 'demo-alex', name: 'Alex', updated, unit: 'mi', steps: steps(1200, 9800), meters: Math.round(steps(1200, 9800) * 0.75),
+      id: 'demo-alex', name: 'Alex', updated, dataAt, unit: 'mi', steps: steps(1200, 9800), meters: Math.round(steps(1200, 9800) * 0.75),
       days: [...past(1, [600, 30, 12]), { date: dayKey(now), move: Math.round(620 * Math.min(1.15, day * 1.25 + 0.18)), moveGoal: 600, exercise: Math.round(Math.min(48, 6 + day * 52)), exerciseGoal: 30, stand: Math.max(stood - 1, 0), standGoal: 12, steps: steps(1200, 9800), workoutMinutes: 42 }],
       workouts: [
         { type: 'Strength training', kind: 'strength', start: at(0, 6, 10), minutes: 42.2, kcal: 286, totalKcal: 362, effort: 6, heartRate: 118 },
@@ -128,7 +147,7 @@ export function demoFitness(now) {
       ],
     },
     {
-      id: 'demo-sam', name: 'Sam', updated, unit: 'mi', steps: steps(600, 7400), meters: Math.round(steps(600, 7400) * 0.7),
+      id: 'demo-sam', name: 'Sam', updated, dataAt, unit: 'mi', steps: steps(600, 7400), meters: Math.round(steps(600, 7400) * 0.7),
       days: [...past(4, [480, 30, 12]), { date: dayKey(now), move: Math.round(480 * Math.min(1, day * 0.9 + 0.05)), moveGoal: 480, exercise: Math.round(Math.min(30, day * 22)), exerciseGoal: 30, stand: stood, standGoal: 12, steps: steps(600, 7400), workoutMinutes: 0 }],
       workouts: [
         { type: 'Yoga', kind: 'yoga', start: at(-1, 19, 30), minutes: 35, kcal: 118, totalKcal: 168, effort: 3 },
