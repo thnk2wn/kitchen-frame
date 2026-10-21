@@ -122,14 +122,7 @@ erroring (`lib/watchdog.js`). Next:
 ## Operations and security
 
 - **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).
-- **A key per phone,** instead of the one dashboard key everything shares, so a lost phone can be cut
-  off without re-pairing the rest, and only the frame can check in as the frame (today anyone with
-  the key could, which is how a leaked key gets past the home-only check). Pairing would hand each
-  phone its own key, listed (with when it was last used) and revocable in the frame's Settings.
-- **From the 2026-10-20 security review, not yet done:** a key per role, not just per phone: the
-  frame's own (only it, and the bridge, teach the home network), a summary-only credential for the
-  status page's Worker (it holds the full dashboard key), and fitness tokens that can update only
-  their own person. A local allowlist on the Mac bridge (the calendars, lists and album it may serve,
+- **From the 2026-10-20 security review, not yet done** (device keys are: `worker/devices.js`): a local allowlist on the Mac bridge (the calendars, lists and album it may serve,
   rather than whatever the Worker names). A full Content-Security-Policy, and YouTube's player in an
   origin of its own (its script runs in the dashboard's, beside the saved key). Modest rate and body
   limits per token. `ALEXA_USER_IDS` set, so only the household's Alexa accounts are answered.

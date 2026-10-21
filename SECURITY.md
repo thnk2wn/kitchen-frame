@@ -19,7 +19,8 @@ Only the first is always needed; each of the rest exists only if you use what it
 
 | Secret | Needed | Kept in | Opens |
 | --- | --- | --- | --- |
-| `DASHBOARD_KEY` | always | Worker secret; the frame's storage; `.dev.vars` | the Worker's API: calendars (details too), lists (read and change), photos, messages, the frame's status and settings backup |
+| `DASHBOARD_KEY` | always | Worker secret; `.dev.vars` | the admin key: the whole API. Used once by the setup link (the frame swaps it for a key of its own at once), by scripts on the Mac, and to make the status page's key. Not kept on the frame or the phones |
+| Device keys (`kfd_…`) | made for you | the frame's storage; each phone's Keychain; the status page Worker's `OPS_KEY` | one device's share of the API (`worker/devices.js`): **frame**, what the page uses, pairing and the device list; **phone**, the Remote, Screenshot, sharing, guest mode, the Ops summary and its own person's fitness; **status page**, the summary only. Only a hash is stored; each is revoked alone in the frame's Settings → About → Devices |
 | The frame's Home Assistant token | only with Home Assistant (House tab, Music, doorbell, announcements) | the frame's storage | what the HA user it belongs to may do. Use a **non-admin** user for the frame, and tick **Can only log in from the local network** for it once the frame reaches HA by its LAN address (not Nabu Casa), so a copied token is useless outside the house |
 | `AGENT_TOKEN` | only if AI agents or automations post messages or save recipes | wherever agents run | posting messages (which may be read aloud) and saving recipes; it can't read anything |
 | `BRIDGE_TOKEN` | only with a Mac running the bridge: for Apple Reminders lists, or iCloud calendars and a shared album without public links | the Mac (`bridge/mac/`) | sending the lists, calendars and album photos the Worker asks the Mac for, and taking the frame's list changes |
@@ -56,8 +57,11 @@ None of these are ever in the repository: they live in `wrangler secret`, the gi
   photo to the frame, are accepted only from the frame's own network: the IPv4 address or IPv6 /64
   its check-ins (and the Mac bridge's) come from (`worker/home.js`). Reading (Ops), fitness sends and
   guest mode work from anywhere. This stops a lost phone driving the frame or seeing its screen from
-  elsewhere; it doesn't stop someone holding the key itself, who could check in as the frame.
-  `HOME_ONLY=off` turns it off.
+  elsewhere. Only the frame's own key (or the admin key) teaches the home network, so a phone's key
+  can't check in as the frame to get past it. `HOME_ONLY=off` turns it off.
+- **A phone pairs with a one-time code,** not a key: the frame's QR code carries a code good for 10
+  minutes and once, which the phone trades for a key of its own; ten wrong codes in a row cancel the
+  ones showing. A lost phone is revoked alone, and its key never opened the calendar, lists or photos.
 - **Screenshots are kept briefly.** Only the latest, in the message room, deleted 10 minutes after it
   was taken; the frame says "Screenshot sent to a phone" each time. The kiosk app uploads only to the
   dashboard's own address, never to one a page passes it (Android 8's WebView shares the kiosk's

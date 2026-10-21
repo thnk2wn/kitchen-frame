@@ -57,7 +57,7 @@
 //   CALENDAR_REFRESH optional hours per calendar, comma-separated, in link order: fetch that feed at
 //                  most that often (blank: every 10 minutes). For feeds that barely change, or a
 //                  site that refuses frequent fetches from a cloud server (calendar-feeds, below).
-//   DASHBOARD_KEY  shared key the frame sends with every API call. Unset = no check (dev only).
+//   DASHBOARD_KEY  the admin key: setup and scripts; each device has its own (devices.js). Unset = refused (ALLOW_NO_KEY=1 for dev).
 //   TODOIST_TOKEN  Todoist API token.
 //   YOUTUBE_VIDEOS optional: groups of YouTube videos and playlists for Media → Videos (youtube.js),
 //                  with YOUTUBE_API_KEY optional for whole playlists.
@@ -89,6 +89,7 @@ import { listPhotos, photoResponse, bridgeAlbum, bridgePhotoList, bridgePhotoUpl
 import { room } from './messages.js';
 import { screenshotRoute } from './screenshot.js';
 import { atHome, homeCheck, homeOnly, noteHome } from './home.js';
+import { TOKEN_PREFIX, allowed, deviceById, deviceForToken, devicesApi, fitnessAllowed } from './devices.js';
 import { listNotices, addNotice } from './notices.js';
 import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
 import { opsSummary } from './ops.js';
@@ -128,9 +129,10 @@ const PAPRIKA_CRON = '*/15 * * * *'; // must match wrangler.jsonc
 
 export default {
   // Every response to the frame's key also carries the cookie images and the live messages socket
-  // authenticate with (see authorized()), set once and refreshed when missing.
+  // authenticate with (see identify()), set once and refreshed when missing.
   async fetch(req, env, ctx) {
-    return withAuthCookie(req, env, await handle(req, env, ctx));
+    const res = await handle(req, env, ctx);
+    return withAuthCookie(req, env, res, callers.get(req));
   },
 
   async scheduled(controller, env) {
@@ -228,7 +230,7 @@ async function handle(req, env, ctx) {
     if (url.pathname === '/api/share/play' && req.method === 'POST') {
       // Also the phone app's share extension, with the dashboard key it was paired with.
       const shareToken = env.SHARE_TOKEN && same(req.headers.get('Authorization') || '', 'Bearer ' + env.SHARE_TOKEN);
-      if (!shareToken && !(env.DASHBOARD_KEY && hasKey(req, env))) return json({ error: 'unauthorized' }, 401);
+      if (!shareToken && !allowed(await identify(req, env), 'POST', '/api/share/play')) return json({ error: 'unauthorized' }, 401);
       const away = await homeOnly(env, req); // only from home (home.js)
       if (away) return away;
       const body = await req.text();
@@ -269,7 +271,14 @@ async function handle(req, env, ctx) {
       const { status, body } = await saveRecipe(env, await req.json().catch(() => ({})), ctx);
       return json(body, status);
     }
-    if (!(await authorized(req, env))) return json({ error: 'unauthorized' }, 401);
+    // A phone pairs with a one-time code from the frame, not a key (devices.js).
+    if (url.pathname === '/api/devices/claim' && req.method === 'POST') return devicesApi(req, env, url, null);
+    const who = await identify(req, env);
+    if (!who) return json({ error: 'unauthorized' }, 401);
+    callers.set(req, who);
+    // Each device's key opens only what that device uses (devices.js).
+    if (!allowed(who, req.method, url.pathname)) return json({ error: 'This device’s key can’t do that.' }, 403);
+    if (url.pathname === '/api/devices' || url.pathname.startsWith('/api/devices/')) return (await devicesApi(req, env, url, who)) || json({ error: 'not found' }, 404);
 
     try {
       if (url.pathname === '/api/calendar') {
@@ -337,7 +346,8 @@ async function handle(req, env, ctx) {
       if (url.pathname === '/api/messages' && req.method === 'GET') return room(env).fetch('https://room/list');
       if (url.pathname === '/api/notices' && req.method === 'GET') return json(await listNotices(env));
       if (url.pathname === '/api/frame/status' && req.method === 'POST') {
-        await noteHome(env, req); // where the frame is is home (home.js)
+        // Where the frame is is home (home.js): only the frame's own key (or the admin key) teaches it.
+        if (who.role === 'frame' || who.role === 'admin') await noteHome(env, req);
         const { status, body } = await saveStatus(env, await req.json().catch(() => ({})));
         return json(body, status);
       }
@@ -401,7 +411,11 @@ async function handle(req, env, ctx) {
         return json(await setGuestMode(env, on)); // the room tells the frame
       }
       if (url.pathname === '/api/fitness' && (req.method === 'POST' || req.method === 'DELETE')) {
-        const { status, body } = req.method === 'POST' ? await saveFitness(env, await req.json().catch(() => ({}))) : await removeFitness(env, url.searchParams.get('id'));
+        const sent = req.method === 'POST' ? await req.json().catch(() => ({})) : null;
+        const fitnessId = sent ? sent.id : url.searchParams.get('id');
+        // A phone sends and removes only its own person: the first id its key sent (devices.js).
+        if (!(await fitnessAllowed(env, who, fitnessId))) return json({ error: 'This phone can only send its own fitness.' }, 403);
+        const { status, body } = sent ? await saveFitness(env, sent) : await removeFitness(env, fitnessId);
         // The frame shows it at once rather than at its next fetch.
         if (status === 200) await room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'refresh', what: 'fitness' }) }).catch(() => {});
         return json(body, status);
@@ -653,27 +667,46 @@ function same(a, b) {
 }
 const hasKey = (req, env) => same(req.headers.get('Authorization') || '', 'Bearer ' + env.DASHBOARD_KEY);
 
-async function cookieValue(env) {
+async function cookieValue(env, deviceId) {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey('raw', enc.encode(env.DASHBOARD_KEY), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode('kitchen-frame auth cookie v1')));
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(deviceId ? 'kitchen-frame device cookie v1 ' + deviceId : 'kitchen-frame auth cookie v1')));
   return btoa(String.fromCharCode(...sig)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 const cookieOf = (req) => (/(?:^|;\s*)frame_auth=([^;]+)/.exec(req.headers.get('Cookie') || '') || [])[1] || null;
 
-async function authorized(req, env) {
-  // No key set: refused, unless local development says otherwise (ALLOW_NO_KEY=1 in .dev.vars only),
-  // so a key lost in a rotation can't leave the API open.
-  if (!env.DASHBOARD_KEY) return env.ALLOW_NO_KEY === '1';
-  if (hasKey(req, env)) return true;
+// Who is calling: { role: 'admin' } for DASHBOARD_KEY, { role, device } for a device's own key
+// (devices.js), or the same from the cookie on a media path; null otherwise. No DASHBOARD_KEY set:
+// refused, unless local development says otherwise (ALLOW_NO_KEY=1 in .dev.vars only), so a key lost in
+// a rotation can't leave the API open.
+const callers = new WeakMap(); // request -> who, for the cookie on its response
+async function identify(req, env) {
+  if (!env.DASHBOARD_KEY) return env.ALLOW_NO_KEY === '1' ? { role: 'admin' } : null;
+  const auth = req.headers.get('Authorization') || '';
+  if (hasKey(req, env)) return { role: 'admin' };
+  if (auth.startsWith('Bearer ' + TOKEN_PREFIX)) {
+    const device = await deviceForToken(env, auth.slice(7));
+    return device ? { role: device.role, device } : null;
+  }
   const url = new URL(req.url);
-  if (req.method !== 'GET' || !mediaPath(url.pathname)) return false;
-  return same(cookieOf(req) || '', await cookieValue(env));
+  if (req.method !== 'GET' || !mediaPath(url.pathname)) return null;
+  const c = cookieOf(req);
+  if (!c) return null;
+  if (same(c, await cookieValue(env))) return { role: 'admin', cookie: true };
+  // A device's cookie: d.<id>.<HMAC of the id>, for the frame's own key.
+  const m = /^d\.([\w-]{6,20})\.([\w-]+)$/.exec(c);
+  if (m && same(m[2], await cookieValue(env, m[1]))) {
+    const device = await deviceById(env, m[1]);
+    if (device && device.role === 'frame') return { role: 'frame', device, cookie: true };
+  }
+  return null;
 }
 
-async function withAuthCookie(req, env, res) {
-  if (!env.DASHBOARD_KEY || !hasKey(req, env) || res.status === 101 || res.webSocket) return res;
-  const value = await cookieValue(env);
+// The cookie for a key's media requests: set on a response to the admin key or the frame's own key.
+async function withAuthCookie(req, env, res, who) {
+  if (!env.DASHBOARD_KEY || !who || who.cookie || res.status === 101 || res.webSocket) return res;
+  if (who.role !== 'admin' && who.role !== 'frame') return res;
+  const value = who.role === 'admin' ? await cookieValue(env) : 'd.' + who.device.id + '.' + await cookieValue(env, who.device.id);
   if (cookieOf(req) === value) return res;
   const out = new Response(res.body, res);
   out.headers.append('Set-Cookie', AUTH_COOKIE + '=' + value + '; Path=/api; Max-Age=31536000; HttpOnly; Secure; SameSite=Strict');

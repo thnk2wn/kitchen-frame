@@ -1,19 +1,30 @@
 import Foundation
 import Security
 
-/// The dashboard this phone talks to: its address and key, from the frame's Settings → About →
-/// Pair a phone (a QR code the iPhone camera opens as kitchenframe://pair?url=…&key=…).
+/// The dashboard this phone talks to: its address and this phone's own key (dashboard/worker/devices.js),
+/// from the frame's Settings → Home → Pair a phone.
 struct Pairing: Codable, Equatable, Sendable {
     var url: URL
     var key: String
+}
 
-    /// The pairing link from the frame's QR code, or nil when it isn't one (an https address is required).
-    static func from(link: URL) -> Pairing? {
+/// A pairing link from the frame's QR code: kitchenframe://pair?url=…&code=…, a one-time code the app
+/// trades for a key of its own when the person confirms (API.claim). Older frames put the shared key
+/// itself in the link (&key=…), which is still taken as it is.
+struct PairingLink: Equatable, Sendable {
+    var url: URL
+    var code: String?
+    var key: String?
+
+    /// Nil when it isn't one (an https address and a code or key are required).
+    static func from(link: URL) -> PairingLink? {
         guard link.scheme == "kitchenframe", link.host == "pair",
               let items = URLComponents(url: link, resolvingAgainstBaseURL: false)?.queryItems else { return nil }
         let value = { (name: String) in items.first { $0.name == name }?.value ?? "" }
-        guard let url = URL(string: value("url")), url.scheme == "https", url.host != nil, !value("key").isEmpty else { return nil }
-        return Pairing(url: url, key: value("key"))
+        guard let url = URL(string: value("url")), url.scheme == "https", url.host != nil else { return nil }
+        if !value("code").isEmpty { return PairingLink(url: url, code: value("code")) }
+        if !value("key").isEmpty { return PairingLink(url: url, key: value("key")) }
+        return nil
     }
 }
 

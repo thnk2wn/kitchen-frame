@@ -12,7 +12,9 @@
 //   GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET  from a GitHub OAuth app (README → Status page)
 //   ALLOWED_GITHUB_ID   the one GitHub account allowed (gh api user --jq .id)
 //   SESSION_SECRET      any long random string (openssl rand -hex 32)
-//   DASHBOARD_KEY       the main Worker's key, to read its summary
+//   OPS_KEY             its own key on the main Worker (worker/devices.js, role ops): the summary and
+//                       nothing else; scripts/device-token.sh ops makes it. DASHBOARD_KEY, the admin key,
+//                       still works in its place until then, and should then be removed from here.
 // Missing any of them, every request is refused.
 import PAGE from './page.html';
 
@@ -20,7 +22,8 @@ const SESSION = 'ops_session';
 const STATE = 'ops_state';
 const DAY = 24 * 60 * 60;
 
-const configured = (env) => ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'ALLOWED_GITHUB_ID', 'SESSION_SECRET', 'DASHBOARD_KEY'].every((k) => env[k]);
+const mainKey = (env) => env.OPS_KEY || env.DASHBOARD_KEY;
+const configured = (env) => ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'ALLOWED_GITHUB_ID', 'SESSION_SECRET'].every((k) => env[k]) && !!mainKey(env);
 const b64u = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const fromB64u = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)));
 
@@ -115,7 +118,7 @@ export default {
     }
     if (url.pathname === '/') return new Response(PAGE, { headers: headers({ 'Content-Type': 'text/html; charset=utf-8' }) });
     if (url.pathname === '/data') {
-      const res = await env.MAIN.fetch('https://main/api/ops/summary', { headers: { Authorization: 'Bearer ' + env.DASHBOARD_KEY } });
+      const res = await env.MAIN.fetch('https://main/api/ops/summary', { headers: { Authorization: 'Bearer ' + mainKey(env) } });
       const data = await res.json().catch(() => ({ error: 'bad summary' }));
       return new Response(JSON.stringify({ ...data, you: session.login }), { status: res.ok ? 200 : 502, headers: headers({ 'Content-Type': 'application/json' }) });
     }

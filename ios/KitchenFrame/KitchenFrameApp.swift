@@ -33,7 +33,7 @@ struct KitchenFrameApp: App {
                 // For the simulator: -pairLink kitchenframe://pair?… pairs without the "Open in" prompt or the pairing alert.
                 .task {
                     let args = ProcessInfo.processInfo.arguments
-                    if let i = args.firstIndex(of: "-pairLink"), args.count > i + 1, let link = URL(string: args[i + 1]), let p = Pairing.from(link: link) {
+                    if let i = args.firstIndex(of: "-pairLink"), args.count > i + 1, let link = URL(string: args[i + 1]), let p = PairingLink.from(link: link) {
                         Task { await model.confirmPairing(p) } // DEBUG only: no prompt, for the simulator
                     }
                     // -frameAsk: as if the frame's Refresh notification was tapped (its banner, for screenshots).
@@ -68,15 +68,15 @@ final class AppModel {
     /// A pairing link waiting for the person to confirm it (RootView's alert shows where it points).
     /// A link only ever asks: it could come from anyone, and it decides where this phone sends its
     /// health data (2026-10-20 security review).
-    var pendingPairing: Pairing?
+    var pendingPairing: PairingLink?
 
     func pair(with link: URL) {
-        guard let p = Pairing.from(link: link) else {
+        guard let p = PairingLink.from(link: link) else {
             pairingProblem = "That isn’t a Kitchen Frame pairing code."
             return
         }
         pairingProblem = nil
-        if p == pairing { return } // the same frame again: nothing to change
+        if p.key != nil, p.url == pairing?.url, p.key == pairing?.key { return } // the same frame and key again
         pendingPairing = p
     }
 
@@ -86,16 +86,28 @@ final class AppModel {
         return p.url.host?.lowercased() != current.url.host?.lowercased()
     }
 
-    /// Pairs with the confirmed link. Moving to another frame turns fitness sharing off first (which
-    /// also removes this person from the old frame), so health data goes there only once it's turned
-    /// on again deliberately.
-    func confirmPairing(_ p: Pairing) async {
+    /// Pairs with the confirmed link: a code is traded for this phone's own key first. Moving to another
+    /// frame turns fitness sharing off before that (which also removes this person from the old frame),
+    /// so health data goes there only once it's turned on again deliberately.
+    func confirmPairing(_ link: PairingLink) async {
         pendingPairing = nil
+        let p: Pairing
+        do {
+            if let key = link.key { p = Pairing(url: link.url, key: key) }
+            else {
+                let who = FitnessSync.shared.name.trimmingCharacters(in: .whitespaces)
+                p = try await API.claim(link, name: who.isEmpty ? "iPhone" : who + "’s iPhone")
+            }
+        } catch {
+            pairingProblem = error.localizedDescription
+            return
+        }
         if pairing != nil, p.url.host?.lowercased() != pairing?.url.host?.lowercased(), FitnessSync.shared.enabled {
             await FitnessSync.shared.stop()
         }
         PairingStore.save(p)
         pairing = p
+        pairingProblem = nil
     }
 
     /// Fitness sharing stops first, while the pairing still reaches the frame to remove this person.

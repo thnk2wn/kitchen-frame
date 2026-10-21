@@ -1,11 +1,24 @@
 import { log } from './log.svelte.js';
-// The frame opens the dashboard once with ?key=..., then remembers it.
+// The frame opens the dashboard once with a setup link (#key=…, moved into the query by index.html),
+// then remembers the key.
 const q = new URLSearchParams(location.search);
 if (q.get('key')) {
   localStorage.setItem('frame-key', q.get('key'));
   // Saved now, so take it out of the address bar (and browser history).
   q.delete('key');
   history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+}
+
+// In the kiosk, the setup link's key (the admin key, DASHBOARD_KEY) is swapped at once for the frame's
+// own (worker/devices.js), so the admin key isn't kept on the frame. A new frame key replaces the last
+// one. A browser keeps whatever key it was given: it isn't the frame, and mustn't replace its key.
+export const deviceKey = () => { try { return (localStorage.getItem('frame-key') || '').startsWith('kfd_'); } catch { return false; } };
+if (typeof window !== 'undefined' && window.FrameKiosk && localStorage.getItem('frame-key') && !deviceKey()) {
+  const name = localStorage.getItem('frame-name') || 'Kitchen Frame';
+  fetch('/api/devices/frame', { method: 'POST', headers: { Authorization: 'Bearer ' + localStorage.getItem('frame-key'), 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
+    .then((d) => { if (d.token) { localStorage.setItem('frame-key', d.token); log('frame.key', { device: d.id }); } })
+    .catch((e) => log('frame.key_failed', { error: e.message }, 'warn'));
 }
 
 // Calls to the Worker. Failures and slow ones (over 8 s) go to the event log, the path without its
