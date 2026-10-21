@@ -168,3 +168,15 @@ test('a phone sets its owner’s PIN (hash only); the frame sees it with the per
   await t.call('/api/devices/pin', { key: phone.token, method: 'POST', body: { pin: null } });
   assert.ok(!('pin' in (await (await t.call('/api/devices', { key: frame.token })).json()).devices.find((d) => d.role === 'phone')));
 });
+
+test('the deploy key reads the frame status and reloads it, nothing else', async () => {
+  const t = setup();
+  const dep = await (await t.call('/api/devices', { key: 'admin-key', method: 'POST', body: { role: 'deploy' } })).json();
+  assert.match(dep.token, /^kfd_/);
+  assert.equal(allowed({ role: 'deploy' }, 'GET', '/api/frame/status'), true);
+  assert.equal(allowed({ role: 'deploy' }, 'POST', '/api/frame/reload'), true);
+  assert.equal(allowed({ role: 'deploy' }, 'POST', '/api/frame/command'), false);
+  assert.equal(allowed({ role: 'deploy' }, 'GET', '/api/calendar'), false);
+  assert.equal(allowed({ role: 'deploy' }, 'GET', '/api/devices'), false);
+  assert.equal((await t.call('/api/calendar', { key: dep.token })).status, 403);
+});

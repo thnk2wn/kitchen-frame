@@ -9,8 +9,10 @@
 # --reload asks it to reload the dashboard (sending its events first), e.g. to pick up a deploy.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-key=$(sed -n 's/^DASHBOARD_KEY="\(.*\)"/\1/p' .dev.vars)
-url=$(sed -n 's/^DASHBOARD_URL="\(.*\)"/\1/p' .frame.vars); url=${url%/}
+# The key and address from the environment (Cloudflare's builds: the deploy key, which reads the status
+# and reloads, nothing else), else this Mac's .dev.vars and .frame.vars.
+key=${FRAME_STATUS_KEY:-$(sed -n 's/^DASHBOARD_KEY="\(.*\)"/\1/p' .dev.vars 2>/dev/null || true)}
+url=${DASHBOARD_URL:-$(sed -n 's/^DASHBOARD_URL="\(.*\)"/\1/p' .frame.vars 2>/dev/null || true)}; url=${url%/}
 if [ "${1:-}" = "--reload" ]; then
   sent=$(curl -fsS -X POST -H "Authorization: Bearer $key" "$url/api/frame/reload" | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("sent", 0))')
   echo "Asked the frame to reload ($sent connection(s))."; exit 0

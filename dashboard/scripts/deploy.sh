@@ -1,39 +1,48 @@
 #!/bin/bash
-# The deploy: tests, build, smoke test (scripts/smoke.mjs) on the new build, wrangler deploy, then a
-# check that the live site serves this build, and a reload of the frame so it shows it now rather than
-# once idle. Any step failing stops it before the next. Run from dashboard/:  npm run deploy
-# In an emergency, skip the smoke test (about a minute):  SKIP_SMOKE=1 npm run deploy
-# The first deploy, before there's a Worker or a frame (no DASHBOARD_URL in .frame.vars yet), skips the
-# smoke test and the checks after the deploy by itself.
-# When the frame was checking in before the deploy but doesn't come up on the new build within a few
-# minutes, the version before is put back (wrangler rollback) and the frame reloaded onto it. To keep
-# the new version whatever the frame does:  NO_ROLLBACK=1 npm run deploy
+# The deploy: the checks (scripts/check.sh: tests, build, smoke test), wrangler deploy, then a check that
+# the live site serves this build, and a reload of the frame so it shows it now rather than once idle,
+# rolled back if the frame got the reload but doesn't come up on the new build. Any step failing stops
+# it before the next.
+#
+# Where it runs from:
+#   npm run deploy             this Mac, when there's anything not yet in GitHub's main (changes, or
+#                              commits not pushed); with everything pushed, Cloudflare's builds deploy
+#                              main on the push, so this says so and stops
+#   npm run deploy -- --local  this Mac, whatever is or isn't pushed
+#   scripts/deploy.sh --cloud  Cloudflare's builds, after their build command (npm ci && scripts/check.sh)
+#                              passed: deploys, then checks the site and the frame with the deploy key
+#                              (DASHBOARD_URL and FRAME_STATUS_KEY as build variables)
+# SKIP_SMOKE=1 skips the smoke test (about a minute) in an emergency. NO_ROLLBACK=1 keeps the new
+# version whatever the frame does. The first deploy, before there's a Worker or a frame (no
+# DASHBOARD_URL yet), skips the smoke test and the checks after the deploy by itself.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 step() { printf '\n== %s\n' "$*"; }
 # The page's script, named after its content hash: what tells one build from another.
 script_of() { grep -o 'assets/index-[A-Za-z0-9_-]*\.js' | head -1; }
 
-url=$(sed -n 's/^DASHBOARD_URL="\(.*\)"/\1/p' .frame.vars 2>/dev/null || true); url=${url%/}
+mode=auto
+case "${1:-}" in --local) mode=local ;; --cloud) mode=cloud ;; "") ;; *) echo "usage: scripts/deploy.sh [--local|--cloud]" >&2; exit 2 ;; esac
+url=${DASHBOARD_URL:-$(sed -n 's/^DASHBOARD_URL="\(.*\)"/\1/p' .frame.vars 2>/dev/null || true)}; url=${url%/}
 
-step tests
-npm test --silent > /dev/null 2>&1 || { npm test 2>&1 | grep -E '^not ok|^# fail|✖' | head -20; echo "deploy: tests failed, nothing deployed" >&2; exit 1; }
-echo "passed"
-
-step build
-npx vite build --logLevel error
-built=$(script_of < dist/client/index.html)
-[ -n "$built" ] || { echo "deploy: the build has no page script" >&2; exit 1; }
-echo "$built"
-
-if [ "${SKIP_SMOKE:-}" = 1 ] || [ -z "$url" ]; then
-  if [ -n "$url" ]; then step "smoke test SKIPPED (SKIP_SMOKE=1)"; else step "smoke test skipped (no DASHBOARD_URL yet)"; fi
-else
-  step "smoke test"
-  # Only failures, retries and the summary: the screens that passed outright aren't news.
-  set +e; node scripts/smoke.mjs | grep -v '^ok   [^(]*$'; rc=${PIPESTATUS[0]}; set -e
-  [ "$rc" = 0 ] || { echo "deploy: smoke test failed, nothing deployed (SKIP_SMOKE=1 to deploy anyway)" >&2; exit 1; }
+if [ "$mode" = auto ]; then
+  git fetch -q origin 2>/dev/null || true
+  if [ -z "$(git status --porcelain -- . 2>/dev/null)" ] && [ "$(git rev-parse HEAD)" = "$(git rev-parse '@{u}' 2>/dev/null)" ]; then
+    echo "Everything here is committed and pushed: Cloudflare's builds deploy main on the push (Workers → kitchen-frame → Deployments)."
+    echo "To deploy from this Mac anyway: npm run deploy -- --local"
+    exit 0
+  fi
+  echo "Deploying from this Mac: there are changes or commits not yet in GitHub's main."
 fi
+
+if [ "$mode" = cloud ]; then
+  # Cloudflare's build command has already run the checks on this checkout.
+  built=$(script_of < dist/client/index.html)
+else
+  scripts/check.sh || { echo "deploy: nothing deployed (SKIP_SMOKE=1 to skip the smoke test)" >&2; exit 1; }
+  built=$(script_of < dist/client/index.html)
+fi
+[ -n "$built" ] || { echo "deploy: the build has no page script" >&2; exit 1; }
 
 step deploy
 # What to go back to, and whether the frame is there to judge the new build by (it checks in every 10

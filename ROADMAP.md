@@ -101,12 +101,12 @@ erroring (`lib/watchdog.js`). Next:
 - **An adversarial review for larger changes** before merging (an agent looking for data that breaks
   it: out-of-order or repeated items, empty lists, missing fields), in a pull request. Everything
   else goes straight to `main`.
-- **CI/CD:** CI runs the tests and the build, and builds the kiosk APK, on every push and pull
-  request. Add the smoke test in demo mode there (headless Chrome on the runner), and deploy from
-  GitHub Actions on a merge to `main` (a Cloudflare API token as a repository secret) behind the
-  same gate and rollback, so a deploy no longer depends on one laptop. A preview version per pull
-  request (`wrangler versions upload`) to try on the frame before merging, if preview links work
-  with the Worker's Durable Objects.
+- **Builds in Cloudflare:** set up Workers Builds (Settings → Builds) to run `scripts/check.sh` and
+  `scripts/deploy.sh --cloud` on a push to `main` (docs in `dashboard/README.md`), so a deploy no
+  longer depends on one laptop; the scripts are ready. Their machines have no Chrome, so the smoke test
+  runs only from the Mac until it does there (a downloaded headless Chrome). A preview version per
+  branch (`wrangler versions upload`) to try on the frame, if preview links work with the Worker's
+  Durable Objects.
 - **Tests for data the household produces:** the white frame came from real data no test had (a
   calendar from the Mac arriving after the others). Unit tests on lists built from such data, and keyed
   lists that can't repeat a key.

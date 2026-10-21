@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test worker/*.test.js src/lib/*.test.js && node --import ./ops/register.mjs --test ops/*.test.js",
-    "deploy": "scripts/deploy.sh"
+    "deploy": "scripts/deploy.sh",
+    "check": "scripts/check.sh"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.63.1",

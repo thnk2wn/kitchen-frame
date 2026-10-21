@@ -5,6 +5,7 @@
 //   phone   the phone app: the Remote, Screenshot, sharing, guest mode, the Ops summary and the frame's
 //           status, and fitness for one person (the first fitness id it sends, kept with the device)
 //   ops     the status page's Worker: the Ops summary, nothing else
+//   deploy  Cloudflare's builds (scripts/deploy.sh --cloud): the frame's status and a reload, nothing else
 // DASHBOARD_KEY stays the admin key: setup (the setup link, which the page swaps for a frame key at
 // once), scripts on the Mac, and making the status page's key (scripts/device-token.sh).
 //
@@ -28,7 +29,7 @@ export const TOKEN_PREFIX = 'kfd_';
 export const PAIR_MS = 10 * 60 * 1000;
 const CACHE_MS = 60 * 1000;
 const TOUCH_MS = 10 * 60 * 1000;
-const ROLES = ['frame', 'phone', 'ops'];
+const ROLES = ['frame', 'phone', 'ops', 'deploy'];
 
 // What a phone may call: [method, path or prefix ending in /].
 const PHONE = [
@@ -40,6 +41,8 @@ const PHONE = [
   ['POST', '/api/devices/pin'], // its owner's PIN, for the frame (its own record only)
 ];
 const OPS = [['GET', '/api/ops/summary']];
+// After a deploy: which build the frame runs, and asking it to load the new one.
+const DEPLOY = [['GET', '/api/frame/status'], ['POST', '/api/frame/reload']];
 const ADMIN_ONLY = [['POST', '/api/devices/frame'], ['POST', '/api/devices']];
 
 const match = (list, method, path) => list.some(([m, p]) => m === method && (p.endsWith('/') ? path.startsWith(p) : path === p));
@@ -52,6 +55,7 @@ export function allowed(who, method, path) {
   if (who.role === 'frame') return true;
   if (who.role === 'phone') return match(PHONE, method, path);
   if (who.role === 'ops') return match(OPS, method, path);
+  if (who.role === 'deploy') return match(DEPLOY, method, path);
   return false;
 }
 
@@ -100,7 +104,7 @@ export async function devicesRoute(storage, path, req) {
   }
   if (path === '/devices/list') return json({ devices: Object.values(await read()).map(pub).sort((a, b) => a.created.localeCompare(b.created)) });
   if (path === '/devices/add') {
-    if (!ROLES.includes(body.role)) return json({ error: 'role: frame, phone or ops' }, 400);
+    if (!ROLES.includes(body.role)) return json({ error: 'role: frame, phone, ops or deploy' }, 400);
     const key = await fresh();
     const devices = await read();
     // A new key for the frame replaces the frame's last one (a setup link run again, a reset).
@@ -223,8 +227,8 @@ export async function devicesApi(req, env, url, who) {
   }
   if (path === '/api/devices' && req.method === 'POST') {
     const b = await req.json().catch(() => ({}));
-    if (b.role !== 'ops') return json({ error: 'only an ops key is made here; a frame or phone gets its own' }, 400);
-    const r = await roomCall(env, '/devices/add', { role: 'ops', name: b.name || 'Status page' });
+    if (b.role !== 'ops' && b.role !== 'deploy') return json({ error: 'only an ops or deploy key is made here; a frame or phone gets its own' }, 400);
+    const r = await roomCall(env, '/devices/add', { role: b.role, name: b.name || (b.role === 'ops' ? 'Status page' : 'Cloudflare builds') });
     return json(r.body, r.status);
   }
   if (path === '/api/devices/pin' && req.method === 'POST') {

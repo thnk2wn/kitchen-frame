@@ -11,6 +11,18 @@ if [ ! -s "$terms" ]; then echo "check-private: no $terms; nothing to check (see
 pattern=$(grep -v '^[[:space:]]*#' "$terms" | sed '/^[[:space:]]*$/d' | sed 's/[][\.*^$/(){}+?|]/\\&/g' | paste -sd'|' -)
 [ -z "$pattern" ] && exit 0
 
+# --staged (the pre-commit hook): the lines about to be committed, before they're a commit at all.
+if [ "${1:-}" = "--staged" ]; then
+  hits=$(git diff --cached --no-color | grep '^+' | grep -v '^+++' | grep -inE "$pattern")
+  if [ -n "$hits" ]; then
+    echo "check-private: these staged lines have household details:" >&2
+    echo "$hits" | sed 's/^/    /' | cut -c1-160 >&2
+    echo "check-private: commit stopped. Replace them with made-up examples, then commit again." >&2
+    exit 1
+  fi
+  exit 0
+fi
+
 ranges=()
 if [ $# -gt 0 ]; then ranges=("$@")
 else
@@ -33,6 +45,11 @@ for c in $(git rev-list "${ranges[@]}"); do
     echo "$hits" | sed 's/^/    /' | cut -c1-160 >&2
   fi
 done
+# Cloudflare deploys main on the push: say so when this Mac has dashboard changes the push won't carry
+# (deployed from here earlier, they'd be replaced by what's pushed). A warning; the push goes ahead.
+if [ $found -eq 0 ] && [ -n "$(git -C "$root" status --porcelain -- dashboard 2>/dev/null)" ]; then
+  echo "check-private: note: dashboard/ has changes that aren't committed. Cloudflare deploys what's pushed, so if they're live from a local deploy, they'll be replaced." >&2
+fi
 if [ $found -eq 1 ]; then
   echo "check-private: push stopped. Replace the household details above with made-up examples (and reword the commit message if it's there), then push again." >&2
   exit 1
