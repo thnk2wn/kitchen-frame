@@ -125,8 +125,7 @@ erroring (`lib/watchdog.js`). Next:
 - **From the 2026-10-20 security review, not yet done** (device keys are: `worker/devices.js`): a local allowlist on the Mac bridge (the calendars, lists and album it may serve,
   rather than whatever the Worker names). A full Content-Security-Policy, and YouTube's player in an
   origin of its own (its script runs in the dashboard's, beside the saved key). Modest rate and body
-  limits per token. `ALEXA_USER_IDS` set, so only the household's Alexa accounts are answered.
-  Cloudflare two-factor authentication is the owner's to turn on, and the most important.
+  limits per token.
 - **A PIN for Settings:** unlocking has one (Settings → Home). Settings changes are logged and the
   last 10 versions kept, so a PIN there waits until a change slips by unnoticed.
 
