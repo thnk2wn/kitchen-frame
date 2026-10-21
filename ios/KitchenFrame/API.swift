@@ -1,6 +1,6 @@
 import Foundation
 
-/// Calls to the Kitchen Frame Worker (dashboard/worker/index.js), with the dashboard key.
+/// Calls to the Kitchen Frame Worker (dashboard/worker/index.js), with this phone's key.
 struct API: Sendable {
     let pairing: Pairing
 
@@ -46,6 +46,22 @@ struct API: Sendable {
     }
 
     private func json(_ value: some Encodable) throws -> Data { try JSONEncoder().encode(value) }
+
+    /// Trades a pairing link's one-time code for this phone's own key (POST /api/devices/claim, the
+    /// only call made without a key: the code is the proof). Throws the frame's reason when it's refused.
+    static func claim(_ link: PairingLink, name: String) async throws -> Pairing {
+        guard let code = link.code else { throw Failure(message: "That pairing code has no code in it.") }
+        var req = URLRequest(url: link.url.appending(path: "api/devices/claim"), timeoutInterval: 20)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["code": code, "name": name])
+        let (data, res) = try await URLSession.shared.data(for: req)
+        struct Claimed: Decodable { var token: String? }
+        guard (res as? HTTPURLResponse)?.statusCode == 200, let token = (try? JSONDecoder().decode(Claimed.self, from: data))?.token else {
+            throw Failure(message: errorText(data) ?? "The frame didn’t accept that pairing code. Show a new one on the frame.")
+        }
+        return Pairing(url: link.url, key: token)
+    }
 
     // MARK: Screenshot
 

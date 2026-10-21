@@ -44,8 +44,11 @@ You need a Mac with Xcode (26 or later), an iPhone on iOS 26 or later, and
 ## Pair it with the frame
 
 On the frame, open Settings → About → **Pair a phone** (it asks for the unlock PIN when one is set).
-Point the iPhone's Camera app at the QR code and tap the Kitchen Frame link. The code holds the
-dashboard's address and key, so it hides itself after two minutes. Unpair from the app's Settings.
+Point the iPhone's Camera app at the QR code, tap the Kitchen Frame link, and confirm the frame's
+address. The QR code holds the dashboard's address and a one-time code, good for 10 minutes and once;
+the app trades it for a key of its own, which shows on the frame under Settings → About → Devices,
+where a lost phone can be revoked. Pairing with a different frame turns fitness sharing off until it's
+turned on again. Unpair from the app's Settings.
 
 ## How the pieces fit
 
@@ -54,7 +57,7 @@ dashboard's address and key, so it hides itself after two minutes. Unpair from t
 | Remote | `POST /api/frame/command` (`show` with a `tab`, `slideshow`, `wake`, `close`), then `POST /api/frame/checkin` and `GET /api/frame/status` for what it shows |
 | Screenshot | `POST /api/frame/screenshot/request`, then `GET /api/frame/screenshot?since=` until the frame's JPEG is there |
 | Ops | `GET /api/ops/summary` (`dashboard/worker/ops.js`), what needs attention as `dashboard/ops/page.html` decides it; `KitchenFrame/OpsView.swift` |
-| Pairing | `kitchenframe://pair?url=…&key=…`, from the frame's Settings (`dashboard/src/components/Settings.svelte`); kept by `KitchenFrame/Pairing.swift` |
+| Pairing | `kitchenframe://pair?url=…&code=…`, a one-time code from the frame's Settings (`dashboard/src/components/Settings.svelte`), traded for this phone's own key (`POST /api/devices/claim`, `dashboard/worker/devices.js`); kept by `KitchenFrame/Pairing.swift` |
 | Share extension | `Share/ShareViewController.swift`; preparing photos and videos in `KitchenFrame/MediaSender.swift`; `POST /api/share/media` (or `/api/share/play` for YouTube), shown by `dashboard/src/components/SharedMedia.svelte`. It reads the pairing from a Keychain group shared with the app (open the app once after updating so it moves there). |
 
 Adding recipes from photos into Paprika is a separate app, since it's phone-to-Paprika and doesn't

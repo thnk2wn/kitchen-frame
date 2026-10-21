@@ -22,6 +22,8 @@ const clean = (v, max) => (typeof v === 'string' ? v.replace(/\r\n?/g, '\n').tri
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 
 // The Worker's stub for the room. Every request goes through one instance, so the list is consistent.
+import { devicesRoute } from './devices.js';
+
 export const room = (env) => env.MESSAGES.get(env.MESSAGES.idFromName('frame'));
 
 export class MessageRoom {
@@ -45,6 +47,8 @@ export class MessageRoom {
     if (path === '/list') return json({ messages: await this.load() });
     // The frame's home network (home.js): { v4, v6 } as last seen from the frame or the Mac bridge.
     // Written only when it changes, so a check-in every 10 minutes doesn't write each time.
+    // Devices and their keys (devices.js): stored here, with everything else about the frame.
+    if (path.startsWith('/devices/')) return devicesRoute(this.ctx.storage, path, req);
     if (path === '/home') {
       const home = (await this.ctx.storage.get('home')) || {};
       if (req.method === 'POST') {

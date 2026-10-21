@@ -104,22 +104,45 @@
   async function changePin() { if (await confirmPin('Current PIN')) newPin(); }
   async function dropPin() { if (await confirmPin('Current PIN to remove it')) removePin(); }
   // Pairing the iPhone app (ios/): a QR code the iPhone camera opens the app with, carrying this
-  // dashboard's address and key. Behind the PIN when one is set; hidden again after two minutes.
+  // dashboard's address and a one-time code (worker/devices.js), good for 10 minutes and once; the
+  // phone trades it for a key of its own. Behind the PIN when one is set; hidden again after the code
+  // runs out.
   let pairQr = $state('');
+  let pairCode = $state('');
+  let pairProblem = $state('');
   let pairTimer;
   async function pair() {
-    if (pairQr) { pairQr = ''; return; }
+    if (pairQr) { pairQr = ''; pairCode = ''; return; }
     if (pin.set && !(await confirmPin('PIN to show the pairing code'))) return;
+    pairProblem = '';
+    let code = '';
+    try { code = (await api('/api/devices/pair', { method: 'POST' })).code || ''; } catch (e) { pairProblem = 'Couldn’t get a pairing code: ' + e.message; return; }
     const { default: qrcode } = await import('qrcode-generator');
     const q = qrcode(0, 'M');
-    let key = '';
-    try { key = localStorage.getItem('frame-key') || ''; } catch {}
-    q.addData('kitchenframe://pair?url=' + encodeURIComponent(location.origin) + '&key=' + encodeURIComponent(key));
+    q.addData('kitchenframe://pair?url=' + encodeURIComponent(location.origin) + '&code=' + encodeURIComponent(code));
     q.make();
     pairQr = q.createSvgTag({ cellSize: 5, margin: 3, scalable: true });
+    pairCode = code;
     clearTimeout(pairTimer);
-    pairTimer = setTimeout(() => (pairQr = ''), 2 * 60 * 1000);
+    pairTimer = setTimeout(() => { pairQr = ''; pairCode = ''; loadDevices(); }, 10 * 60 * 1000);
   }
+  // Devices with a key of their own (worker/devices.js): the frame, each phone, the status page. A
+  // lost phone is revoked here, alone. Behind the PIN when one is set.
+  let devices = $state(null);
+  let devicesProblem = $state('');
+  let revoking = $state('');
+  async function loadDevices() {
+    try { devices = (await api('/api/devices')).devices || []; devicesProblem = ''; } catch (e) { devices = null; devicesProblem = e.message; }
+  }
+  async function revoke(d) {
+    if (revoking !== d.id) { revoking = d.id; return; } // a second tap confirms
+    if (pin.set && !(await confirmPin('PIN to revoke ' + d.name))) { revoking = ''; return; }
+    try { await api('/api/devices/' + d.id, { method: 'DELETE' }); } catch (e) { devicesProblem = e.message; }
+    revoking = '';
+    loadDevices();
+  }
+  const ROLE_NAMES = { frame: 'This frame', phone: 'Phone', ops: 'Status page' };
+  const lastUsed = (d) => d.lastUsed ? 'used ' + formatDate(new Date(d.lastUsed), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'not used yet';
   let showLog = $state(false);
   const logLine = (e) => Object.entries(e).filter(([k]) => !['t', 'event', 'level'].includes(k)).map(([k, v]) => k + ': ' + v).join(' · ');
   let announcers = $derived(ha.notify.filter((n) => /_announce$/.test(n.entity_id))
@@ -429,8 +452,26 @@
         <span>Phone app<small>Scan with the iPhone camera to pair the Kitchen Frame app</small></span>
         <button class="reload" onclick={pair}>{pairQr ? 'Hide' : 'Pair a phone'}</button>
       </div>
-      <!-- An SVG made here from our own address and key, not outside input. -->
-      {#if pairQr}<div class="qr">{@html pairQr}</div>{/if}
+      <!-- An SVG made here from our own address and a code from our own Worker, not outside input. -->
+      {#if pairQr}<div class="qr">{@html pairQr}</div><p class="hint">Code {pairCode} · good for 10 minutes, once</p>{/if}
+      {#if pairProblem}<p class="hint warn">{pairProblem}</p>{/if}
+      <div class="row">
+        <span>Devices<small>Each has a key of its own; revoke a lost phone here</small></span>
+        <button class="reload" onclick={() => (devices ? (devices = null) : loadDevices())}>{devices ? 'Hide' : 'Show'}</button>
+      </div>
+      {#if devicesProblem}<p class="hint warn">{devicesProblem}</p>{/if}
+      {#if devices}
+        <ul class="devices">
+          {#each devices as d (d.id)}
+            <li>
+              <span><b>{d.name}</b><small>{ROLE_NAMES[d.role] || d.role}{d.you ? ' · this one' : ''} · {lastUsed(d)}</small></span>
+              {#if !d.you}<button class="reload" class:warn={revoking === d.id} onclick={() => revoke(d)}>{revoking === d.id ? 'Tap to revoke' : 'Revoke'}</button>{/if}
+            </li>
+          {:else}
+            <li><span><small>No device keys yet: the frame and phones still use the shared key.</small></span></li>
+          {/each}
+        </ul>
+      {/if}
     {/if}
     <div class="row">
       <span>Recent events<small>What the frame noticed, newest first</small></span>
@@ -469,6 +510,13 @@
   .tabs { flex: 1 0 100%; margin-top: 12px; }
   .tabs button { flex: 1; min-width: 0; }
   .hint.pad { margin: 18px 0; }
+  /* Indented under the Devices row, with a rule down the left, so they read as its contents. */
+  .devices { list-style: none; margin: 0 0 12px 8px; padding: 0 0 0 16px; border-left: 2px solid var(--sep); }
+  .devices li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 18px; }
+  .devices li + li { border-top: 1px solid var(--sep); }
+  .devices li span { display: flex; flex-direction: column; }
+  .devices small { font-size: 15px; color: var(--secondary); }
+  .hint.warn, .reload.warn { color: var(--orange-text); }
   .qr { width: 260px; margin: 4px auto 14px; padding: 10px; border-radius: 16px; background: #fff; }
   .qr :global(svg) { display: block; width: 100%; height: auto; }
   .tests { display: flex; gap: 10px; }
