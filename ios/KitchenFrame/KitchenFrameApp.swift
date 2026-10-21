@@ -63,14 +63,37 @@ final class AppModel {
         if frameAsk == shown { frameAsk = nil }
     }
 
+    /// A pairing link waiting for the person to confirm it (RootView's alert shows where it points).
+    /// A link only ever asks: it could come from anyone, and it decides where this phone sends its
+    /// health data (2026-10-20 security review).
+    var pendingPairing: Pairing?
+
     func pair(with link: URL) {
         guard let p = Pairing.from(link: link) else {
             pairingProblem = "That isn’t a Kitchen Frame pairing code."
             return
         }
+        pairingProblem = nil
+        if p == pairing { return } // the same frame again: nothing to change
+        pendingPairing = p
+    }
+
+    /// Whether the waiting link points somewhere other than the current pairing (a different frame).
+    var pendingChangesFrame: Bool {
+        guard let p = pendingPairing, let current = pairing else { return false }
+        return p.url.host?.lowercased() != current.url.host?.lowercased()
+    }
+
+    /// Pairs with the confirmed link. Moving to another frame turns fitness sharing off first (which
+    /// also removes this person from the old frame), so health data goes there only once it's turned
+    /// on again deliberately.
+    func confirmPairing(_ p: Pairing) async {
+        pendingPairing = nil
+        if pairing != nil, p.url.host?.lowercased() != pairing?.url.host?.lowercased(), FitnessSync.shared.enabled {
+            await FitnessSync.shared.stop()
+        }
         PairingStore.save(p)
         pairing = p
-        pairingProblem = nil
     }
 
     /// Fitness sharing stops first, while the pairing still reaches the frame to remove this person.
@@ -92,6 +115,18 @@ struct RootView: View {
                 if let ask = model.frameAsk { FrameAskBanner(ask: ask).transition(.move(edge: .top).combined(with: .opacity)) }
             }
             .animation(.snappy, value: model.frameAsk)
+            .alert(model.pendingChangesFrame ? "Pair with a different frame?" : "Pair with this frame?",
+                   isPresented: Binding(get: { model.pendingPairing != nil }, set: { if !$0 { model.pendingPairing = nil } }),
+                   presenting: model.pendingPairing) { p in
+                // The pairing shown, passed along: closing the alert clears pendingPairing first.
+                Button("Pair") { Task { await model.confirmPairing(p) } }
+                Button("Cancel", role: .cancel) { model.pendingPairing = nil }
+            } message: { p in
+                Text((p.url.host ?? p.url.absoluteString)
+                     + (model.pendingChangesFrame
+                        ? "\n\nThis replaces \(model.pairing?.url.host ?? "the current frame"). Fitness sharing turns off until you turn it on again."
+                        : "\n\nOnly pair with your own frame: it gets what this phone sends, including your Fitness data if you share it."))
+            }
     }
 
     @ViewBuilder private var content: some View {

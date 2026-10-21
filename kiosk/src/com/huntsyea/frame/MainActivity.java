@@ -116,7 +116,13 @@ public class MainActivity extends Activity {
     web.setWebViewClient(new WebViewClient() {
       @Override
       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-        return false; // stay inside the kiosk
+        // Stay inside the kiosk, and on the dashboard: a top-level page elsewhere would get the
+        // window.FrameKiosk bridge too (2026-10-20 security review). Embeds (YouTube) aren't top-level.
+        if (!request.isForMainFrame() || url == null) return false;
+        String host = Uri.parse(url).getHost(), to = request.getUrl().getHost();
+        if (host != null && host.equalsIgnoreCase(to)) return false;
+        Log.w(TAG, "refused a top-level page outside the dashboard: " + to);
+        return true;
       }
 
       @Override
@@ -169,7 +175,7 @@ public class MainActivity extends Activity {
       url = getSharedPreferences(PREFS, MODE_PRIVATE).getString("url", null);
       // Kiosks before 1.6 saved the whole setup link, key and Home Assistant token included. Load it
       // as it is this once (the page saves what it needs), and keep only the address from now on.
-      if (url != null && url.contains("?")) getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("url", withoutQuery(url)).apply();
+      if (url != null && (url.contains("?") || url.contains("#"))) getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("url", withoutQuery(url)).apply();
     }
     if (url != null) { web.loadUrl(url); handler.postDelayed(watchdog, WATCHDOG_MS); }
     else web.loadData("<body style='background:#000;color:#999;font:24px sans-serif;padding:48px'>"
@@ -204,8 +210,10 @@ public class MainActivity extends Activity {
    * shouldn't) keep a copy. After a wipe of the page's storage, run the setup link again.
    */
   static String withoutQuery(String u) {
-    int q = u.indexOf('?');
-    return q < 0 ? u : u.substring(0, q);
+    // The setup link carries the key and token after # since 1.10 (after ? before): neither is kept.
+    int q = u.indexOf('?'), h = u.indexOf('#');
+    int cut = q < 0 ? h : h < 0 ? q : Math.min(q, h);
+    return cut < 0 ? u : u.substring(0, cut);
   }
 
   /** Window brightness 0.02–1, or below 0 to follow the system setting. Only while the kiosk is in front. */

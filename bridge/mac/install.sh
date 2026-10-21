@@ -58,6 +58,35 @@ cat > "$agent" <<PLIST
 </plist>
 PLIST
 launchctl bootstrap "gui/$(id -u)" "$agent"
+
+# The home check (dashboard/worker/home.js) learns the house's network from the bridge's and the
+# frame's requests, which go over IPv6 when they can. A phone may use either, so this one call every
+# 10 minutes is forced over IPv4, so the Worker knows the house's IPv4 address too.
+v4label=local.kitchen-frame.home-v4
+v4agent="$HOME/Library/LaunchAgents/$v4label.plist"
+cat > "$support/home-v4.sh" <<'SH'
+#!/bin/bash
+# Tells the Worker the house's IPv4 address (bridge/mac/install.sh). Quiet; failures are retried next time.
+cfg="$HOME/Library/Application Support/KitchenFrameBridge/config.json"
+read -r worker token < <(/usr/bin/python3 -c 'import json,sys; c=json.load(open(sys.argv[1])); print(c["worker"].rstrip("/"), c["token"])' "$cfg")
+/usr/bin/curl -4 -fsS -o /dev/null --max-time 20 -H "Authorization: Bearer $token" "$worker/api/bridge/home"
+SH
+chmod 700 "$support/home-v4.sh"
+launchctl bootout "gui/$(id -u)/$v4label" 2>/dev/null || true
+cat > "$v4agent" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$v4label</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>$support/home-v4.sh</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>600</integer>
+  <key>ProcessType</key><string>Background</string>
+</dict>
+</plist>
+PLIST
+launchctl bootstrap "gui/$(id -u)" "$v4agent"
 sleep 5
 echo "Running. Recent log:"
 tail -n 8 "$log"

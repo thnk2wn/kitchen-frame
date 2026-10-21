@@ -6,6 +6,18 @@
        No initial-scale: Android WebView would pin the scale to 1 and lay out at the full panel width. -->
   <meta name="viewport" content="width=1280, user-scalable=no">
   <title>Frame</title>
+  <script>
+    // Setup links (scripts/frame-url.sh) carry the dashboard key and Home Assistant token after #, which
+    // a browser never sends, so they can't land in the Worker's request logs. This moves them into the
+    // address's query here, in the page, before the app starts; each part of the app then reads its
+    // setting and removes it from the address, as it did when they came as ?key=…&ha_token=….
+    (function () {
+      if (location.hash.length < 2 || location.hash.indexOf('=') < 0) return;
+      var q = new URLSearchParams(location.search);
+      new URLSearchParams(location.hash.slice(1)).forEach(function (v, k) { q.set(k, v); });
+      history.replaceState(null, '', location.pathname + '?' + q);
+    })();
+  </script>
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>

@@ -28,7 +28,8 @@
 //   GET  /api/share/media/:id        that photo or video
 //   POST /api/frame/command          { command: show|slideshow|wake|close|playgroup, tab?, group? } (the phone app)
 //   /api/frame/screenshot...         the frame's screen, for the phone app (screenshot.js)
-//   GET  /api/frame/home             { home }: is the caller on the frame's network (home.js)
+//   GET  /api/frame/home             { home }: is the caller on the frame's network (home.js); ?why adds
+//                                    { you, frame }: the networks it compared
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   GET, POST, DELETE /api/fitness   Activity rings and workouts, sent by each person's phone (fitness.js)
 //   GET, POST /api/frame/guest       guest mode: nothing personal on the frame (guest.js)
@@ -87,7 +88,7 @@ import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js'
 import { listPhotos, photoResponse, bridgeAlbum, bridgePhotoList, bridgePhotoUpload, bridgeVideoUpload, videoResponse } from './photos.js';
 import { room } from './messages.js';
 import { screenshotRoute } from './screenshot.js';
-import { atHome, homeOnly, noteHome } from './home.js';
+import { atHome, homeCheck, homeOnly, noteHome } from './home.js';
 import { listNotices, addNotice } from './notices.js';
 import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
 import { opsSummary } from './ops.js';
@@ -156,6 +157,13 @@ async function handle(req, env, ctx) {
       // Never cache the page, or the frame keeps running an old build after a deploy.
       const page = new Response(res.body, res);
       page.headers.set('Cache-Control', 'no-store');
+      // Defence in depth (2026-10-20 security review): no sniffing, no embedding in another site, and
+      // the browser's default referrer policy made explicit (YouTube embeds need a referrer). Not yet a
+      // full Content-Security-Policy: Home Assistant, YouTube, maps and the relay would each need care.
+      page.headers.set('X-Content-Type-Options', 'nosniff');
+      page.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+      page.headers.set('X-Frame-Options', 'DENY');
+      page.headers.set('Content-Security-Policy', "frame-ancestors 'none'");
       return page;
     }
     // Agents post with their own token, which opens this one route and nothing else.
@@ -168,6 +176,10 @@ async function handle(req, env, ctx) {
       if (!env.BRIDGE_TOKEN || req.headers.get('Authorization') !== 'Bearer ' + env.BRIDGE_TOKEN) return json({ error: 'unauthorized' }, 401);
       await noteHome(env, req); // the Mac is at home: its network is the frame's (home.js)
       const what = url.pathname.slice('/api/bridge/'.length);
+      // Just the home check's learning (above): the bridge's launch agent calls this over IPv4 every
+      // 10 minutes (bridge/mac/install.sh), since its own traffic and the frame's go over IPv6, which
+      // left home without an IPv4 address and a phone on IPv4 refused (2026-10-20).
+      if (what === 'home') return json({ ok: true });
       if (what === 'config') {
         // extras: also read sections, flags and assignees from the Reminders database (docs/lists.md).
         const extras = /^(on|yes|true|1)$/i.test(String(env.REMINDERS_EXTRAS || '').trim());
@@ -350,7 +362,11 @@ async function handle(req, env, ctx) {
       const shared = /^\/api\/share\/media\/([0-9a-f-]{36})$/.exec(url.pathname);
       if (shared && req.method === 'GET') return sharedResponse(env, shared[1], req);
       // Whether the caller is on the frame's home network (home.js), so the phone app can say so up front.
-      if (url.pathname === '/api/frame/home' && req.method === 'GET') return json({ home: String(env.HOME_ONLY || '').toLowerCase() === 'off' || await atHome(env, req) });
+      if (url.pathname === '/api/frame/home' && req.method === 'GET') {
+        if (String(env.HOME_ONLY || '').toLowerCase() === 'off') return json({ home: true });
+        const check = await homeCheck(env, req);
+        return json(url.searchParams.has('why') ? check : { home: check.home });
+      }
       // The frame's screen, for the phone app (screenshot.js).
       if (url.pathname.startsWith('/api/frame/screenshot')) {
         // Asking for and fetching it only from home (home.js); the frame's own upload is at home anyway.

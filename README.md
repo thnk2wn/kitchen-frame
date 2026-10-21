@@ -92,7 +92,7 @@ Each feature links to its page in [`docs/`](docs/), which has the setup and the 
 | **[Weather](docs/weather.md)** | Updated | The UV right now on Home (for sunscreen) and a three-day forecast. Tap for a day's sheet: the National Weather Service forecast text (US), alerts, hours ahead, wind, the day's peak UV, sun times, and a **radar** of the last hour and the next two. |
 | **[Calendar](docs/calendar.md)** | Updated | Upcoming grouped by day, colours and names per calendar, tap an event for its details, a map of where it is, and notes on the calendars you choose, hide any calendar per frame, `#private` to keep an event off the frame, and `#quiet` to show it but never announce it. A failing feed is retried less and less often while its last good events stay up, and a feed that rarely changes (a season's games) can be fetched only every few hours. |
 | **Settings** | Updated | In tabs (Display, Announcements, Home, About), backed up to the Worker (after a reset the frame takes its choices back), with the version and build time on About, and a QR code to pair the iPhone app. Demo mode shows invented calendars and lists, and with Home Assistant connected, the real House and Media under made-up names. |
-| **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours); a red night clock that brightens a little when someone's in the room. Classic iCloud shared album links work for the slideshow, and through the Mac, album videos play in it and photos show when and where they were taken. |
+| **Clock screen** | Updated | Never while a recipe is open or a timer is running; 30 minutes by default (up to two hours); a red night clock that brightens a little when someone's in the room. Photos stay bright after sunset while the room is lit, and dim when it's dark (an HA light sensor). Classic iCloud shared album links work for the slideshow, and through the Mac, album videos play in it and photos show when and where they were taken. |
 | **[Status page](docs/frame.md#status-page-optional)** | New | A private page behind GitHub sign-in: is the frame online and what is it running, a day's timeline, its event log, the Alexa log, and the health of everything behind the dashboard: each feed, the Paprika sync's last check, each phone's last fitness send. |
 
 ### On your phone
@@ -199,7 +199,7 @@ open "http://localhost:5173/?diag"   # perf overlay (fps, jank, DOM, image megap
 ```
 
 Local settings: `cp dashboard/.dev.vars.example dashboard/.dev.vars` and fill it in, then open
-`http://localhost:5173/?key=<DASHBOARD_KEY>` once (the page remembers the key). `npm test` runs the
+`http://localhost:5173/#key=<DASHBOARD_KEY>` once (the page remembers the key). `npm test` runs the
 Worker and parser tests.
 
 ### Deploy
@@ -213,7 +213,7 @@ scripts/push-secrets.sh        # uploads every setting in .dev.vars as a Worker 
 curl -H "Authorization: Bearer <key>" "https://kitchen-frame.<your-subdomain>.workers.dev/api/calendar?refresh"
 ```
 
-Point the kiosk at the Worker's address with `?key=<key>`, or build the full setup link with
+Point the kiosk at the Worker's address with `#key=<key>` (after `#`, so it never reaches the server), or build the full setup link with
 `scripts/frame-url.sh` (see [docs/house.md](docs/house.md#setup)). After a deploy the frame picks
 up the new version by itself within about 10–20 minutes, at a quiet moment, or at once with
 `scripts/frame-status.sh --reload`.
@@ -368,7 +368,7 @@ the frame's Settings. [ios/README.md](ios/README.md).
 
 The frame boots into our own kiosk app (`kiosk/`, package `com.huntsyea.frame`): build it with
 `kiosk/build.sh`, install with `adb install -r kiosk/build/frame.apk`, and set the dashboard URL
-once with `adb shell am start -n com.huntsyea.frame/.MainActivity -d '<url with ?key=>'`.
+once with `adb shell am start -n com.huntsyea.frame/.MainActivity -d '<url with #key=>'`.
 
 The frame checks in with the Worker every 10 minutes with its versions, what it's showing and an
 event log (connection drops, failed actions, cameras, locks, announcements, errors), and its

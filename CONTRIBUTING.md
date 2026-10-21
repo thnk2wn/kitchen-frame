@@ -9,7 +9,7 @@ one question: does it stay calm, readable and fast on a cheap photo frame?
 cd dashboard
 npm install
 cp .dev.vars.example .dev.vars   # fill in what you have; everything is optional
-npm run dev                      # open http://localhost:5173/?key=<DASHBOARD_KEY from .dev.vars>
+npm run dev                      # open http://localhost:5173/#key=<DASHBOARD_KEY from .dev.vars>
 ```
 
 No accounts? Turn on **Settings → Demo mode**: invented calendar, tasks and groceries, nothing

@@ -94,7 +94,9 @@ async function open(query) {
     await cdp('Runtime.enable', {}, sessionId);
     await cdp('Network.enable', {}, sessionId);
     await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false }, sessionId);
-    await cdp('Page.navigate', { url: base + '?key=' + encodeURIComponent(key) + '&' + query + ha }, sessionId);
+    // The screen's own options as a query, the key and Home Assistant settings after # as a setup link
+    // sends them (scripts/frame-url.sh; index.html moves them into the query in the page).
+    await cdp('Page.navigate', { url: base + '?' + query + '#key=' + encodeURIComponent(key) + ha }, sessionId);
     const drawn = () => cdp('Runtime.evaluate', { expression: "!!document.querySelector('[role=tablist]')", returnByValue: true }, sessionId).then((r) => r.result.value === true);
     let hung = true;
     for (const until = Date.now() + HUNG_MS; Date.now() < until;) { if (await drawn()) { hung = false; break; } await sleep(250); }

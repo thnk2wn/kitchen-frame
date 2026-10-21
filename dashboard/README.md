@@ -14,7 +14,7 @@ needed; everything else in the repo is optional.
 
 ```
 npm install
-npm run dev        # http://localhost:5173/?key=<DASHBOARD_KEY from .dev.vars>, or Settings → Demo mode
+npm run dev        # http://localhost:5173/#key=<DASHBOARD_KEY from .dev.vars>, or Settings → Demo mode
 npm test           # the Worker, the app's logic and the status page
 npm run deploy     # build and deploy the Worker (the frame reloads on its own, or scripts/frame-status.sh --reload)
 npx wrangler deploy --config ops/wrangler.jsonc   # the status page

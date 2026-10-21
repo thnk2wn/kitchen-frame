@@ -7,6 +7,7 @@
   import { nowPlaying } from '../lib/ha.svelte.js';
   import { notices, iconOf, startedAt } from '../lib/notices.svelte.js';
   import { night as nightMode } from '../lib/night.svelte.js';
+  import { roomLight } from '../lib/roomlight.svelte.js';
 
   // StandBy-style idle screen: the iCloud album as a slideshow behind the clock, in the text colour
   // chosen in Settings. At night photos and text are dimmed (or photos are off, per Settings).
@@ -19,7 +20,8 @@
     .find((e) => !e.allDay && Date.parse(e.start) > clock.now.getTime()));
   let wx = $derived(weather.data);
   let playing = $derived(nowPlaying());
-  let night = $derived(ui.theme === 'dark');
+  // After sunset the photos and text dim, unless "Dim when dark" finds the room still lit.
+  let night = $derived(ui.theme === 'dark' && !(ui.nightPhotosMode === 'auto' && roomLight.lit === true));
   // Night hours (Settings → Night) have their own text colour.
   let color = $derived(nightMode.active && nightMode.color !== 'day' ? nightMode.color : ui.clockColor);
   // Paused while an agent message covers the screen.
