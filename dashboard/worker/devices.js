@@ -21,6 +21,7 @@
 //   POST   /api/devices/frame       { name } -> { token, id }: the page's own key (replaces the last)  admin
 //   POST   /api/devices             { role: 'ops', name } -> { token, id }                       admin
 import { room } from './messages.js';
+import { phoneId } from './fitness.js';
 
 export const TOKEN_PREFIX = 'kfd_';
 export const PAIR_MS = 10 * 60 * 1000;
@@ -30,7 +31,7 @@ const ROLES = ['frame', 'phone', 'ops'];
 
 // What a phone may call: [method, path or prefix ending in /].
 const PHONE = [
-  ['GET', '/api/fitness'], ['POST', '/api/fitness'], ['DELETE', '/api/fitness'],
+  ['POST', '/api/fitness'], ['DELETE', '/api/fitness'], // its own person only (no reading anyone's)
   ['POST', '/api/frame/checkin'], ['POST', '/api/frame/command'],
   ['GET', '/api/frame/guest'], ['POST', '/api/frame/guest'], ['GET', '/api/frame/home'],
   ['GET', '/api/frame/screenshot'], ['POST', '/api/frame/screenshot/request'], ['GET', '/api/frame/status'],
@@ -62,7 +63,8 @@ const newId = () => b64url(crypto.getRandomValues(new Uint8Array(9)));
 // Pairing codes: 10 characters without look-alikes (no 0/O, 1/I/L), about 49 bits.
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const newCode = () => Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => CODE_CHARS[b % CODE_CHARS.length]).join('');
-const clean = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, '').trim().slice(0, max) : '');
+// Control characters and text-direction overrides out, so one name can't pose as another in the list.
+const clean = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim().slice(0, max) : '');
 
 // ---- In the Durable Object (MessageRoom delegates /devices/* here) ----
 
@@ -70,44 +72,57 @@ const clean = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g,
 // "pair-codes" { code: expires }.
 export async function devicesRoute(storage, path, req) {
   const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
-  const devices = (await storage.get('devices')) || {};
-  const save = () => storage.put('devices', devices);
+  // A new key is made and hashed first, then the list read and written with no other await between,
+  // so a revoke or another add can't be overwritten by a stale copy.
+  const fresh = async () => { const token = newToken(); return { token, id: newId(), hash: await hashToken(token) }; };
+  const read = async () => (await storage.get('devices')) || {};
   const pub = (d) => ({ id: d.id, name: d.name, role: d.role, created: d.created, lastUsed: d.lastUsed || null });
-  const add = async (role, name) => {
-    const token = newToken(), id = newId();
-    devices[id] = { id, name: clean(name, 60) || role, role, hash: await hashToken(token), created: new Date().toISOString() };
-    await save();
-    return { token, id };
+  const add = async (key, role, name, devices) => {
+    devices[key.id] = { id: key.id, name: clean(name, 60) || role, role, hash: key.hash, created: new Date().toISOString() };
+    await storage.put('devices', devices);
+    return { token: key.token, id: key.id };
   };
   if (path === '/devices/find') {
+    const devices = await read();
     const d = Object.values(devices).find((x) => x.hash === body.hash);
     if (!d) return json({ device: null });
-    if (!d.lastUsed || Date.now() - Date.parse(d.lastUsed) > TOUCH_MS) { d.lastUsed = new Date().toISOString(); await save(); }
+    if (!d.lastUsed || Date.now() - Date.parse(d.lastUsed) > TOUCH_MS) { d.lastUsed = new Date().toISOString(); await storage.put('devices', devices); }
     return json({ device: { id: d.id, role: d.role, name: d.name, fitnessId: d.fitnessId || null } });
   }
   if (path === '/devices/get') {
-    const d = devices[body.id];
+    const d = (await read())[body.id];
     return json({ device: d ? { id: d.id, role: d.role, name: d.name, fitnessId: d.fitnessId || null } : null });
   }
-  if (path === '/devices/list') return json({ devices: Object.values(devices).map(pub).sort((a, b) => a.created.localeCompare(b.created)) });
+  if (path === '/devices/list') return json({ devices: Object.values(await read()).map(pub).sort((a, b) => a.created.localeCompare(b.created)) });
   if (path === '/devices/add') {
     if (!ROLES.includes(body.role)) return json({ error: 'role: frame, phone or ops' }, 400);
+    const key = await fresh();
+    const devices = await read();
     // A new key for the frame replaces the frame's last one (a setup link run again, a reset).
     if (body.replaceRole === 'frame' && body.role === 'frame') for (const [id, d] of Object.entries(devices)) if (d.role === 'frame') delete devices[id];
-    return json(await add(body.role, body.name));
+    return json(await add(key, body.role, body.name, devices));
   }
   if (path === '/devices/remove') {
+    const devices = await read();
     if (!devices[body.id]) return json({ error: 'no such device' }, 404);
     delete devices[body.id];
-    await save();
+    await storage.put('devices', devices);
     return json({ ok: true });
   }
   if (path === '/devices/bind') {
-    // A phone's fitness person: the first id it sends is kept; another is refused.
-    const d = devices[body.id];
-    if (!d) return json({ ok: false });
-    if (!d.fitnessId) { d.fitnessId = clean(body.fitnessId, 80); await save(); }
-    return json({ ok: d.fitnessId === body.fitnessId });
+    // A phone's fitness person: the first id it sends is kept, and another is refused, as is an id
+    // another phone already holds (one phone can't take over someone else's numbers).
+    const devices = await read();
+    const d = devices[body.id], fid = phoneId(body.fitnessId);
+    if (!d || !fid) return json({ ok: false });
+    // Compared without case: a phone bound before 2026-10-20 kept its id as iOS writes it (upper case).
+    const same = (x) => typeof x === 'string' && x.toLowerCase() === fid;
+    if (!d.fitnessId) {
+      if (Object.values(devices).some((x) => x.id !== d.id && same(x.fitnessId))) return json({ ok: false });
+      d.fitnessId = fid;
+      await storage.put('devices', devices);
+    }
+    return json({ ok: same(d.fitnessId) });
   }
   if (path === '/devices/pair') {
     const codes = (await storage.get('pair-codes')) || {};
@@ -123,15 +138,19 @@ export async function devicesRoute(storage, path, req) {
     const code = clean(body.code, 20).toUpperCase();
     const exp = codes[code];
     if (!exp || exp < Date.now()) {
-      // Wrong guesses cost every code: ten in a row and the frame has to show a new one.
-      const fails = ((await storage.get('pair-fails')) || 0) + 1;
-      if (fails >= 10) { await storage.delete(['pair-codes', 'pair-fails']); } else await storage.put('pair-fails', fails);
+      // Wrong guesses cost every code: ten in a row and the frame has to show a new one. Counted only
+      // while a code is showing, so with none there's nothing to guess and nothing written.
+      if (Object.values(codes).some((e) => e > Date.now())) {
+        const fails = ((await storage.get('pair-fails')) || 0) + 1;
+        if (fails >= 10) { await storage.delete(['pair-codes', 'pair-fails']); } else await storage.put('pair-fails', fails);
+      }
       return json({ error: 'That pairing code isn’t valid any more. Show a new one on the frame (Settings → About → Pair a phone).' }, 403);
     }
     delete codes[code];
     await storage.put('pair-codes', codes);
     await storage.delete('pair-fails');
-    return json(await add('phone', body.name || 'Phone'));
+    const key = await fresh();
+    return json(await add(key, 'phone', body.name || 'Phone', await read()));
   }
   return json({ error: 'not found' }, 404);
 }

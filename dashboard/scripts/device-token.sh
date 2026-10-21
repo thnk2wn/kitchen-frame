@@ -10,8 +10,10 @@ cd "$(dirname "$0")/.."
 key=$(sed -n 's/^DASHBOARD_KEY="\(.*\)"/\1/p' .dev.vars)
 url=$(sed -n 's/^DASHBOARD_URL="\(.*\)"/\1/p' .frame.vars); url=${url%/}
 [ -n "$key" ] && [ -n "$url" ] || { echo "needs DASHBOARD_KEY in .dev.vars and DASHBOARD_URL in .frame.vars" >&2; exit 2; }
-token=$(curl -fsS -X POST -H "Authorization: Bearer $key" -H 'Content-Type: application/json' -d '{"role":"ops","name":"Status page"}' "$url/api/devices" \
+# The admin key goes to curl on stdin (-H @-), not its command line, where ps would show it.
+token=$(printf 'Authorization: Bearer %s\n' "$key" | curl -fsS -X POST -H @- -H 'Content-Type: application/json' -d '{"role":"ops","name":"Status page"}' "$url/api/devices" \
   | python3 -I -c 'import json,sys; t=json.load(sys.stdin).get("token",""); print(t if t.startswith("kfd_") else "")')
+unset key
 [ -n "$token" ] || { echo "the Worker didn't return a key" >&2; exit 1; }
 printf '%s' "$token" | npx wrangler secret put OPS_KEY --config ops/wrangler.jsonc >/dev/null
 unset token

@@ -21,7 +21,7 @@ const iso = (v) => { const t = Date.parse(v); return Number.isFinite(t) ? new Da
 const clip = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const day = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 const inRange = (v, lo, hi, signed = false) => { const n = Number(v); return v != null && v !== '' && Number.isFinite(n) && n >= lo && n <= hi && (signed || n >= 0) ? Math.round(n * 10) / 10 : null; };
-const phoneId = (v) => (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v.toLowerCase() : null);
+export const phoneId = (v) => (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v.toLowerCase() : null);
 
 // What a phone sends, kept to what the frame shows: the last 4 weeks and today of rings (with each
 // day's steps and workout minutes), today's steps and distance, and the 5 latest workouts. Anything missing or malformed is dropped, not guessed.

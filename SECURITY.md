@@ -20,7 +20,7 @@ Only the first is always needed; each of the rest exists only if you use what it
 | Secret | Needed | Kept in | Opens |
 | --- | --- | --- | --- |
 | `DASHBOARD_KEY` | always | Worker secret; `.dev.vars` | the admin key: the whole API. Used once by the setup link (the frame swaps it for a key of its own at once), by scripts on the Mac, and to make the status page's key. Not kept on the frame or the phones |
-| Device keys (`kfd_…`) | made for you | the frame's storage; each phone's Keychain; the status page Worker's `OPS_KEY` | one device's share of the API (`worker/devices.js`): **frame**, what the page uses, pairing and the device list; **phone**, the Remote, Screenshot, sharing, guest mode, the Ops summary and its own person's fitness; **status page**, the summary only. Only a hash is stored; each is revoked alone in the frame's Settings → About → Devices |
+| Device keys (`kfd_…`) | made for you | the frame's storage; each phone's Keychain; the status page Worker's `OPS_KEY` | one device's share of the API (`worker/devices.js`): **frame**, what the page uses, pairing and the device list; **phone**, the Remote, Screenshot, sharing, guest mode, the Ops summary, and sending its own person's fitness (it can't read anyone's); **status page**, the summary only. Only a hash is stored; each is revoked alone in the frame's Settings → About → Devices |
 | The frame's Home Assistant token | only with Home Assistant (House tab, Music, doorbell, announcements) | the frame's storage | what the HA user it belongs to may do. Use a **non-admin** user for the frame, and tick **Can only log in from the local network** for it once the frame reaches HA by its LAN address (not Nabu Casa), so a copied token is useless outside the house |
 | `AGENT_TOKEN` | only if AI agents or automations post messages or save recipes | wherever agents run | posting messages (which may be read aloud) and saving recipes; it can't read anything |
 | `BRIDGE_TOKEN` | only with a Mac running the bridge: for Apple Reminders lists, or iCloud calendars and a shared album without public links | the Mac (`bridge/mac/`) | sending the lists, calendars and album photos the Worker asks the Mac for, and taking the frame's list changes |
@@ -28,6 +28,12 @@ Only the first is always needed; each of the rest exists only if you use what it
 | Calendar links (`CALENDAR_URLS`), an album link (`ALBUM_URL`) | for each calendar or album shown by link (not through the Mac) | Worker secrets | reading that calendar or album, for anyone holding the link |
 | Todoist, Paprika, Spotify credentials | only with those services | Worker secrets | those accounts, as described in each feature's page |
 | The status page's GitHub app and session secret | only with the optional status page | the status page Worker's secrets | the status page, for the one GitHub account allowed (`ALLOWED_GITHUB_ID`) |
+
+Moving an older setup (one shared key) to device keys, as done here on 2026-10-20: deploy, reload the
+frame (it swaps the shared key for its own), re-pair each phone (Settings → About → Pair a phone, no
+need to unpair), run `scripts/device-token.sh ops` for the status page and remove its `DASHBOARD_KEY`,
+then put a new `DASHBOARD_KEY` in place, which cuts off every old copy of the shared key. Until that
+last step the old key, wherever it was copied, still opens everything.
 
 None of these are ever in the repository: they live in `wrangler secret`, the gitignored
 `dashboard/.dev.vars`, `.prod.vars` and `.frame.vars`, or on the device that uses them.
@@ -86,14 +92,24 @@ the frame can read its tokens and unlock without the dashboard, which is what th
 **Settings changes** are logged as `settings.changed` events (what changed, from what to what) and
 the 10 versions before the current backup are kept: `GET /api/frame/settings?history`.
 
+## If a phone is lost
+
+On the frame, Settings → About → **Devices** → that phone → **Revoke** (it stops working within a
+minute). Its key never opened the calendar, lists, photos or anyone's fitness. Pair its replacement.
+
 ## If the frame is lost, stolen or sent off for repair (or a secret leaks)
 
 1. With Home Assistant: the frame's user → its long-lived token → **Delete** (or deactivate the user).
-2. A new dashboard key: `cd dashboard && npx wrangler secret put DASHBOARD_KEY`, and put the same
-   value in `.dev.vars`. The old key, and every cookie made from it, stop working at once.
-3. On the frame (or its replacement): a new HA token in `.frame.vars` if you use one, then the setup link
-   (`scripts/frame-url.sh`, README → The frame). Its settings come back from the Worker's backup.
-4. The rest only if they leaked:
+2. Revoke the frame's own key, and any phone you don't recognise (a frame's key can pair phones): from
+   the Mac, `curl -H "Authorization: Bearer <DASHBOARD_KEY>" <dashboard>/api/devices` lists them and
+   `curl -X DELETE -H … <dashboard>/api/devices/<id>` revokes one. Rotating the admin key alone
+   doesn't stop a device's own key.
+3. If the admin key may have leaked too: a new one in `.dev.vars` and `scripts/push-secrets.sh
+   DASHBOARD_KEY`. The old one stops at once; the devices' own keys carry on.
+4. On the frame (or its replacement): a new HA token in `.frame.vars` if you use one, then the setup link
+   (`scripts/frame-url.sh`, README → The frame), which gives it a new frame key. Its settings come back
+   from the Worker's backup.
+5. The rest only if they leaked:
    - `AGENT_TOKEN`, `BRIDGE_TOKEN`: `wrangler secret put` each, then update the agents and the Mac.
    - The camera relay's token: delete `~/go2rtc/relay-gate.token` on the Mac, run
      `camera-relay.sh install` to make a new one, and store the new `CAMERA_RELAY`.

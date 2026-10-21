@@ -43,6 +43,7 @@ test('roles: each key opens only what its device uses', () => {
   assert.equal(allowed({ role: 'phone' }, 'GET', '/api/calendar'), false);
   assert.equal(allowed({ role: 'phone' }, 'POST', '/api/frame/status'), false); // can't check in as the frame
   assert.equal(allowed({ role: 'phone' }, 'GET', '/api/devices'), false);
+  assert.equal(allowed({ role: 'phone' }, 'GET', '/api/fitness'), false); // can't read everyone's
   assert.equal(allowed({ role: 'ops' }, 'GET', '/api/ops/summary'), true);
   assert.equal(allowed({ role: 'ops' }, 'GET', '/api/fitness'), false);
   assert.equal(allowed(null, 'GET', '/api/weather'), false);
@@ -94,6 +95,29 @@ test('a phone sends fitness for one person only', async () => {
   assert.notEqual((await send('11111111-1111-4111-8111-111111111111')).status, 403);
   assert.equal((await send('22222222-2222-4222-8222-222222222222')).status, 403);
   assert.equal((await t.call('/api/fitness?id=22222222-2222-4222-8222-222222222222', { key: phone.token, method: 'DELETE' })).status, 403);
+  // The same id in another case is still this phone's (iOS writes UUIDs in upper case).
+  assert.notEqual((await send('11111111-1111-4111-8111-111111111111'.toUpperCase())).status, 403);
+  // A second phone can't take over the first one's person, even before sending its own.
+  const { frame } = await frameAndPhone(t);
+  const { code } = await (await t.call('/api/devices/pair', { key: frame.token, method: 'POST' })).json();
+  const other = await (await t.call('/api/devices/claim', { method: 'POST', body: { code, name: 'Other' } })).json();
+  assert.equal((await t.call('/api/fitness?id=11111111-1111-4111-8111-111111111111', { key: other.token, method: 'DELETE' })).status, 403);
+  assert.equal((await t.call('/api/fitness', { key: other.token })).status, 403);
+});
+
+test('wrong pairing codes count only while a code is showing', async () => {
+  const t = setup();
+  for (let i = 0; i < 12; i++) await t.call('/api/devices/claim', { method: 'POST', body: { code: 'JUNK' + i } });
+  assert.equal(t.data.get('pair-fails'), undefined);
+});
+
+test('names lose control characters and direction overrides', async () => {
+  const t = setup();
+  const frame = await (await t.call('/api/devices/frame', { key: 'admin-key', method: 'POST', body: {} })).json();
+  const { code } = await (await t.call('/api/devices/pair', { key: frame.token, method: 'POST' })).json();
+  await t.call('/api/devices/claim', { method: 'POST', body: { code, name: 'Sam\u202Eenohp\u0007' } });
+  const names = (await (await t.call('/api/devices', { key: frame.token })).json()).devices.map((d) => d.name);
+  assert.ok(names.includes('Samenohp'));
 });
 
 test('only the frame (or the admin key) teaches the home network', async () => {
