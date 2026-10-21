@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fromPaprika, servingsOf, mealWindow } from './paprika.js';
+import { fromPaprika, servingsOf, mealWindow, lastMade, madeCounts } from './paprika.js';
 
 test('Paprika free-text recipes become ingredients, steps and named categories', () => {
   const r = fromPaprika({
@@ -53,4 +53,27 @@ test('the meal plan is cut to a window around today and ordered by day and meal'
   assert.deepEqual(mealWindow(meals, types, '2026-10-13').map((m) => [m.date, m.type, m.title]), [
     ['2026-10-13', 'Breakfast', 'Oatmeal'], ['2026-10-13', 'Dinner', 'Tacos'], ['2026-10-14', 'Dinner', 'Leftovers'],
   ]);
+});
+
+test('last made: the latest planned day up to today, by recipe and by typed name', () => {
+  const meals = [
+    { date: '2026-09-01 00:00:00', name: 'Tacos', recipe_uid: 'R1' },
+    { date: '2026-10-10 00:00:00', name: 'Tacos', recipe_uid: 'R1' },
+    { date: '2026-10-20 00:00:00', name: 'Tacos', recipe_uid: 'R1' }, // planned, not made yet
+    { date: '2026-10-02 00:00:00', name: 'Chicken Tacos!', recipe_uid: null },
+  ];
+  const last = lastMade(meals, '2026-10-13');
+  assert.equal(last.R1, '2026-10-10');
+  assert.equal(last['name:chicken tacos'], '2026-10-02');
+});
+
+test('made counts: times on the plan in the window up to today, by recipe, or by name when typed', () => {
+  const meals = [
+    { date: '2026-03-01 00:00:00', name: 'Tacos', recipe_uid: 'R1' }, // before the window
+    { date: '2026-05-01 00:00:00', name: 'Tacos', recipe_uid: 'R1' },
+    { date: '2026-10-10 00:00:00', name: 'Tacos', recipe_uid: 'R1' },
+    { date: '2026-10-20 00:00:00', name: 'Tacos', recipe_uid: 'R1' }, // planned, not made yet
+    { date: '2026-10-02 00:00:00', name: 'Chicken Tacos!', recipe_uid: null },
+  ];
+  assert.deepEqual(madeCounts(meals, '2026-10-13'), { R1: 2, 'name:chicken tacos': 1 });
 });

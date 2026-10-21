@@ -3,6 +3,12 @@
 // text is the same. A formatter keeps the time zone it was made in, so a change of the frame's zone
 // shows after the next reload (daylight saving is within a zone, so it's unaffected).
 const formatters = new Map();
+// A 0–5 rating as filled and empty stars: ['★★★', '★★'].
+export function stars(n) {
+  const k = Math.max(0, Math.min(5, Math.round(Number(n)) || 0));
+  return ['★'.repeat(k), '★'.repeat(5 - k)];
+}
+
 export function formatDate(d, options) {
   const key = JSON.stringify(options);
   let f = formatters.get(key);

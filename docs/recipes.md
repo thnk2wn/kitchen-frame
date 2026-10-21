@@ -12,9 +12,13 @@ The Recipes tab has four views:
   **Groceries for the week** turns the week's planned recipes into one shopping list (below).
 - **Paprika:** your Paprika library, synced read-only. A view menu like Paprika's own picks All
   recipes, Top rated (rated ones only, best first), Favorites, Most recent (added in the last 90 days,
-  newest first, up to 30) or Uncategorized; an empty view isn't offered and the choice is remembered.
+  newest first, up to 30), Most made (on the meal plan 3 or more times in the last 6 months, most
+  first), Untried (never on the meal plan and not rated, longest in the library first: ones
+  to try, or to delete in Paprika) or Uncategorized; an empty view isn't offered and the choice is remembered.
   The categories A–Z follow as chips that narrow the view ("Top rated" + "Asian"), with search and an
-  A–Z strip on the alphabetical views.
+  A–Z strip on the alphabetical views. Rated recipes wear their stars, on the card and on the recipe,
+  and a recipe says when it was last made: the last day up to today it was on the meal plan, like
+  Paprika's Last Prepared.
 - **Explore:** recipes from [TheMealDB](https://www.themealdb.com) (free, a few hundred curated
   recipes with photos; the free API key is for personal use). Browse by category or tap
   **Surprise me** for a random recipe. Vegetarian and Vegan recipes are left out (`HIDDEN` in

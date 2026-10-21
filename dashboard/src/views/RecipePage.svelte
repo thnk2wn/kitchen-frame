@@ -7,7 +7,7 @@
 
 <script>
   import Icon from '../components/Icon.svelte';
-  import { recipeTitle } from '../lib/format.js';
+  import { recipeTitle, formatDate, stars } from '../lib/format.js';
   import { mediaUrl } from '../lib/api.js';
   import { recipes, paprika, inPaprika, saveRecipe, removeRecipe, addToGroceries } from '../lib/state.svelte.js';
   import { startTimer, splitDurations } from '../lib/timers.svelte.js';
@@ -32,6 +32,11 @@
   let already = $derived(toPaprika && !recipe.savedAt && !String(recipe.id).startsWith('pap:') ? inPaprika(recipe) : null);
   const savedText = (res) => (res && res.paprika ? (res.existing ? 'Already in Paprika' : 'Saved to Paprika') : 'Saved');
   // Ours (synced from Paprika): already in our library, so no Save or Remove.
+  // "2026-10-10" as "Oct 10", with the year when it isn't this one.
+  const madeOn = (day) => {
+    const d = new Date(day + 'T12:00:00');
+    return formatDate(d, { month: 'short', day: 'numeric', ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}) });
+  };
   let isOurs = $derived(String(recipe.id || '').startsWith('pap:'));
   let image = $derived(isSavedView
     ? (recipe.hasImage ? mediaUrl('/api/recipes/' + recipe.id + '/image') : null)
@@ -77,9 +82,12 @@
     <!-- One retry: on a first load the photo can be asked for before the Worker's media cookie is set. -->
     {#if image}<img src={image} alt="" onerror={(e) => { const el = e.currentTarget; if (!el.dataset.retried) { el.dataset.retried = '1'; setTimeout(() => { el.src = image + (image.includes('?') ? '&' : '?') + 'retry=1'; }, 1500); } }} />{:else if recipe.loading}<span class="ghost photo"></span>{/if}
     {#if recipe.title}<h1>{recipeTitle(recipe.title)}</h1>{:else}<span class="ghost wide"></span>{/if}
+    {#if recipe.rating}<p class="stars" title="Rated {recipe.rating} of 5">{stars(recipe.rating)[0]}<span class="dim">{stars(recipe.rating)[1]}</span></p>{/if}
     <p class="meta">
       {[recipe.category, recipe.area, recipe.time, recipe.servings && 'Serves ' + recipe.servings, recipe.yield && 'Makes ' + recipe.yield].filter(Boolean).join(' · ')}
     </p>
+    <!-- The last day it was on the meal plan (Paprika's Last Prepared). -->
+    {#if recipe.lastMade}<p class="meta">Last made {madeOn(recipe.lastMade)}</p>{/if}
     {#if recipe.from}<p class="meta">Saved by {recipe.from}</p>{/if}
     <!-- Our own notes and tweaks (Paprika's Notes), then the recipe's description and nutrition. -->
     {#if recipe.notes || recipe.description || recipe.nutrition}
@@ -140,6 +148,8 @@
   .sheet { min-height: 0; border-radius: 22px; }
   .side { padding: 0 0 18px; overflow: hidden; display: flex; flex-direction: column; }
   .side img { width: 100%; height: 230px; object-fit: cover; }
+  .stars { margin: 6px 20px 0; font-size: 22px; letter-spacing: 2px; color: var(--yellow); }
+  .stars .dim { color: var(--track); }
   .side h1 { margin: 16px 20px 0; font-size: 24px; font-weight: 600; line-height: 1.2; }
   .meta { margin: 8px 20px 0; font-size: 17px; color: var(--secondary); }
   .extra { flex: 1; min-height: 0; overflow-y: auto; margin: 12px 0 0; padding: 10px 20px 0; border-top: 1px solid var(--sep); }

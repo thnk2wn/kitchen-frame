@@ -21,7 +21,7 @@
   import RecipePage from './RecipePage.svelte';
   import MealGroceries from '../components/MealGroceries.svelte';
   import { api, cached, remember, mediaUrl } from '../lib/api.js';
-  import { recipeTitle, formatDate, compareText } from '../lib/format.js';
+  import { recipeTitle, formatDate, compareText, stars } from '../lib/format.js';
   import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui, plainTitle } from '../lib/state.svelte.js';
   import { dayKey, addDays } from '../lib/format.js';
 
@@ -82,11 +82,11 @@
     else openOurs({ id: want.id, title: want.title, hasImage: true });
   });
 
-  // Paprika, like its own app: a view first (All recipes, Top rated, Favorites, Most recent,
+  // Paprika, like its own app: a view first (All recipes, Top rated, Favorites, Most recent, Most made, Untried,
   // Uncategorized), chosen from a menu so it doesn't crowd the row, then the categories A–Z as chips,
   // which narrow whichever view is on ("Top rated" + "Asian"). The row scrolls sideways when they
   // don't fit. The view is remembered.
-  const RECENT_DAYS = 90, RECENT_MAX = 30;
+  const RECENT_DAYS = 90, RECENT_MAX = 30, MADE_MIN = 3;
   // Paprika's "2026-10-20 18:30:00", local time; 0 when there's none.
   const addedAt = (r) => (r.created ? Date.parse(r.created.replace(' ', 'T')) || 0 : 0);
   const VIEWS = [
@@ -97,6 +97,11 @@
     // whole library by date (Paprika's own). Recipes synced before the date arrived have none yet.
     { id: 'recent', label: 'Most recent', test: (r) => addedAt(r) > Date.now() - RECENT_DAYS * 864e5,
       sort: (a, b) => addedAt(b) - addedAt(a), max: RECENT_MAX },
+    // On the meal plan at least MADE_MIN times in the last 6 months (the Worker counts), most first.
+    { id: 'made', label: 'Most made', test: (r) => r.made >= MADE_MIN, sort: (a, b) => b.made - a.made || compareText(a.title, b.title) },
+    // Never on the meal plan and not rated (a rating means it was made, planned or not), longest in the
+    // library first: the ones to try, or to clear out of Paprika.
+    { id: 'untried', label: 'Untried', test: (r) => !r.lastMade && !r.rating, sort: (a, b) => (addedAt(a) || Infinity) - (addedAt(b) || Infinity) || compareText(a.title, b.title) },
     { id: 'none', label: 'Uncategorized', test: (r) => !r.categories.length },
   ];
   let ourView = $state((() => { try { const v = localStorage.getItem('frame-recipes-view'); return VIEWS.some((x) => x.id === v) ? v : 'all'; } catch { return 'all'; } })());
@@ -308,9 +313,12 @@
                   <span class="ph">
                     {#if ourThumb(r)}<img src={ourThumb(r, 320)} alt="" loading="lazy" decoding="async" use:fade />{:else}<span class="noimg"><Icon name="utensils" size={36} /></span>{/if}
                   </span>
+                  {#if r.rating}<span class="have stars" title="Rated {r.rating} of 5">{stars(r.rating)[0]}<span class="dim">{stars(r.rating)[1]}</span></span>{/if}
                   <span class="label">
                     <span class="title">{recipeTitle(r.title)}</span>
-                    {#if r.categories.length}<span class="sub">{r.categories.join(' · ')}</span>{/if}
+                    {#if view.id === 'made'}<span class="sub">Made {r.made} times in 6 months</span>
+                    {:else if view.id === 'untried' && addedAt(r)}<span class="sub">Added {formatDate(new Date(addedAt(r)), { month: 'short', year: 'numeric' })}</span>
+                    {:else if r.categories.length}<span class="sub">{r.categories.join(' · ')}</span>{/if}
                   </span>
                 </button>
               {:else}
@@ -461,6 +469,9 @@
   .ph { position: absolute; inset: 0; }
   .ph img { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .25s; }
   /* "Already in Paprika", top right of an Explore card. */
+  /* Paprika's rating, gold on the same dark badge as Explore's "Paprika". */
+  .have.stars { padding: 0 9px; gap: 0; color: #ffd60a; font-size: 15px; letter-spacing: 1px; }
+  .have.stars .dim { color: rgba(255, 255, 255, .3); }
   .have { position: absolute; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px; border-radius: 14px; background: rgba(28, 28, 30, .78); color: #fff; font-size: 13px; font-weight: 700; }
   .ph :global(img.in) { opacity: 1; }
   .noimg { height: 100%; display: grid; place-items: center; padding-bottom: 40px; color: var(--tertiary); }

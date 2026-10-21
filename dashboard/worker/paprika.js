@@ -134,14 +134,41 @@ export function mealWindow(meals, types, today, back = 2, ahead = 21) {
     .filter((m) => m.title && m.date >= from && m.date <= to)
     .sort((a, b) => a.date.localeCompare(b.date) || (MEAL_ORDER[a.type] ?? 9) - (MEAL_ORDER[b.type] ?? 9) || a.order - b.order);
 }
+// When each recipe was last on the plan, up to today (Paprika's "Last Prepared"): by recipe uid, and by
+// name for a meal typed rather than picked from the library.
+export function lastMade(meals, today) {
+  const last = {};
+  for (const m of meals || []) {
+    const date = String(m.date || '').slice(0, 10);
+    if (!date || date > today) continue;
+    for (const k of [m.recipe_uid, m.name && 'name:' + mealKey(m.name)]) if (k && !(last[k] >= date)) last[k] = date;
+  }
+  return last;
+}
+// How many times each was on the plan in the last `days` up to today (Recipes' Most made): a meal
+// counts once, by its recipe uid, or by name when it was typed.
+export function madeCounts(meals, today, days = 180) {
+  const d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - days);
+  const from = d.toISOString().slice(0, 10), made = {};
+  for (const m of meals || []) {
+    const date = String(m.date || '').slice(0, 10), k = m.recipe_uid || (m.name && 'name:' + mealKey(m.name));
+    if (k && date >= from && date <= today) made[k] = (made[k] || 0) + 1;
+  }
+  return made;
+}
+const lastMadeFor = (last, r) => (last && (last[r.uid] || last['name:' + mealKey(r.title)])) || null;
+const madeFor = (made, r) => (made ? (made[r.uid] || 0) + (made['name:' + mealKey(r.title)] || 0) : 0);
 async function syncMeals(env, state) {
   const [meals, types] = await Promise.all([get(env, '/v2/sync/meals/', state), get(env, '/v2/sync/mealtypes/', state).catch(() => [])]);
   const today = new Date().toLocaleDateString('en-CA', { timeZone: env.DISPLAY_TZ || 'UTC' });
   const list = mealWindow(meals, types, today);
-  const prev = await env.CALENDAR.get(MEALS_KEY);
-  const next = JSON.stringify(list);
-  const changed = !prev || JSON.parse(prev).meals === undefined || JSON.stringify(JSON.parse(prev).meals) !== next;
-  if (changed) await env.CALENDAR.put(MEALS_KEY, JSON.stringify({ updated: new Date().toISOString(), meals: list }));
+  const last = lastMade(meals, today), made = madeCounts(meals, today);
+  const prev = JSON.parse((await env.CALENDAR.get(MEALS_KEY)) || 'null');
+  // changed is the plan the frame shows; new last-made dates or counts alone are stored without telling it.
+  const changed = !prev || prev.meals === undefined || JSON.stringify(prev.meals) !== JSON.stringify(list);
+  if (changed || JSON.stringify(prev.last) !== JSON.stringify(last) || JSON.stringify(prev.made) !== JSON.stringify(made)) {
+    await env.CALENDAR.put(MEALS_KEY, JSON.stringify({ updated: changed ? new Date().toISOString() : prev.updated, meals: list, last, made }));
+  }
   return { count: list.length, changed };
 }
 
@@ -232,7 +259,7 @@ async function load(env) {
 
 export const loadSynced = (env) => load(env);
 
-const card = (r) => ({
+const card = (r, last, made) => ({
   id: r.id, title: r.title, categories: r.categories || [], hasImage: !!r.hasImage,
   // The source link, so the frame can tell an Explore recipe is already in the library.
   ...(r.source ? { source: r.source } : {}),
@@ -240,20 +267,24 @@ const card = (r) => ({
   ...(r.hasImage ? { img: String(r.photoLarge || r.photoHash || '').replace(/\W/g, '').slice(0, 8) } : {}),
   ...(r.favorite ? { favorite: true } : {}), ...(r.rating ? { rating: r.rating } : {}),
   ...(r.created ? { created: r.created } : {}),
+  ...(lastMadeFor(last, r) ? { lastMade: lastMadeFor(last, r) } : {}),
+  ...(madeFor(made, r) ? { made: madeFor(made, r) } : {}),
 });
 
 export async function listPaprika(env) {
   if (!paprikaConfigured(env)) return { configured: false, recipes: [] };
-  const data = await load(env);
-  return { configured: true, updated: data.updated, remaining: data.remaining || 0, recipes: data.recipes.filter((r) => !r.trashed).map(card) };
+  const [data, meals] = await Promise.all([load(env), env.CALENDAR.get(MEALS_KEY, { type: 'json', cacheTtl: 60 })]);
+  const { last, made } = meals || {};
+  return { configured: true, updated: data.updated, remaining: data.remaining || 0, recipes: data.recipes.filter((r) => !r.trashed).map((r) => card(r, last, made)) };
 }
 
 export async function getPaprika(env, uid) {
-  const data = await load(env);
+  const [data, meals] = await Promise.all([load(env), env.CALENDAR.get(MEALS_KEY, { type: 'json', cacheTtl: 60 })]);
   const r = data.recipes.find((x) => x.uid === uid && !x.trashed);
   if (!r) return null;
   const { hash, photoHash, photoLarge, servings, yield: y, ...recipe } = r;
-  return { ...recipe, ...servingsOf(servings || y) }; // also tidies recipes stored before servingsOf
+  const lastMadeOn = lastMadeFor(meals && meals.last, r);
+  return { ...recipe, ...servingsOf(servings || y), ...(lastMadeOn ? { lastMade: lastMadeOn } : {}) }; // also tidies recipes stored before servingsOf
 }
 
 // w=320: the grid's smaller copy (a third of the bytes over the frame's slow Wi-Fi, and a quarter of
