@@ -384,6 +384,9 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
 
 
   // The album's photos, newest first (at most 500). Shared albums are albums to Photos, too.
+  // A shared album keeps a photo added twice as two copies; one with the same moment it was taken (to
+  // the millisecond), size and kind (and length, for a video) as one already kept is left out, so it
+  // isn't shown twice. Burst shots are never matched: they can share all of that.
   func albumAssets(_ name: String) -> [PHAsset]? {
     var found: PHAssetCollection?
     PHAssetCollection.fetchAssetCollections(with: .album, subtype: .any, options: nil).enumerateObjects { c, _, stop in
@@ -393,7 +396,12 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
     let opts = PHFetchOptions()
     opts.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
     var out: [PHAsset] = []
+    var seen = Set<String>()
     PHAsset.fetchAssets(in: album, options: opts).enumerateObjects { a, _, stop in
+      if let taken = a.creationDate, a.burstIdentifier == nil {
+        let key = "\(Int((taken.timeIntervalSince1970 * 1000).rounded()))|\(a.pixelWidth)x\(a.pixelHeight)|\(a.mediaType.rawValue)|\(Int(a.duration.rounded()))"
+        guard seen.insert(key).inserted else { return }
+      }
       out.append(a)
       if out.count >= 500 { stop.pointee = true }
     }
