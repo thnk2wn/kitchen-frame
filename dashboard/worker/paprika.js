@@ -23,7 +23,7 @@ const BATCH = 10;          // recipes fetched per run (each may also fetch its p
 const PHOTO_WIDTH = 640;   // same as saved recipes
 const MAX_IMAGE = 3 * 1024 * 1024;
 // Bumped when fromPaprika keeps more fields, so already-synced recipes are fetched again (in batches).
-const RECIPE_VERSION = 4; // 3: the full-size photo (photo_large); 4: renamed categories, trashed recipes
+const RECIPE_VERSION = 5; // 3: the full-size photo (photo_large); 4: renamed categories, trashed recipes; 5: created
 
 export const paprikaConfigured = (env) => !!(env.PAPRIKA_EMAIL && env.PAPRIKA_PASSWORD);
 
@@ -106,6 +106,8 @@ export function fromPaprika(p, categoryNames = {}) {
     ...(time ? { time } : {}),
     ...(p.rating ? { rating: Number(p.rating) || 0 } : {}),
     ...(p.on_favorites ? { favorite: true } : {}),
+    // When it was added to Paprika ("2026-10-20 18:30:00"), for Recipes' Most recent.
+    ...(typeof p.created === 'string' && p.created ? { created: p.created.slice(0, 19) } : {}),
     ...(p.source ? { sourceName: String(p.source).trim() } : {}),
     ...(/^https?:/.test(p.source_url || '') ? { source: p.source_url } : {}),
     ...(String(p.notes || '').trim() ? { notes: String(p.notes).trim().slice(0, 4000) } : {}),
@@ -237,6 +239,7 @@ const card = (r) => ({
   // Photo version: part of the photo's address, so a replaced photo isn't served from a week-long cache.
   ...(r.hasImage ? { img: String(r.photoLarge || r.photoHash || '').replace(/\W/g, '').slice(0, 8) } : {}),
   ...(r.favorite ? { favorite: true } : {}), ...(r.rating ? { rating: r.rating } : {}),
+  ...(r.created ? { created: r.created } : {}),
 });
 
 export async function listPaprika(env) {
