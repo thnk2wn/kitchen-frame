@@ -37,8 +37,6 @@ Thoughts to try in a branch and measure on the frame, not plans:
   developer membership. OSRM is free with no key but has no traffic.
 - **Full-screen map:** tap the map preview for a larger one, with + and – buttons (no pinch on the
   frame).
-- **Links as QR codes:** notes drop links because the kiosk can't open them; a QR code would let you
-  open one on your phone (tickets, a video call, a sign-up form).
 - **PIN for private calendars:** let a calendar's details open after a PIN, so work events can be
   read without being open to anyone in the kitchen.
 - **Calendars chosen on the frame:** the Mac bridge can see every calendar the Mac has (accounts and
@@ -48,12 +46,11 @@ Thoughts to try in a branch and measure on the frame, not plans:
 
 ## Fitness
 
-- **A "check your rings" nudge, opt in per person:** a frame notice in the evening (say 7 PM) when a
-  ring is behind for the time of day, gone by itself once the ring closes or at 10 PM, never kept
-  in the notices history. A setting on the phone (Settings → Apple Health), off by default; maybe
-  spoken on one Echo instead, if a notice turns out too easy to ignore.
-- **Another person's rings:** HealthKit only gives an app its phone owner's data, so
-  the Kitchen Frame app on their phone, or a Shortcut posting the same numbers.
+- **A "check your rings" nudge, opt in per person:** Home already marks a ring that's behind for the
+  time of day; this would add a frame notice in the evening (say 7 PM) when a ring is behind for the
+  time of day, gone by itself once the ring closes or at 10 PM, never kept in the notices history. A
+  setting on the phone (Settings → Apple Health), off by default; maybe spoken on one Echo instead,
+  if a notice turns out too easy to ignore.
 - **Who is asking Alexa:** with Alexa voice profiles, "how's my fitness" could answer for the
   speaker only, rather than everyone sharing.
 - **Looked at, not planned: a Watch app for fresher rings.** A worn Watch is unlocked, so it could
@@ -91,15 +88,6 @@ Since 2026-10-19 one part of the screen that fails shows a placeholder instead o
 down (`components/Safe.svelte`), and the frame reloads itself if the page stops updating or keeps
 erroring (`lib/watchdog.js`). Next:
 
-- **Smoke test as a deploy gate:** `scripts/smoke.mjs` already opens every screen of a new build on
-  the real data and in demo mode and fails on any error (it would have stopped the white frame of
-  2026-10-19). Run it from `npm run deploy` before `wrangler deploy`, gated on its exit code, with a
-  way around it for an emergency fix. Two things to fix first: `vite preview` (with the Cloudflare
-  plugin) runs the Worker locally against an empty local KV, so "real data" isn't the live Worker's
-  stored data (Fitness, notices, Paprika); and one run had 19 of 30 screens fail that passed on a
-  rerun, so retry a failing screen once and print why it failed.
-- **Roll back on its own:** after a deploy, if the frame hasn't checked in on the new build within a
-  few minutes, `wrangler rollback` to the version before and say so.
 - **A reload in the night, if the numbers say so:** since 2026-10-20 each check-in carries the kiosk's
   memory (kiosk 1.8): the status page's Memory row shows the day's range, and
   `scripts/frame-metrics.sh 7` shows a week per hour from Workers Analytics Engine. If the app's
@@ -107,25 +95,36 @@ erroring (`lib/watchdog.js`). Next:
   dashboard's own clock; if it stays flat, skip it.
 - **Tell someone when the frame goes quiet:** a Home Assistant notification to a phone when the frame
   hasn't checked in for 15 minutes (the Ops tab's badge only shows when the app is open).
-- **Pull requests for larger changes,** with an adversarial review (an agent looking for data that
-  breaks it: out-of-order or repeated items, empty lists, missing fields) before merging. Small fixes
-  and docs go straight to `main`.
-- **CI/CD:** CI runs the tests and the build on every push and pull request. Add the smoke test in demo
-  mode there (headless Chrome on the runner), and deploy from GitHub Actions on a merge to `main`
-  (a Cloudflare API token as a repository secret) behind the same gate and rollback, so a deploy no
-  longer depends on one laptop. A preview version per pull request (`wrangler versions upload`) to try
-  on the frame before merging, if preview links work with the Worker's Durable Objects.
+- **A faster smoke test:** `SMOKE_PARALLEL=4` runs four screens at a time (about 24 s instead of 70),
+  but about one run in four had live API calls fail on Home and Calendar (`api.failed`, which call not
+  yet logged). Find which call, and why, before making it the default.
+- **An adversarial review for larger changes** before merging (an agent looking for data that breaks
+  it: out-of-order or repeated items, empty lists, missing fields), in a pull request. Everything
+  else goes straight to `main`.
+- **CI/CD:** CI runs the tests and the build, and builds the kiosk APK, on every push and pull
+  request. Add the smoke test in demo mode there (headless Chrome on the runner), and deploy from
+  GitHub Actions on a merge to `main` (a Cloudflare API token as a repository secret) behind the
+  same gate and rollback, so a deploy no longer depends on one laptop. A preview version per pull
+  request (`wrangler versions upload`) to try on the frame before merging, if preview links work
+  with the Worker's Durable Objects.
 - **Tests for data the household produces:** the white frame came from real data no test had (a
   calendar from the Mac arriving after the others). Unit tests on lists built from such data, and keyed
   lists that can't repeat a key.
 
 ## Operations and security
 
-- **Worker metrics** on it from Cloudflare's analytics API (a read-only API token as a secret).
-- **From the 2026-10-20 security review, not yet done** (device keys are: `worker/devices.js`): a local allowlist on the Mac bridge (the calendars, lists and album it may serve,
-  rather than whatever the Worker names). A full Content-Security-Policy, and YouTube's player in an
-  origin of its own (its script runs in the dashboard's, beside the saved key). Modest rate and body
-  limits per token.
+- **Worker request and error counts** from Cloudflare's GraphQL analytics, beside the frame's own
+  metrics in Workers Analytics Engine (`scripts/frame-metrics.sh`, which already has a read-only token).
+- **From the 2026-10-20 security review, not yet done** (device keys, body limits and a report-only
+  policy are in: `worker/devices.js`, `limits.js`, `csp.js`):
+  - **Enforce the Content-Security-Policy.** It only reports for now; after a few days of normal use,
+    `scripts/frame-metrics.sh csp` shows what it would block. Home Assistant and the camera relay are
+    at addresses set on the frame, so connect-src needs them from the frame's settings, or a broader
+    rule.
+  - **YouTube's player in an origin of its own** (its script runs in the dashboard's, beside the saved
+    key).
+  - **A local allowlist on the Mac bridge:** the calendars, lists and album it may serve, rather than
+    whatever the Worker names.
 - **A PIN for Settings:** unlocking has one (Settings → Home). Settings changes are logged and the
   last 10 versions kept, so a PIN there waits until a change slips by unnoticed.
 
@@ -142,7 +141,7 @@ erroring (`lib/watchdog.js`). Next:
 ## Screen and slideshow
 
 - **A way back to the dashboard from Android settings.** The frame has no navigation bar, so after
-  opening Android's own settings (to change the volume, say) the only way back was a restart. A
+  opening Android's own settings (to change the volume, say) the only way back is a restart. A
   gesture or a button in the kiosk app that brings it to the front.
 - **Screen fully off at night**, through the kiosk app (backlight off), as an alternative to night
   mode's lowest brightness, for a frame in a bedroom.

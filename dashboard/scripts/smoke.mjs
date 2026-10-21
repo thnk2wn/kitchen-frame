@@ -6,7 +6,7 @@
 // fails the test. On 2026-10-19 one card's error on that day's real calendar turned the frame white;
 // this would have stopped that deploy.
 //
-//   npm run build && node scripts/smoke.mjs          (run it before wrangler deploy; not yet automatic)
+//   npm run build && node scripts/smoke.mjs          (npm run deploy runs it before wrangler deploy)
 //
 // Reads DASHBOARD_KEY from .dev.vars, and DASHBOARD_URL and the optional HA_URL / HA_TOKEN /
 // HA_DASHBOARD from .frame.vars (both gitignored). Chrome: /Applications/Google Chrome.app, or CHROME.
@@ -33,7 +33,7 @@ const screens = [
   ['home', 'tab=home'], ['calendar', 'tab=calendar'], ['lists', 'tab=todo'], ['groceries', 'tab=groceries'],
   ['recipes', 'tab=recipes'], ['music', 'tab=music'], ['tv', 'tab=music&media=tv'], ['videos', 'tab=music&media=videos'],
   ['podcasts', 'tab=music&media=podcasts'], ['house', 'tab=house'], ['weather', 'tab=home&weather=0'],
-  ['radar', 'tab=home&weather=0&radar'], ['settings', 'tab=home&settings=about'], ['timer', 'tab=home&timer=Pasta:7'], ['fitness', 'tab=fitness'], ['workout', 'tab=fitness&workout=1'], ['fitness day', 'tab=fitness&fitnessday=3'],
+  ['radar', 'tab=home&weather=0&radar'], ['settings', 'tab=home&settings=about'], ['timer', 'tab=home&timer=Pasta:7'], ['fitness', 'tab=fitness'], ['workout', 'tab=fitness&workout=1'], ['fitness day', 'tab=fitness&fitnessday=3'], ['weight', 'tab=fitness&weight=1'],
 ].flatMap(([name, q]) => [[name, q + '&demo=off'], ['demo ' + name, q + '&demo=on']])
   .filter(([name]) => !process.env.SMOKE_ONLY || name === process.env.SMOKE_ONLY); // SMOKE_ONLY=home: just that one
 
@@ -133,7 +133,8 @@ try {
     if (m.id && pending.has(m.id)) { const { ok, no } = pending.get(m.id); pending.delete(m.id); m.error ? no(new Error(m.error.message)) : ok(m.result); }
     else for (const f of listeners) f(m);
   };
-  for (const [name, query] of screens) {
+  // What's wrong with one screen, [] when nothing.
+  const check = async (query) => {
     const problems = [];
     let r = null;
     try { r = await open(query); } catch (e) { problems.push('could not open it: ' + e.message); }
@@ -145,10 +146,28 @@ try {
       else if (!/role="tablist"/.test(r.dom)) problems.push("the page didn't draw (no tab bar)");
       if (/couldn’t show just now/.test(r.dom)) problems.push('a part failed and showed its placeholder');
     }
-    console.log((problems.length ? 'FAIL ' : 'ok   ') + name + (problems.length ? '\n       ' + [...new Set(problems)].join('\n       ') : ''));
-    failures += problems.length ? 1 : 0;
-    if (dead) { broken = dead; break; }
-  }
+    return [...new Set(problems)];
+  };
+  const list = (problems) => '\n       ' + problems.join('\n       ');
+  // SMOKE_PARALLEL screens at a time (1 unless set), each in its own private window of the one Chrome
+  // (so one Dock icon), taken in order from the list. 4 at a time took the run from about 70 s to 24,
+  // but about one run in four had live API calls fail on Home and Calendar (ROADMAP.md), so it's off.
+  const PARALLEL = Math.max(1, Math.min(6, Number(process.env.SMOKE_PARALLEL) || 1));
+  let next = 0;
+  const runOne = async () => {
+    while (next < screens.length && !dead) {
+      const [name, query] = screens[next++];
+      // A failing screen gets one more try: a slow backend on one run once failed 19 screens that passed
+      // on a rerun. Passing the second time still prints what went wrong the first.
+      const first = await check(query);
+      const problems = first.length && !dead ? await check(query) : first;
+      if (!problems.length && first.length) console.log('ok   ' + name + ' (on a retry; first:' + list(first) + ')');
+      else console.log((problems.length ? 'FAIL ' : 'ok   ') + name + (problems.length ? list(problems) : ''));
+      failures += problems.length ? 1 : 0;
+    }
+  };
+  await Promise.all(Array.from({ length: PARALLEL }, runOne));
+  if (dead) broken = dead;
 } catch (e) {
   broken = e.message;
 } finally {

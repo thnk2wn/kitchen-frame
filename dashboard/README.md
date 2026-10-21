@@ -8,7 +8,7 @@ needed; everything else in the repo is optional.
 | `src/` | The web app (Svelte 5, no SvelteKit): Home, Calendar, Lists, Recipes, Media and House tabs, the doorbell pop-up, the clock screen. Built for the frame's old WebView: see the rules in [CLAUDE.md](../CLAUDE.md). |
 | `worker/` | The Worker that serves the app and its API: calendars, weather, lists, photos, recipes, notices, messages, the frame's check-ins, and the Mac bridge's routes. Every credential for those services lives here as a secret, never on the frame. |
 | `ops/` | The optional status page: a second Worker behind GitHub sign-in ([docs/frame.md](../docs/frame.md#status-page-optional)). |
-| `scripts/` | Day-to-day tools: `push-secrets.sh` (`.dev.vars` to the Worker), `frame-url.sh` (the frame's one-time setup link), `frame-status.sh` (what the frame last reported, its event log, `--now`, `--reload`), helpers for Spotify, Paprika and icons, `smoke.mjs` (opens every screen of a new build on the real data and in demo mode, and fails on any error; run it before a deploy), and `check-private.sh` (run `install-hooks.sh` once per clone: every push is then checked for the household details listed in the gitignored `.private-terms`). |
+| `scripts/` | Day-to-day tools: `push-secrets.sh` (`.dev.vars` to the Worker), `frame-url.sh` (the frame's one-time setup link), `frame-status.sh` (what the frame last reported, its event log, `--now`, `--reload`), helpers for Spotify, Paprika and icons, `smoke.mjs` (opens every screen of a new build on the real data and in demo mode, and fails on any error; `npm run deploy` runs it first), `deploy.sh` (what `npm run deploy` runs), and `check-private.sh` (run `install-hooks.sh` once per clone: every push is then checked for the household details listed in the gitignored `.private-terms`). |
 
 ## Run, test, deploy
 
@@ -16,7 +16,8 @@ needed; everything else in the repo is optional.
 npm install
 npm run dev        # http://localhost:5173/#key=<DASHBOARD_KEY from .dev.vars>, or Settings → Demo mode
 npm test           # the Worker, the app's logic and the status page
-npm run deploy     # build and deploy the Worker (the frame reloads on its own, or scripts/frame-status.sh --reload)
+npm run deploy     # tests, build, smoke test, deploy, then checks the live site and reloads the frame;
+                   # rolls back if the frame doesn't come up on the new build (scripts/deploy.sh)
 npx wrangler deploy --config ops/wrangler.jsonc   # the status page
 ```
 
