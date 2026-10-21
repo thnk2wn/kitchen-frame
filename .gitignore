@@ -31,3 +31,7 @@ bridge/mac/config.json
 *.key
 *.p12
 *.mobileprovision
+
+# Python caches (bridge/camera-relay).
+__pycache__/
+*.pyc

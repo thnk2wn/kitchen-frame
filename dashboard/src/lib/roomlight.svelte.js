@@ -54,7 +54,11 @@ function update(lux) {
   const lit = lux == null ? null : lux > darkLux();
   if (lit === roomLight.lit) { if (pending) { clearTimeout(pending.timer); pending = null; } return; }
   // The first reading, or losing the sensor, applies at once; a change of state waits.
-  if (roomLight.lit == null || lit == null) { roomLight.lit = lit; return; }
+  if (roomLight.lit == null || lit == null) {
+    if (pending) { clearTimeout(pending.timer); pending = null; } // a change waiting on a lost sensor is dropped
+    roomLight.lit = lit;
+    return;
+  }
   if (pending && pending.lit === lit) return;
   if (pending) clearTimeout(pending.timer);
   pending = { lit, timer: setTimeout(() => { roomLight.lit = lit; pending = null; }, SETTLE_MS) };

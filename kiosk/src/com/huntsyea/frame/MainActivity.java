@@ -116,13 +116,14 @@ public class MainActivity extends Activity {
     web.setWebViewClient(new WebViewClient() {
       @Override
       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-        // Stay inside the kiosk, and on the dashboard: a top-level page elsewhere would get the
-        // window.FrameKiosk bridge too (2026-10-20 security review). Embeds (YouTube) aren't top-level.
-        if (!request.isForMainFrame() || url == null) return false;
-        String host = Uri.parse(url).getHost(), to = request.getUrl().getHost();
-        if (host != null && host.equalsIgnoreCase(to)) return false;
-        Log.w(TAG, "refused a top-level page outside the dashboard: " + to);
-        return true;
+        return request.isForMainFrame() && offDashboard(request.getUrl());
+      }
+
+      // Android 6 and 7.0 call this one instead (the one above is API 24+): top-level loads only.
+      @Override
+      @SuppressWarnings("deprecation")
+      public boolean shouldOverrideUrlLoading(WebView view, String to) {
+        return offDashboard(Uri.parse(to));
       }
 
       @Override
@@ -249,6 +250,20 @@ public class MainActivity extends Activity {
           + ",\"upMin\":" + (up < 0 ? -1 : up / 60000)
           + ",\"bootMin\":" + SystemClock.elapsedRealtime() / 60000 + "}";
     } catch (Exception e) { return "{}"; }
+  }
+
+  /**
+   * Stay inside the kiosk, and on the dashboard: a top-level page on another host would get the
+   * window.FrameKiosk bridge too (2026-10-20 security review). Embeds (YouTube) aren't top-level. A
+   * redirect to another host (a new custom domain, a sign-in page) is refused the same way, so change
+   * the kiosk's address with the setup link instead.
+   */
+  private boolean offDashboard(Uri to) {
+    if (url == null) return false;
+    String host = Uri.parse(url).getHost();
+    if (host != null && host.equalsIgnoreCase(to.getHost())) return false;
+    Log.w(TAG, "refused a top-level page outside the dashboard: " + to.getHost());
+    return true;
   }
 
   /** Exposed to the dashboard page as window.FrameKiosk. Only our dashboard loads in this WebView. */

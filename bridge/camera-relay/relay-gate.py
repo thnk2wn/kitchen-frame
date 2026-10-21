@@ -89,11 +89,19 @@ async def handle(reader, writer):
     except Exception:
         up_w.close()
         return await reply(writer, b'502 Bad Gateway')
-    writer.write(answer)
-    await writer.drain()
-    if not answer.startswith(b'HTTP/1.1 101'):
-        up_w.close()
-        writer.close()
+    # Both ends close on anything but a 101, and if the viewer is gone before the answer reaches it.
+    try:
+        writer.write(answer)
+        await writer.drain()
+        ok = answer.startswith(b'HTTP/1.1 101')
+    except Exception:
+        ok = False
+    if not ok:
+        for w in (up_w, writer):
+            try:
+                w.close()
+            except Exception:
+                pass
         print('refused', who, 'go2rtc answered', answer.split(b'\r\n')[0].decode('latin-1'), flush=True)
         return
     print('relay', who, m.group(2).decode('latin-1'), flush=True)

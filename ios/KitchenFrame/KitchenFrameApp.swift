@@ -30,10 +30,12 @@ struct KitchenFrameApp: App {
                     } }
                 }
                 #if DEBUG
-                // For the simulator: -pairLink kitchenframe://pair?… pairs without the "Open in" prompt.
+                // For the simulator: -pairLink kitchenframe://pair?… pairs without the "Open in" prompt or the pairing alert.
                 .task {
                     let args = ProcessInfo.processInfo.arguments
-                    if let i = args.firstIndex(of: "-pairLink"), args.count > i + 1, let link = URL(string: args[i + 1]) { model.pair(with: link) }
+                    if let i = args.firstIndex(of: "-pairLink"), args.count > i + 1, let link = URL(string: args[i + 1]), let p = Pairing.from(link: link) {
+                        Task { await model.confirmPairing(p) } // DEBUG only: no prompt, for the simulator
+                    }
                     // -frameAsk: as if the frame's Refresh notification was tapped (its banner, for screenshots).
                     if args.contains("-frameAsk") { await model.answerFrame() }
                 }
