@@ -48,7 +48,10 @@ export const ui = $state({
   // 5 was the old default and is no longer offered, so it becomes 30.
   idleMinutes: Number(pref('idle', '30')) === 5 ? 30 : Number(pref('idle', '30')),
   recipeOpen: false,                         // a recipe page is showing (Recipes sets it); holds off the clock screen
-  nightPhotos: pref('night-photos', 'on') === 'on', // slideshow after sunset (dimmed)
+  // Photos on the clock screen after sunset: 'auto' dims them only once the room is dark
+  // (lib/roomlight.svelte.js; like 'on' without a light sensor), 'on' dims them from sunset, 'off'.
+  nightPhotosMode: ['auto', 'on', 'off'].includes(pref('night-photos', 'auto')) ? pref('night-photos', 'auto') : 'auto',
+  nightPhotos: pref('night-photos', 'auto') !== 'off', // shown at all after sunset (follows nightPhotosMode)
   photoDetails: pref('photo-details', 'off') === 'on', // each photo's date and place, small, on the slideshow
   slideVideos: pref('slide-videos', 'on') === 'on', // album videos play in the slideshow (muted); off: their stills
   demo: pref('demo', 'off') === 'on',          // sample data instead of real calendars, lists, photos
@@ -61,7 +64,7 @@ export function setSetting(key, value) {
   if (key === 'idleMinutes') { ui.idleMinutes = value; localStorage.setItem('frame-idle', String(value)); rearmIdle(); }
   if (key === 'cameraRefresh') { ui.cameraRefresh = value; localStorage.setItem('frame-camera-refresh', String(value)); }
   if (key === 'clockColor') { ui.clockColor = value; localStorage.setItem('frame-clock-color', value); }
-  if (key === 'nightPhotos') { ui.nightPhotos = value; localStorage.setItem('frame-night-photos', value ? 'on' : 'off'); }
+  if (key === 'nightPhotos') { ui.nightPhotosMode = value; ui.nightPhotos = value !== 'off'; localStorage.setItem('frame-night-photos', value); }
   if (key === 'slideVideos') { ui.slideVideos = value; localStorage.setItem('frame-slide-videos', value ? 'on' : 'off'); }
   if (key === 'photoDetails') { ui.photoDetails = value; localStorage.setItem('frame-photo-details', value ? 'on' : 'off'); }
   if (key === 'demo') {

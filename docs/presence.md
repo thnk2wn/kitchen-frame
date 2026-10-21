@@ -149,6 +149,26 @@ off. Without a Mac, `ALBUM_URL` is the album's link with Public Website on (both
 which anyone holding it can open. The event log records each switch and why (`screen.clock`,
 `screen.awake`).
 
+### Photos after sunset: dim when dark
+
+**Settings → Display → Photos after sunset** has three choices. **Dim when dark** (the default) keeps
+the photos and clock at full strength after sunset while the room is lit, and dims them once it goes
+dark. **Dimmed** dims them from sunset, as before; **Off** shows no photos after sunset. Night (below)
+still takes over at its hours either way. In autumn sunset can be five hours before bedtime, and a
+lit kitchen made the dimmed photos hard to see.
+
+The room's light comes from Home Assistant: every illuminance sensor in the presence area (`PRESENCE_AREA`),
+so an Echo with a light sensor, a motion sensor that also measures light or a dedicated one all work
+with no setup. The brightest one counts. The room counts as dark at 20 lux or less: lights off reads
+at a sensor's floor (an Echo Dot here sits at 11–13 lux in the dark) and a lit evening 25 and up.
+A change takes effect once it has held for a minute, so a light flicked on and off doesn't flash the
+photos. Settings shows the reading and what it's doing under the choice.
+
+Optional, in `.frame.vars` (sent with the setup link, `scripts/frame-url.sh`): `LIGHT_SENSOR` names
+one `sensor.x` to use instead of the area's, or `off` to ignore light; `DARK_LUX` sets the dark level.
+Without a light sensor, Dim when dark dims from sunset like Dimmed. A sensor reached through a cloud
+(an Echo's is) can lag a little, and the setting falls back to sunset when it's unavailable.
+
 **Night** (Settings → Display → Night, 10:30 PM to 6:30 AM by default, or off): the clock screen
 comes on two minutes after the last touch, without photos, in red (Settings → Display → Night clock
 color: red, orange, yellow or the daytime colour) and at the screen's lowest brightness, and motion

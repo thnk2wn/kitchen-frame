@@ -91,7 +91,7 @@ boots into the kiosk, Frameo and the updaters not installed or running.
 
 ## Day-to-day
 
-- Dashboard: `https://photo-frame-dashboard.<your-subdomain>.workers.dev/?key=<DASHBOARD_KEY>` (key in `dashboard/.prod.vars`, gitignored).
+- Dashboard: `https://photo-frame-dashboard.<your-subdomain>.workers.dev/#key=<DASHBOARD_KEY>` (key in `dashboard/.prod.vars`, gitignored).
 - Change the URL: `adb shell am start -n com.huntsyea.frame/.MainActivity -d '<url>'` (remembered across reboots).
 - Escape hatch on the frame: hold two (or more) fingers still for 2 s → Reload dashboard / Android settings.
   Kiosk 1.6 allows some drift and a stray extra touch; a cancelled hold is logged (`adb logcat -s FrameKiosk`).

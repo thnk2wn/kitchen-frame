@@ -591,14 +591,20 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
           try store.save(r, commit: true)
           log("Added \"\(title)\" to \(cal.title)")
         } else if type == "update", let itemId = op["itemId"] as? String {
-          if let r = store.calendarItem(withIdentifier: itemId) as? EKReminder {
+          // Only a reminder in the list the change names: the Worker can't reach into another list
+          // by sending an id from it (2026-10-20 security review).
+          if let r = store.calendarItem(withIdentifier: itemId) as? EKReminder, r.calendar?.calendarIdentifier != cal.calendarIdentifier {
+            log("Refused to update a reminder that isn't in \(cal.title)")
+          } else if let r = store.calendarItem(withIdentifier: itemId) as? EKReminder {
             if let title = op["content"] as? String, !title.isEmpty { r.title = title }
             if let p = op["priority"] as? Int, (0...3).contains(p) { r.priority = [0, 9, 5, 1][p] }
             try store.save(r, commit: true)
             log("Updated \"\(r.title ?? "")\" in \(cal.title)")
           } // gone from Reminders: nothing to do
         } else if type == "complete", let itemId = op["itemId"] as? String {
-          if let r = store.calendarItem(withIdentifier: itemId) as? EKReminder, !r.isCompleted {
+          if let r = store.calendarItem(withIdentifier: itemId) as? EKReminder, r.calendar?.calendarIdentifier != cal.calendarIdentifier {
+            log("Refused to complete a reminder that isn't in \(cal.title)")
+          } else if let r = store.calendarItem(withIdentifier: itemId) as? EKReminder, !r.isCompleted {
             r.isCompleted = true
             try store.save(r, commit: true)
             log("Completed \"\(r.title ?? "")\" in \(cal.title)")

@@ -76,6 +76,12 @@
   import { timerSpeakerId, setTimerSpeaker } from '../lib/timers.svelte.js';
   import { bell, ring } from '../lib/doorbell.svelte.js';
   import { presence, presenceArea, ignored, setIgnored } from '../lib/presence.svelte.js';
+  import { roomLight, darkLux } from '../lib/roomlight.svelte.js';
+  // What "Photos after sunset" is doing right now, under its buttons.
+  const nightPhotosHint = () => ui.nightPhotosMode === 'off' ? 'No photos on the clock screen after sunset'
+    : ui.nightPhotosMode === 'on' ? 'Dimmed from sunset'
+    : roomLight.lit == null ? 'No light sensor found in the room: dims from sunset'
+    : 'Room ' + (roomLight.lit ? 'lit' : 'dark') + ' (' + Math.round(roomLight.lux) + ' lux, dark at ' + darkLux() + ' or less): ' + (roomLight.lit ? 'photos at full strength' : 'photos dimmed');
   import { recent } from '../lib/log.svelte.js';
   import { pin, pinAvailable, confirmPin, enterPin, savePin, removePin } from '../lib/pin.svelte.js';
   import { fitness, setGuest } from '../lib/fitness.svelte.js';
@@ -174,10 +180,11 @@
 
 
     <div class="row">
-      <span>Photos after sunset</span>
+      <span>Photos after sunset<small>{nightPhotosHint()}</small></span>
       <div class="seg">
-        <button class:on={ui.nightPhotos} onclick={() => setSetting('nightPhotos', true)}>Dimmed</button>
-        <button class:on={!ui.nightPhotos} onclick={() => setSetting('nightPhotos', false)}>Off</button>
+        <button class:on={ui.nightPhotosMode === 'auto'} onclick={() => setSetting('nightPhotos', 'auto')}>Dim when dark</button>
+        <button class:on={ui.nightPhotosMode === 'on'} onclick={() => setSetting('nightPhotos', 'on')}>Dimmed</button>
+        <button class:on={ui.nightPhotosMode === 'off'} onclick={() => setSetting('nightPhotos', 'off')}>Off</button>
       </div>
     </div>
 

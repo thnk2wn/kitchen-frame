@@ -6,6 +6,27 @@
        No initial-scale: Android WebView would pin the scale to 1 and lay out at the full panel width. -->
   <meta name="viewport" content="width=1280, user-scalable=no">
   <title>Frame</title>
+  <script>
+    // Setup links (scripts/frame-url.sh) carry the dashboard key and Home Assistant token after #, which
+    // a browser never sends, so they can't land in the Worker's request logs. This moves them into the
+    // address's query here, in the page, before the app starts; each part of the app then reads its
+    // setting and removes it from the address, as it did when they came as ?key=…&ha_token=….
+    (function () {
+      if (location.hash.length < 2 || location.hash.indexOf('=') < 0) return;
+      // Kept for a reload before the app has stripped them (window.__reload below): reloading the
+      // address with them in the query would send them to the Worker after all.
+      window.__setupHash = location.hash;
+      var q = new URLSearchParams(location.search);
+      new URLSearchParams(location.hash.slice(1)).forEach(function (v, k) { q.set(k, v); });
+      history.replaceState(null, '', location.pathname + '?' + q);
+    })();
+    // Reload, but with a setup link's values back after # (they're in the query until the app has
+    // read them): the boot watchdog and the start-up failure retry below use this.
+    window.__reload = function () {
+      if (window.__setupHash && /[?&](key|ha_token)=/.test(location.search)) location.replace(location.pathname + window.__setupHash);
+      else location.reload();
+    };
+  </script>
   <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
@@ -49,7 +70,7 @@
         window.__failed = true;
         if (boot) boot.textContent = 'Couldn’t start: ' + msg + ' (trying again shortly)';
         setTimeout(function () {
-          var again = function () { location.reload(); };
+          var again = function () { window.__reload(); };
           if (url && window.fetch) fetch(url, { cache: 'reload' }).then(again, again); else again();
         }, 15000);
       }
@@ -60,7 +81,7 @@
         fail((e.message || e.type) + (e.filename ? ' @ ' + e.filename.split('/').pop() + ':' + e.lineno : ''));
       }, true);
       window.addEventListener('unhandledrejection', function (e) { fail(String(e.reason && e.reason.message || e.reason)); });
-      setTimeout(function () { if (!window.__booted && !window.__failed) location.reload(); }, 10000);
+      setTimeout(function () { if (!window.__booted && !window.__failed) window.__reload(); }, 10000);
     })();
   </script>
   <script type="module" src="/src/main.js"></script>

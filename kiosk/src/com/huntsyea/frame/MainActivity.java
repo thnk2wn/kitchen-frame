@@ -116,7 +116,14 @@ public class MainActivity extends Activity {
     web.setWebViewClient(new WebViewClient() {
       @Override
       public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-        return false; // stay inside the kiosk
+        return request.isForMainFrame() && offDashboard(request.getUrl());
+      }
+
+      // Android 6 and 7.0 call this one instead (the one above is API 24+): top-level loads only.
+      @Override
+      @SuppressWarnings("deprecation")
+      public boolean shouldOverrideUrlLoading(WebView view, String to) {
+        return offDashboard(Uri.parse(to));
       }
 
       @Override
@@ -169,7 +176,7 @@ public class MainActivity extends Activity {
       url = getSharedPreferences(PREFS, MODE_PRIVATE).getString("url", null);
       // Kiosks before 1.6 saved the whole setup link, key and Home Assistant token included. Load it
       // as it is this once (the page saves what it needs), and keep only the address from now on.
-      if (url != null && url.contains("?")) getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("url", withoutQuery(url)).apply();
+      if (url != null && (url.contains("?") || url.contains("#"))) getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("url", withoutQuery(url)).apply();
     }
     if (url != null) { web.loadUrl(url); handler.postDelayed(watchdog, WATCHDOG_MS); }
     else web.loadData("<body style='background:#000;color:#999;font:24px sans-serif;padding:48px'>"
@@ -204,8 +211,10 @@ public class MainActivity extends Activity {
    * shouldn't) keep a copy. After a wipe of the page's storage, run the setup link again.
    */
   static String withoutQuery(String u) {
-    int q = u.indexOf('?');
-    return q < 0 ? u : u.substring(0, q);
+    // The setup link carries the key and token after # since 1.10 (after ? before): neither is kept.
+    int q = u.indexOf('?'), h = u.indexOf('#');
+    int cut = q < 0 ? h : h < 0 ? q : Math.min(q, h);
+    return cut < 0 ? u : u.substring(0, cut);
   }
 
   /** Window brightness 0.02–1, or below 0 to follow the system setting. Only while the kiosk is in front. */
@@ -241,6 +250,20 @@ public class MainActivity extends Activity {
           + ",\"upMin\":" + (up < 0 ? -1 : up / 60000)
           + ",\"bootMin\":" + SystemClock.elapsedRealtime() / 60000 + "}";
     } catch (Exception e) { return "{}"; }
+  }
+
+  /**
+   * Stay inside the kiosk, and on the dashboard: a top-level page on another host would get the
+   * window.FrameKiosk bridge too (2026-10-20 security review). Embeds (YouTube) aren't top-level. A
+   * redirect to another host (a new custom domain, a sign-in page) is refused the same way, so change
+   * the kiosk's address with the setup link instead.
+   */
+  private boolean offDashboard(Uri to) {
+    if (url == null) return false;
+    String host = Uri.parse(url).getHost();
+    if (host != null && host.equalsIgnoreCase(to.getHost())) return false;
+    Log.w(TAG, "refused a top-level page outside the dashboard: " + to.getHost());
+    return true;
   }
 
   /** Exposed to the dashboard page as window.FrameKiosk. Only our dashboard loads in this WebView. */

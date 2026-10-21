@@ -7,7 +7,9 @@
 // bridge's posts come from (Cloudflare's CF-Connecting-IP), kept in the message room. A request is at
 // home when it comes from the same IPv4 address, or from the same IPv6 /64 (each device on the home
 // network has its own IPv6 address, all within one /64). A new address from the ISP is learned at
-// the next check-in, within 10 minutes. HOME_ONLY=off turns the check off (a phone on a VPN, a frame
+// the next check-in, within 10 minutes. The frame and the bridge talk over IPv6 when they can, so the
+// bridge also calls /api/bridge/home over IPv4 every 10 minutes (bridge/mac/install.sh): a phone can
+// pick either, and one on IPv4 was refused at home while only IPv6 was known. HOME_ONLY=off turns the check off (a phone on a VPN, a frame
 // on another network than the phones).
 //
 // What it stops: a lost or stolen phone driving the frame from elsewhere; the app can't claim to be
@@ -41,11 +43,17 @@ export async function noteHome(env, req) {
 }
 
 export async function atHome(env, req) {
+  return (await homeCheck(env, req)).home;
+}
+
+// The check and what it compared: the caller's network and the frame's, for "why not home?"
+// (GET /api/frame/home?why). Only callers with the dashboard key get here.
+export async function homeCheck(env, req) {
   const net = network(ipOf(req));
-  if (!net) return false;
   let home = {};
   try { home = await (await room(env).fetch('https://room/home')).json(); } catch {}
-  return (!!net.v4 && net.v4 === home.v4) || (!!net.v6 && net.v6 === home.v6);
+  const at = !!net && ((!!net.v4 && net.v4 === home.v4) || (!!net.v6 && net.v6 === home.v6));
+  return { home: at, you: net, frame: { v4: home.v4 || null, v6: home.v6 || null } };
 }
 
 // null when the request may go ahead, else the 403 to answer with.

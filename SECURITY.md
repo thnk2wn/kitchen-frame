@@ -35,8 +35,11 @@ None of these are ever in the repository: they live in `wrangler secret`, the gi
 
 - **The key never appears in a URL.** It travels only as a header. Images and the live messages
   socket, which can't send headers, use an HttpOnly cookie the Worker sets: an HMAC of the key, not
-  the key, valid only for those paths. A key in a URL (`?key=`) isn't accepted, except once on the
-  setup link, which the page saves and strips from the address.
+  the key, valid only for those paths. A key in a URL isn't accepted, except once on the setup link,
+  which carries it (and the Home Assistant token) after `#`, the part a browser never sends, so it
+  can't reach the Worker's request logs; the page saves it and strips it from the address (since
+  2026-10-20; links made before put it in the query, which reached the logs). The kiosk app doesn't
+  keep it in its own settings.
 - **Public links are optional.** iCloud calendars and the shared album can come through the Mac
   bridge instead (`bridge:<name>`), read as you through Apple's own frameworks, so there's no link
   that reads them at all; turn **Public Calendar** and **Public Website** off. Links still work for
@@ -45,7 +48,9 @@ None of these are ever in the repository: they live in `wrangler secret`, the gi
   still in a published feed, so this hides it from the kitchen, not from anyone with the link.
 - **The camera relay's own API never faces the network** (if you run it). go2rtc's API can run commands, so it
   listens on the Mac only; `relay-gate.py` passes just the video signalling, and only with the
-  token. With Ring cameras through ring-mqtt, its streams need a password once they're exposed for
+  token: one WebSocket upgrade for a `<name>_av` stream, tunnelled only once go2rtc has accepted it,
+  so no other request can follow it on the connection (`test_relay_gate.py`; a 2026-10-20 review
+  found that hole). With Ring cameras through ring-mqtt, its streams need a password once they're exposed for
   the relay, which means Home Assistant's own cameras need it in their addresses too (docs/house.md).
 - **Acting on the frame is home-only.** The phone app's Remote and Screenshot, and sharing a video or
   photo to the frame, are accepted only from the frame's own network: the IPv4 address or IPv6 /64
@@ -58,7 +63,14 @@ None of these are ever in the repository: they live in `wrangler secret`, the gi
   dashboard's own address, never to one a page passes it (Android 8's WebView shares the kiosk's
   bridge with embedded frames, like YouTube's).
 - **The bridge asks only for what it's given to do** (Reminders, Calendar, Photos, each only when a
-  source is set to come through the Mac), and only reads, except the Reminders lists you chose.
+  source is set to come through the Mac), and only reads, except the Reminders lists you chose: a
+  change to a reminder is refused unless the reminder is in the list it names.
+- **Pairing a phone asks first.** A pairing link only proposes: the app shows the frame's address
+  and pairs on a tap, and pairing with a different frame turns fitness sharing off until it's turned
+  on again, so a link from someone else can't quietly redirect this phone's health data.
+- **The kiosk stays on the dashboard.** A top-level page on another host is refused (it would get
+  the kiosk's bridge), and the dashboard's page is served with `nosniff`, `X-Frame-Options: DENY` /
+  `frame-ancestors 'none'` and an explicit referrer policy.
 
 ## On the frame
 

@@ -16,3 +16,22 @@ kiosk/bootanimation/build/
 .impeccable/
 # Household details the pre-push check looks for (dashboard/scripts/check-private.sh). Never commit.
 .private-terms
+
+# Secrets that could plausibly be created or copied here (2026-10-20 security review). Checked-in
+# examples are kept by their names (.dev.vars.example, go2rtc.example.yaml).
+.env
+.env.*
+!.env.example
+*.vars
+*.vars.*
+!*.vars.example
+bridge/mac/config.json
+**/relay-gate.token
+*.pem
+*.key
+*.p12
+*.mobileprovision
+
+# Python caches (bridge/camera-relay).
+__pycache__/
+*.pyc

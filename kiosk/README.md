@@ -16,6 +16,9 @@ What it adds over a plain browser:
   every 5 minutes since 1.9), so the status page can show whether it creeps up.
 - Screenshots for the phone app (`window.FrameKiosk.captureTo`, 1.7): the screen captured as root,
   1280 wide, uploaded only to the dashboard's own Worker (`dashboard/worker/screenshot.js`).
+- Stays on the dashboard: a top-level page on another host is refused (so is a redirect to one: a
+  new address goes in with the setup link), and the setup link's key and token (after `#` since
+  1.10) aren't kept in its own settings.
 - An escape hatch: hold two or more fingers still for 2 seconds for Reload dashboard or Android
   settings.
 
