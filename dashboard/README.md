@@ -28,7 +28,7 @@ first deploy; each feature's page in [docs/](../docs) has its settings.
 
 ## Builds in Cloudflare
 
-Cloudflare's Workers Builds can deploy `main` on every push, with the same checks as this Mac (free
+Cloudflare's Workers Builds deploy `main` on every push, with the same checks as this Mac (free
 plan: 3,000 build minutes a month; a build is a few minutes). In the dashboard, Workers →
 kitchen-frame → Settings → Builds → Connect, pick this repository (the Cloudflare GitHub app, for it
 alone), then:
