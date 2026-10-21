@@ -21,7 +21,7 @@
   import RecipePage from './RecipePage.svelte';
   import MealGroceries from '../components/MealGroceries.svelte';
   import { api, cached, remember, mediaUrl } from '../lib/api.js';
-  import { recipeTitle, formatDate } from '../lib/format.js';
+  import { recipeTitle, formatDate, compareText } from '../lib/format.js';
   import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui, plainTitle } from '../lib/state.svelte.js';
   import { dayKey, addDays } from '../lib/format.js';
 
@@ -82,25 +82,45 @@
     else openOurs({ id: want.id, title: want.title, hasImage: true });
   });
 
-  // Paprika: filter chips are All, Favorites (if any), every Paprika category A–Z, then Uncategorized
-  // (if any recipe has none). The row scrolls sideways when they don't fit.
-  const NONE = 'Uncategorized';
+  // Paprika, like its own app: a view first (All recipes, Top rated, Favorites, Most recent,
+  // Uncategorized), chosen from a menu so it doesn't crowd the row, then the categories A–Z as chips,
+  // which narrow whichever view is on ("Top rated" + "Asian"). The row scrolls sideways when they
+  // don't fit. The view is remembered.
+  const RECENT_DAYS = 90, RECENT_MAX = 30;
+  // Paprika's "2026-10-20 18:30:00", local time; 0 when there's none.
+  const addedAt = (r) => (r.created ? Date.parse(r.created.replace(' ', 'T')) || 0 : 0);
+  const VIEWS = [
+    { id: 'all', label: 'All recipes', test: () => true },
+    { id: 'top', label: 'Top rated', test: (r) => r.rating > 0, sort: (a, b) => b.rating - a.rating || compareText(a.title, b.title) },
+    { id: 'fav', label: 'Favorites', test: (r) => r.favorite },
+    // Added in the last RECENT_DAYS, newest first, at most RECENT_MAX: what's new, rather than the
+    // whole library by date (Paprika's own). Recipes synced before the date arrived have none yet.
+    { id: 'recent', label: 'Most recent', test: (r) => addedAt(r) > Date.now() - RECENT_DAYS * 864e5,
+      sort: (a, b) => addedAt(b) - addedAt(a), max: RECENT_MAX },
+    { id: 'none', label: 'Uncategorized', test: (r) => !r.categories.length },
+  ];
+  let ourView = $state((() => { try { const v = localStorage.getItem('frame-recipes-view'); return VIEWS.some((x) => x.id === v) ? v : 'all'; } catch { return 'all'; } })());
+  let viewMenu = $state(false);
+  const setView = (id) => { ourView = id; viewMenu = false; try { localStorage.setItem('frame-recipes-view', id); } catch {} };
+  let view = $derived(VIEWS.find((v) => v.id === ourView) || VIEWS[0]);
+  let viewCounts = $derived(Object.fromEntries(VIEWS.map((v) => [v.id, Math.min((paprika.recipes || []).filter(v.test).length, v.max || Infinity)])));
   let ourCat = $state('All');
-  let ourCats = $derived.by(() => {
-    const rs = paprika.recipes || [];
-    const names = [...new Set(rs.flatMap((r) => r.categories))].sort((a, b) => a.localeCompare(b));
-    return ['All', ...(rs.some((r) => r.favorite) ? ['Favorites'] : []), ...names, ...(rs.some((r) => !r.categories.length) ? [NONE] : [])];
-  });
+  let ourCats = $derived(['All', ...[...new Set((paprika.recipes || []).flatMap((r) => r.categories))].sort((a, b) => compareText(a, b))]);
   // Search (by name) and an A–Z index strip to jump through a long library without typing.
   let searching = $state(false);
   let query = $state('');
   let ourGrid = $state();
   const fold = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const letterOf = (t) => { const c = fold(t).replace(/^[^a-z0-9]+/, '').charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : '#'; };
-  let ours = $derived((paprika.recipes || []).filter((r) =>
-    (ourCat === 'All' || (ourCat === 'Favorites' ? r.favorite : ourCat === NONE ? !r.categories.length : r.categories.includes(ourCat)))
-    && (!query.trim() || fold(r.title).includes(fold(query.trim())))));
-  let letters = $derived([...new Set(ours.map((r) => letterOf(r.title)))]);
+  let ours = $derived.by(() => {
+    const list = (paprika.recipes || []).filter((r) => view.test(r)
+      && (ourCat === 'All' || r.categories.includes(ourCat))
+      && (!query.trim() || fold(r.title).includes(fold(query.trim()))));
+    const sorted = view.sort ? list.slice().sort(view.sort) : list;
+    return view.max ? sorted.slice(0, view.max) : sorted;
+  });
+  // The A–Z strip only where the list is A–Z.
+  let letters = $derived(view.sort ? [] : [...new Set(ours.map((r) => letterOf(r.title)))]);
   // Cards are built as you scroll to them: a screenful when the tab opens, then a batch whenever the
   // end comes within a couple of rows. Building all 190 at once froze the frame for about 3 s.
   const BATCH = 20;
@@ -259,10 +279,23 @@
               <!-- svelte-ignore a11y_autofocus -->
               <input class="search" bind:value={query} placeholder="Search {paprika.recipes?.length || ''} recipes by name" autofocus autocomplete="off" enterkeyhint="search" />
             {:else}
-              <div class="chips scrollx">
-                {#each ourCats as c (c)}
-                  <button class="chip" class:on={c === ourCat} onclick={() => (ourCat = c)}>{c}</button>
-                {/each}
+              <div class="viewrow">
+                <div class="viewpick">
+                  <button class="chip on view" onclick={() => (viewMenu = !viewMenu)} aria-haspopup="true" aria-expanded={viewMenu}>{view.label} ▾</button>
+                  {#if viewMenu}
+                    <div class="viewmenu sheet" role="menu">
+                      <!-- A view with nothing in it (no favourites, nothing uncategorized) isn't offered. -->
+                      {#each VIEWS.filter((v) => v.id === 'all' || v.id === ourView || viewCounts[v.id] > 0) as v (v.id)}
+                        <button role="menuitem" class:on={v.id === ourView} onclick={() => setView(v.id)}><span>{v.label}</span><span class="num">{viewCounts[v.id]}</span></button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+                <div class="chips scrollx">
+                  {#each ourCats as c (c)}
+                    <button class="chip" class:on={c === ourCat} onclick={() => { ourCat = c; viewMenu = false; }}>{c}</button>
+                  {/each}
+                </div>
               </div>
             {/if}
             <div class="withindex">
@@ -404,6 +437,15 @@
   .index { flex: none; width: 30px; display: flex; flex-direction: column; justify-content: space-between; padding: 4px 0; border-radius: 15px; background: var(--track); }
   .index button { flex: 1; max-height: 34px; font-size: 13px; font-weight: 700; color: var(--blue-text); text-align: center; }
   .index button:active { background: var(--thumb); border-radius: 8px; }
+  /* The view menu's button, then the categories, which scroll on their own beside it. */
+  .viewrow { flex: none; display: flex; gap: 8px; align-items: center; }
+  .viewrow .chips { flex: 1; min-width: 0; }
+  .viewpick { position: relative; flex: none; }
+  .chip.view { padding: 0 16px; }
+  .viewmenu { position: absolute; top: 46px; left: 0; z-index: 5; min-width: 240px; padding: 6px; border-radius: 16px; display: flex; flex-direction: column; }
+  .viewmenu button { display: flex; justify-content: space-between; gap: 16px; padding: 12px 14px; border-radius: 10px; font-size: 18px; font-weight: 600; text-align: left; }
+  .viewmenu button.on { background: var(--track); }
+  .viewmenu .num { color: var(--secondary); font-weight: 500; }
   .chips.scrollx { overflow-x: auto; scrollbar-width: none; }
   .chips.scrollx::-webkit-scrollbar { display: none; }
   .chips.scrollx .chip { flex: none; padding: 0 16px; }

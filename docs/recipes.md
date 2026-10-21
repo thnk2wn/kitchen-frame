@@ -10,8 +10,11 @@ The Recipes tab has four views:
   Paprika every 15 minutes and tells the frame the moment the plan changed, so a meal moved in the
   Paprika app shows within 15 minutes of Paprika syncing it (open Paprika, or tap its Sync button).
   **Groceries for the week** turns the week's planned recipes into one shopping list (below).
-- **Paprika:** your Paprika library, synced read-only, with its categories (A–Z, and Uncategorized
-  when a recipe has none), search and an A–Z strip.
+- **Paprika:** your Paprika library, synced read-only. A view menu like Paprika's own picks All
+  recipes, Top rated (rated ones only, best first), Favorites, Most recent (added in the last 90 days,
+  newest first, up to 30) or Uncategorized; an empty view isn't offered and the choice is remembered.
+  The categories A–Z follow as chips that narrow the view ("Top rated" + "Asian"), with search and an
+  A–Z strip on the alphabetical views.
 - **Explore:** recipes from [TheMealDB](https://www.themealdb.com) (free, a few hundred curated
   recipes with photos; the free API key is for personal use). Browse by category or tap
   **Surprise me** for a random recipe. Vegetarian and Vegan recipes are left out (`HIDDEN` in
