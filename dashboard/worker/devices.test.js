@@ -147,3 +147,24 @@ test('the frame key gets a media cookie of its own; a phone key gets none', asyn
   assert.equal((await t.call('/api/tiles/1/1/1', { headers: { Cookie: cookie.replace(/\.[\w-]+$/, '.forged') } })).status, 401);
   assert.equal((await t.call('/api/frame/home', { key: phone.token })).headers.get('Set-Cookie'), null);
 });
+
+test('a phone sets its owner’s PIN (hash only); the frame sees it with the person; a phone can’t read it', async () => {
+  const t = setup();
+  const { frame, phone } = await frameAndPhone(t);
+  const pin = { salt: 'a'.repeat(32), hash: 'b'.repeat(64) };
+  // Only from home (the frame's network, learned from its check-in): a phone's key used elsewhere
+  // can't plant a PIN that would also unlock a door.
+  await t.call('/api/frame/status', { key: frame.token, method: 'POST', body: { version: 'x' } });
+  assert.equal((await t.call('/api/devices/pin', { key: phone.token, method: 'POST', body: { pin }, headers: { 'CF-Connecting-IP': '198.51.100.9' } })).status, 403);
+  assert.equal((await t.call('/api/devices/pin', { key: phone.token, method: 'POST', body: { pin, person: 'Sam' } })).status, 200);
+  const list = (await (await t.call('/api/devices', { key: frame.token })).json()).devices;
+  const mine = list.find((d) => d.role === 'phone');
+  assert.deepEqual([mine.pin, mine.person], [pin, 'Sam']);
+  assert.equal((await t.call('/api/devices', { key: phone.token })).status, 403);
+  // Only a salted hash is taken, and only from a phone.
+  assert.equal((await t.call('/api/devices/pin', { key: phone.token, method: 'POST', body: { pin: { salt: 'x', hash: '1234' } } })).status, 400);
+  assert.equal((await t.call('/api/devices/pin', { key: frame.token, method: 'POST', body: { pin } })).status, 403);
+  // Cleared.
+  await t.call('/api/devices/pin', { key: phone.token, method: 'POST', body: { pin: null } });
+  assert.ok(!('pin' in (await (await t.call('/api/devices', { key: frame.token })).json()).devices.find((d) => d.role === 'phone')));
+});

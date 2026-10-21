@@ -31,6 +31,18 @@ final class FitnessSync {
     var name: String { didSet { defaults.set(name, forKey: "fitness.name") } }
     /// Settings → Apple Health → Average heart rate: off unless turned on (it needs its own Health access).
     var heartRate: Bool { didSet { defaults.set(heartRate, forKey: "fitness.heartRate") } }
+    /// Settings → Apple Health → Weight: off unless turned on (its own Health access too). Weigh-ins go to
+    /// the frame as the difference from the goal, so the trend needs no weight; the goal itself (and
+    /// height, for BMI) only with "Show my weight". Nothing is sent without a goal.
+    var weight: Bool { didSet { defaults.set(weight, forKey: "fitness.weight") } }
+    /// The goal, in weightUnit (pounds in the US, else kilograms); 0 is none yet.
+    /// Kept with the unit it was typed in: after a change of region (pounds to kilograms) it's no goal
+    /// until set again, rather than 180 lb read as 180 kg.
+    var weightGoal: Double { didSet { defaults.set(weightGoal, forKey: "fitness.weightGoal"); defaults.set(Self.weightUnit.name, forKey: "fitness.weightGoalUnit") } }
+    var showWeight: Bool { didSet { defaults.set(showWeight, forKey: "fitness.showWeight") } }
+    /// What the last send read from Health, for Settings → Weight: "9 weigh-ins (8 days) from Jun 15 · RENPHO".
+    private(set) var weighInsRead: String? { didSet { defaults.set(weighInsRead, forKey: "fitness.weighInsRead") } }
+    static var weightUnit: (hk: HKUnit, name: String) { Locale.current.measurementSystem == .us ? (.pound(), "lb") : (.gramUnit(with: .kilo), "kg") }
     private(set) var history: [Sent] { didSet { defaults.set(try? JSONEncoder().encode(history), forKey: "fitness.history") } }
     private(set) var sending = false
     private var resendAfter: String?
@@ -49,6 +61,11 @@ final class FitnessSync {
         enabled = defaults.bool(forKey: "fitness.enabled")
         name = defaults.string(forKey: "fitness.name") ?? ""
         heartRate = defaults.bool(forKey: "fitness.heartRate")
+        weight = defaults.bool(forKey: "fitness.weight")
+        let goalUnit = defaults.string(forKey: "fitness.weightGoalUnit")
+        weightGoal = goalUnit == nil || goalUnit == Self.weightUnit.name ? defaults.double(forKey: "fitness.weightGoal") : 0
+        showWeight = defaults.bool(forKey: "fitness.showWeight")
+        weighInsRead = defaults.string(forKey: "fitness.weighInsRead")
         history = (defaults.data(forKey: "fitness.history")).flatMap { try? JSONDecoder().decode([Sent].self, from: $0) } ?? []
         if let id = defaults.string(forKey: "fitness.id") { phoneId = id } else {
             phoneId = UUID().uuidString.lowercased()
@@ -70,12 +87,17 @@ final class FitnessSync {
     private static let effort = HKQuantityType(.workoutEffortScore)
     private static let estimatedEffort = HKQuantityType(.estimatedWorkoutEffortScore)
     private static let heart = HKQuantityType(.heartRate)
+    private static let bodyMass = HKQuantityType(.bodyMass)
+    private static let height = HKQuantityType(.height)
+    private static let bmi = HKQuantityType(.bodyMassIndex)
+    private static let bodyFat = HKQuantityType(.bodyFatPercentage)
 
     /// Asks once for read access to just what the frame shows (iOS shows the Health sheet the first time).
     func requestAccess() async throws {
         var read: Set<HKObjectType> = [HKObjectType.activitySummaryType(), Self.workouts, Self.energy, Self.exercise, Self.standHour, Self.steps, Self.walkRun, Self.cycling, Self.swimming,
                                        Self.resting, Self.effort, Self.estimatedEffort]
         if heartRate { read.insert(Self.heart) }
+        if weight { [Self.bodyMass, Self.height, Self.bmi, Self.bodyFat].forEach { read.insert($0) } }
         try await store.requestAuthorization(toShare: [], read: read)
     }
 
@@ -83,15 +105,17 @@ final class FitnessSync {
     /// Observers have to be set up at every launch for background delivery to reach the app.
     func startIfEnabled() {
         guard enabled, Self.available, queries.isEmpty else { return }
-        let watched: [(HKSampleType, HKUpdateFrequency)] = [(Self.workouts, .immediate), (Self.energy, .hourly), (Self.exercise, .hourly), (Self.standHour, .hourly), (Self.steps, .hourly)]
+        var watched: [(HKSampleType, HKUpdateFrequency)] = [(Self.workouts, .immediate), (Self.energy, .hourly), (Self.exercise, .hourly), (Self.standHour, .hourly), (Self.steps, .hourly)]
+        // A weigh-in (the scale's app saving to Health) is sent soon after, like a workout.
+        if weight { watched.append((Self.bodyMass, .immediate)) }
         for (type, frequency) in watched {
-            let isWorkout = type == Self.workouts
+            let kind = type == Self.workouts ? "workouts" : type == Self.bodyMass ? "weight" : "rings"
             let query = HKObserverQuery(sampleType: type, predicate: nil) { _, completion, error in
                 guard error == nil else { completion(); return }
                 // HealthKit's completion handler may be called from any thread; it isn't marked Sendable.
                 let done = Done(completion)
                 Task { @MainActor in
-                    await FitnessSync.shared.sendFromBackground(workout: isWorkout)
+                    await FitnessSync.shared.sendFromBackground(kind: kind)
                     done.call()
                 }
             }
@@ -99,6 +123,14 @@ final class FitnessSync {
             queries.append(query)
             store.enableBackgroundDelivery(for: type, frequency: frequency) { _, _ in }
         }
+    }
+
+    /// Watches again with the current settings (weight turned on or off adds or drops its observer).
+    func rewatch() {
+        queries.forEach(store.stop)
+        queries = []
+        if !weight { store.disableBackgroundDelivery(for: Self.bodyMass) { _, _ in } }
+        startIfEnabled()
     }
 
     /// Turns sharing off (Settings, or unpairing): no more wake-ups, and the frame stops showing this
@@ -118,14 +150,15 @@ final class FitnessSync {
     /// can be the only one that hour (a send from the iPhone's own steps, then the Watch's rings
     /// minutes later, left the frame on no rings for an hour).
     /// (Observers also fire once when they start, so a launch shows up here too.)
-    private func sendFromBackground(workout: Bool) async {
+    private func sendFromBackground(kind: String) async {
         // A send already under way: wait for it (and the one it queues) before reporting done to
         // HealthKit, which ends the background time the queued send needs.
         while sending { try? await Task.sleep(for: .milliseconds(200)) }
-        let key = workout ? "fitness.lastWorkoutSend" : "fitness.lastRingSend"
+        // Workouts and weigh-ins share one clock (each is one saved sample, sent at once); rings their own.
+        let key = kind == "rings" ? "fitness.lastRingSend" : "fitness.lastWorkoutSend"
         let last = defaults.object(forKey: key) as? Date ?? .distantPast
         guard Date.now.timeIntervalSince(last) >= 2 * 60 else { return }
-        if await send(reason: workout ? "Health update (workouts)" : "Health update (rings)") { defaults.set(Date.now, forKey: key) }
+        if await send(reason: "Health update (\(kind))") { defaults.set(Date.now, forKey: key) }
     }
 
     /// The frame's Refresh (its notification's link opened the app): sends now and says how it went,
@@ -195,6 +228,12 @@ final class FitnessSync {
         /// When the newest active-energy reading ends: how current the rings are, which a send time
         /// isn't (a send early in the day can come before the Watch has synced).
         var dataAt: Date?
+        /// Weight, when shared: a year of weigh-ins (the day's last) as the difference from the goal.
+        struct Weight: Encodable {
+            struct Point: Encodable { var date: String; var d: Double }
+            var unit: String; var points: [Point]; var goal: Double?; var heightM: Double?; var bmi: Double?; var bodyFat: Double?
+        }
+        var weight: Weight?
     }
 
     private func read(reason: String) async throws -> Report {
@@ -216,7 +255,76 @@ final class FitnessSync {
             return d
         }
         return Report(id: phoneId, name: name, reason: reason, unit: Locale.current.measurementSystem == .metric ? "km" : "mi",
-                      days: days, steps: try await steps, meters: try await meters, workouts: try await workouts, dataAt: try await dataAt)
+                      days: days, steps: try await steps, meters: try await meters, workouts: try await workouts, dataAt: try await dataAt,
+                      weight: try await weightReport(calendar: cal))
+    }
+
+    /// Weigh-ins from before what Health lets this app read (its 30-day limit), copied in once as
+    /// Documents/weigh-ins.json: {"unit": "lb", "points": [{"date": "2026-08-24", "value": 204.8}]}, by
+    /// Xcode or `xcrun devicectl device copy to --domain-type appDataContainer`. Added to the kept
+    /// weigh-ins (a day already kept stays as it is), then the file is deleted.
+    private func importEarlierWeighIns() {
+        guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let file = dir.appendingPathComponent("weigh-ins.json")
+        guard let data = try? Data(contentsOf: file) else { return }
+        defer { try? FileManager.default.removeItem(at: file) }
+        struct Earlier: Decodable { struct P: Decodable { var date: String; var value: Double }; var unit: String; var points: [P] }
+        guard let earlier = try? JSONDecoder().decode(Earlier.self, from: data) else { return }
+        let unit: HKUnit = earlier.unit == "kg" ? .gramUnit(with: .kilo) : .pound()
+        var kept = (defaults.dictionary(forKey: "fitness.weighIns") as? [String: Double]) ?? [:]
+        for p in earlier.points where p.date.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil && kept[p.date] == nil {
+            kept[p.date] = HKQuantity(unit: unit, doubleValue: p.value).doubleValue(for: .gramUnit(with: .kilo))
+        }
+        defaults.set(kept, forKey: "fitness.weighIns")
+    }
+
+    /// The last year's weigh-ins, one a day (the day's last), as the difference from the goal, rounded
+    /// to a tenth; with the goal and height only when "Show my weight" is on. Nil when weight sharing
+    /// is off, there's no goal, or Health has no weigh-ins (or no access).
+    private func weightReport(calendar cal: Calendar) async throws -> Report.Weight? {
+        guard weight, weightGoal > 0 else { return nil }
+        let unit = Self.weightUnit
+        let since = cal.date(byAdding: .day, value: -366, to: .now)!
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: Self.bodyMass, predicate: HKQuery.predicateForSamples(withStart: since, end: nil))],
+            sortDescriptors: [SortDescriptor(\.startDate)])
+        let samples = try await descriptor.result(for: store)
+        // Health may let this app read only the last 30 days (the access sheet's choice), so weigh-ins
+        // it has read are kept here, on the phone, for a year: the trend grows past what Health shows
+        // it. Within the span Health returned, Health is the truth (a weigh-in deleted there goes here).
+        importEarlierWeighIns()
+        var kept = (defaults.dictionary(forKey: "fitness.weighIns") as? [String: Double]) ?? [:]
+        var read: [String: Double] = [:]
+        for s in samples { read[Self.dayKey(s.startDate, cal)] = s.quantity.doubleValue(for: .gramUnit(with: .kilo)) }
+        if let first = samples.first.map({ Self.dayKey($0.startDate, cal) }) { kept = kept.filter { $0.key < first } }
+        kept.merge(read) { _, new in new }
+        let oldest = Self.dayKey(since, cal)
+        kept = kept.filter { $0.key >= oldest }
+        defaults.set(kept, forKey: "fitness.weighIns")
+        let sources = Set(samples.map { $0.sourceRevision.source.name }).sorted().joined(separator: ", ")
+        weighInsRead = kept.isEmpty ? "None yet (check Health access)"
+            : "\(kept.count) day\(kept.count == 1 ? "" : "s") kept, from \(kept.keys.min() ?? "") · Health gave \(samples.count)\(sources.isEmpty ? "" : " · " + sources)"
+        guard !kept.isEmpty else { return nil }
+        let toUnit = { (kg: Double) in HKQuantity(unit: .gramUnit(with: .kilo), doubleValue: kg).doubleValue(for: unit.hk) }
+        let points = kept.keys.sorted().map { Report.Weight.Point(date: $0, d: ((toUnit(kept[$0] ?? 0) - weightGoal) * 10).rounded() / 10) }
+        // With "Show my weight": the scale's own BMI and body fat when it saves them to Health (its
+        // height setting may differ from Health's), else height so the frame can work BMI out.
+        var heightM: Double?, bmi: Double?, bodyFat: Double?
+        // Shown only with a PIN of this phone's owner (Settings → PIN): the frame shows a weight only after it.
+        let show = showWeight && FramePin.isSet
+        if show {
+            let latest = { (type: HKQuantityType) async -> HKQuantitySample? in
+                let q = HKSampleQueryDescriptor(predicates: [.quantitySample(type: type)], sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)], limit: 1)
+                return try? await q.result(for: self.store).first
+            }
+            heightM = await latest(Self.height)?.quantity.doubleValue(for: .meter())
+            let newest = samples.last?.startDate
+            // The day of the newest weigh-in only, so an old reading isn't shown against today's weight.
+            let sameDay = { (s: HKQuantitySample?) in s.flatMap { s in newest.map { cal.isDate(s.startDate, inSameDayAs: $0) } } == true ? s : nil }
+            bmi = sameDay(await latest(Self.bmi))?.quantity.doubleValue(for: .count())
+            bodyFat = (sameDay(await latest(Self.bodyFat))?.quantity.doubleValue(for: .percent())).map { $0 * 100 }
+        }
+        return Report.Weight(unit: unit.name, points: points, goal: show ? weightGoal : nil, heightM: heightM, bmi: bmi, bodyFat: bodyFat)
     }
 
     /// "2026-10-19" for the day a Date falls on here.

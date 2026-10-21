@@ -9,8 +9,14 @@
   import { view, nudge, distance, workoutIcon, replayBeat, RING_COLORS, RING_COLORS_LIGHT } from '../lib/fitness.js';
   import { fitnessPeople, canAsk, askPhone, askState } from '../lib/fitness.svelte.js';
   import WorkoutSheet from '../components/WorkoutSheet.svelte';
+  import WeightSheet from '../components/WeightSheet.svelte';
+  import { weightChip } from '../lib/weight.js';
   // The workout open in its sheet, with whose it is: { w, unit, who }.
   let open = $state(null);
+  // Whose weight sheet is open (their id). ?weight=1 opens the first sharer's (screenshots, the smoke test).
+  let weightOpen = $state(null);
+  let askedWeight = new URLSearchParams(location.search).has('weight');
+  $effect(() => { const p = people.find((x) => x.weight); if (askedWeight && p) { askedWeight = false; weightOpen = p.id; } });
   // ?workout=<n>: opens the first person's nth workout (screenshots, the smoke test).
   const askedWorkout = Number(new URLSearchParams(location.search).get('workout') ?? NaN);
   let askedDone = false;
@@ -72,6 +78,7 @@
     {@const t = p.today}
     {@const n = nudge(t, clock.now)}
     {@const a = canAsk(ui.demo) ? askState(p, clock.now) : null}
+    {@const wc = weightChip(p.weight)}
     <section class="sheet person" class:stale={p.stale}>
       <header>
         <h2>{p.name}</h2>
@@ -127,9 +134,11 @@
       </div>
       <!-- Trends (lib/fitness.js trends()): streaks, today against the usual by this time of day, and
            workout days over 4 weeks. Steps and Exercise are percentages against the usual. -->
-      {#if chipsFor(p.trends).length}
+      {#if chipsFor(p.trends).length || wc}
         <div class="trends">
           {#each chipsFor(p.trends) as c (c.text)}<span class="trend {c.tone}"><Icon name={c.icon} size={15} />{#if c.parts}{#each c.parts as x, i (x.label)}{i ? ' · ' : ''}{x.label} <b class={x.tone}>{x.value}</b>{/each}{:else}{c.text}{/if}{#if c.note}<i>{c.note}</i>{/if}</span>{/each}
+          <!-- Weight, for those who share it: the pace and what's left; a tap opens the chart. -->
+          {#if wc}<button class="trend weight {wc.tone}" onclick={() => (weightOpen = p.id)}><Icon name="weight" size={15} />{wc.text}</button>{/if}
         </div>
       {/if}
       <div class="wh">Recent workouts</div>
@@ -151,6 +160,10 @@
   {/each}
 </div>
 
+{#if weightOpen && people.find((p) => p.id === weightOpen)?.weight}
+  {@const p = people.find((x) => x.id === weightOpen)}
+  <WeightSheet v={p.weight} who={p.name} id={p.id} onclose={() => (weightOpen = null)} />
+{/if}
 {#if open}<WorkoutSheet workout={open.w} unit={open.unit} who={open.who} onclose={() => (open = null)} />{/if}
 
 <style>
@@ -209,6 +222,10 @@
   .today-col span { color: var(--label); }
   .trends { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 6px; margin: 2px 0 12px; }
   .trend { display: flex; align-items: center; gap: 4px; padding: 4px 9px 4px 7px; border-radius: 999px; background: var(--fill); font-size: 14px; font-weight: 700; white-space: nowrap; }
+  .trend.weight { color: inherit; }
+  .trend.weight.good { color: #248a3d; }
+  .trend.weight.low { color: var(--orange-text); }
+  .trend.weight:active { opacity: .6; }
   .trend i { font-style: normal; font-weight: 500; color: var(--secondary); margin-left: 2px; }
   .trend.good, .trend b.good { color: #248a3d; }
   .trend b { font-weight: 800; margin-left: 3px; }

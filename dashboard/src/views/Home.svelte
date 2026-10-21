@@ -37,6 +37,7 @@
   import { fitnessPeople } from '../lib/fitness.svelte.js';
   import { clock, calendar, weather, lists, mealItems, rotationRules, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
+  import { mealRows } from '../lib/meals.js';
 
   let events = $derived(calendar.data ? calendar.data.events : []);
   // Finished events drop off Home; the Calendar tab still shows them.
@@ -66,7 +67,8 @@
   });
   // Tonight's dinner (and any other meal planned today) from Paprika, above today's events.
   let ringPeople = $derived(fitnessPeople(ui.demo, clock.now).map((p) => view(p, clock.now)).filter((p) => !p.empty));
-  let todaysMeals = $derived(mealItems().filter((m) => m.date === dayKey(clock.now)));
+  // One row per meal type (lib/meals.js): the recipe, with a short side joined on or "+1 more".
+  let todaysMeals = $derived(mealRows(mealItems().filter((m) => m.date === dayKey(clock.now))));
   // Rotations (lib/rotations.js): today's up early at the top, tonight's bedtime last, and once the
   // morning's over, tomorrow's up early under Tomorrow in Upcoming.
   let duties = $derived(rotationLines(rotationRules(), clock.now));
@@ -86,6 +88,11 @@
     }
     return out;
   });
+  // The day's other dishes are on Meals (Recipes).
+  function openMeals() {
+    ui.openMeals = true;
+    ui.tab = 'recipes';
+  }
   function openMeal(m) {
     if (!m.id) return;
     ui.openRecipe = { id: m.id, title: m.title };
@@ -172,11 +179,14 @@
           <span class="mtxt"><span class="mtype">{d.name}</span> <Txt text={d.text} /></span>
         </div>
       {/each}
-      {#each todaysMeals as m (m.type + m.title)}
-        <button class="meal" class:link={m.id} onclick={() => openMeal(m)}>
-          <span class="mic"><Icon name="utensils" size={16} /></span>
-          <span class="mtxt"><span class="mtype">{m.type}</span> <Txt text={m.title} /></span>
-        </button>
+      {#each todaysMeals as r (r.type)}
+        <div class="meal">
+          <button class="mopen" class:link={r.main.id} onclick={() => openMeal(r.main)}>
+            <span class="mic"><Icon name="utensils" size={16} /></span>
+            <span class="mtxt"><span class="mtype">{r.type}</span> <Txt text={r.title} /></span>
+          </button>
+          {#if r.more}<button class="others" onclick={openMeals}>+{r.more} more</button>{/if}
+        </div>
       {/each}
       {#if !calendar.data && calendar.offline}
         <p class="empty">Couldn’t load the calendar.</p>
@@ -314,7 +324,10 @@
   .day-head { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--sep); font-size: 15px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--secondary); }
   /* Long dinner names and rotations wrap under themselves rather than being cut off. */
   .meal { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 0 6px; text-align: left; font-size: 19px; font-weight: 600; line-height: 1.35; }
-  .meal.link:active { opacity: .6; }
+  .mopen { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px; text-align: left; font: inherit; }
+  .mopen.link:active { opacity: .6; }
+  .others { flex: none; align-self: center; height: 30px; padding: 0 12px; border-radius: 15px; background: var(--track); color: var(--secondary); font-size: 15px; font-weight: 700; white-space: nowrap; }
+  .others:active { opacity: .6; }
   .mic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--orange); color: #fff; }
   .mic { margin-top: -1px; }
   .mtxt { min-width: 0; overflow-wrap: anywhere; }

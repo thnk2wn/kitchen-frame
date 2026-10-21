@@ -155,6 +155,7 @@ function toEvent(comp, uid, cal, start, end, tz, withNotes) {
   const raw = String(comp.getFirstPropertyValue('summary') || '(No title)');
   const { quiet, title } = quietTag(raw, comp.getFirstPropertyValue('description'));
   const notes = withNotes ? stripQuiet(cleanNotes(comp.getFirstPropertyValue('description'), title)) : '';
+  const links = withNotes ? noteLinks(comp.getFirstPropertyValue('description')) : [];
   return {
     uid, cal, startMs, endMs, allDay, title, ...(quiet ? { quiet: true } : {}),
     // All-day events stay as plain dates (end exclusive) so the frame shows them on its own day.
@@ -162,6 +163,7 @@ function toEvent(comp, uid, cal, start, end, tz, withNotes) {
     end: allDay ? dateStr(end) : new Date(endMs).toISOString(),
     ...(place(location) ? { location: place(location) } : {}),
     ...(notes ? { notes } : {}),
+    ...(links.length ? { links } : {}),
     ...alarmFields(allDay ? [] : alarmsOf(comp)),
   };
 }
@@ -202,12 +204,14 @@ export function fromBridge(list, cal, from, to, { notes = false } = {}) {
     const startMs = Date.parse(b.start), endMs = Math.max(Date.parse(b.end), startMs);
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || !(endMs > from && startMs < to)) continue;
     const text = notes ? stripQuiet(cleanNotes(b.notes, title)) : '';
+    const links = notes ? noteLinks(b.notes) : [];
     out.push({
       uid: b.uid.slice(0, 300), cal, startMs, endMs, allDay, title, ...(quiet ? { quiet: true } : {}),
       start: allDay ? b.start : new Date(startMs).toISOString(),
       end: allDay ? b.end : new Date(endMs).toISOString(),
       ...(place(b.location) ? { location: place(b.location) } : {}),
       ...(text ? { notes: text } : {}),
+      ...(links.length ? { links } : {}),
       ...alarmFields(allDay ? [] : cleanAlarms(Array.isArray(b.alarms) ? b.alarms : [])),
     });
   }
@@ -231,14 +235,16 @@ export function place(location) {
 // (nothing on the frame can open them) along with lines left as a bare label ("Tickets:"), a first
 // line that just repeats the title, and separator rules. Kept short.
 export const NOTES_MAX = 1000;
+const entities = (t) => t.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+  .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
+// HTML notes (Google, Outlook) as lines of text.
+const textOf = (t) => (/<[a-z][^>]*>/i.test(t)
+  ? entities(t.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h\d|tr)>/gi, '\n').replace(/<li[^>]*>/gi, '• ').replace(/<[^>]+>/g, ''))
+  : t);
 export function cleanNotes(raw, title = '') {
   let t = String(raw || '');
   if (!t.trim()) return '';
-  if (/<[a-z][^>]*>/i.test(t)) {
-    t = t.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h\d|tr)>/gi, '\n').replace(/<li[^>]*>/gi, '• ').replace(/<[^>]+>/g, '')
-      .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
-      .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
-  }
+  t = textOf(t);
   // A link runs to the end of its line: some feeds don't encode the spaces in theirs (a ticket link's
   // "utm_campaign=F26 vs Alabama"), so stopping at a space would leave half of it behind.
   const lines = t.replace(/\r/g, '').split('\n').map((l) => l.replace(/<?(https?:\/\/|mailto:|tel:)\S.*$/i, '').replace(/[ \t]+/g, ' ').trim());
@@ -252,6 +258,47 @@ export function cleanNotes(raw, title = '') {
   }
   const text = out.join('\n').trim();
   return text.length > NOTES_MAX ? text.slice(0, NOTES_MAX - 1).trimEnd() + '…' : text;
+}
+
+// The links cleanNotes drops, for the frame to show as QR codes to open on a phone (tickets, a video
+// call, a sign-up form): at most LINKS_MAX, web links only, each labelled by its line ("Tickets:
+// https://…" is "Tickets"), a link's own text, or its site. A link runs to the end of its line, as in
+// cleanNotes, with any spaces in it encoded.
+export const LINKS_MAX = 3;
+export function noteLinks(raw) {
+  const t = String(raw || '');
+  if (!/https?:\/\//i.test(t)) return [];
+  const out = [], seen = new Set();
+  const add = (url, label) => {
+    url = url.trim().replace(/[)\].,;>"']+$/, '').replace(/ /g, '%20');
+    let host;
+    try { host = new URL(url).hostname.replace(/^www\./, ''); } catch { return; }
+    if (!/^https?:/i.test(url) || url.length > 600 || seen.has(url) || out.length >= LINKS_MAX) return;
+    seen.add(url);
+    label = String(label || '').replace(/[\s:–-]+$/, '').trim();
+    out.push({ label: (MEETING_RE.test(url) && !label ? 'Video call' : label || host).slice(0, 40), url });
+  };
+  // Lines first ("Tickets: https://…"), then HTML links whose text isn't the address ("<a href>Tickets</a>").
+  for (const line of textOf(t).replace(/\r/g, '').split('\n')) {
+    const m = /^(.*?)<?(https?:\/\/\S.*)$/i.exec(line.trim());
+    if (m) add(m[2], /^[^:]{1,40}:\s*$/.test(m[1]) ? m[1] : '');
+  }
+  for (const m of t.matchAll(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)) {
+    const text = entities(m[2].replace(/<[^>]+>/g, '')).trim();
+    add(entities(m[1]), /^https?:/i.test(text) ? '' : text);
+  }
+  return out;
+}
+
+// Links move out of the events like notes (below), by uid.
+export function splitLinks(events) {
+  const links = {};
+  for (const e of events) {
+    if (!e.links) continue;
+    if (!(e.uid in links)) links[e.uid] = e.links;
+    delete e.links;
+  }
+  return links;
 }
 
 // Notes move out of the events into one map by uid, so a weekly event's notes are stored once.

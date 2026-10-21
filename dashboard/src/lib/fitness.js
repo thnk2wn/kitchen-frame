@@ -2,6 +2,7 @@
 // and Home's rings. Each person's iPhone sends theirs to the Worker (worker/fitness.js); demo mode
 // shows two invented people in the same shape. lib/fitness.svelte.js holds what was loaded.
 import { addDays, dayKey } from './format.js';
+import { weightView, demoWeight } from './weight.js';
 
 export const RING_COLORS = { move: '#fa114f', exercise: '#a6ff00', stand: '#00f0ff' };
 // The same rings on a light background: the bright originals wash out on white.
@@ -56,6 +57,8 @@ export function view(p, now) {
     waiting: !byDate.has(dayKey(now)) && days.length > 0 && !!p.updated && dayKey(new Date(p.updated)) === dayKey(now),
     stale: now.getTime() - updated > STALE_MS,
     trends: trends(days, byDate, now),
+    // Weight against a goal, for those who share it (lib/weight.js); null otherwise.
+    weight: weightView(p.weight, now),
   };
 }
 
@@ -138,7 +141,7 @@ export function demoFitness(now) {
   const steps = (base, per) => Math.round(base + day * per);
   return [
     {
-      id: 'demo-alex', name: 'Alex', updated, dataAt, unit: 'mi', steps: steps(1200, 9800), meters: Math.round(steps(1200, 9800) * 0.75),
+      id: 'demo-alex', name: 'Alex', updated, dataAt, unit: 'mi', steps: steps(1200, 9800), meters: Math.round(steps(1200, 9800) * 0.75), weight: demoWeight(now),
       days: [...past(1, [600, 30, 12]), { date: dayKey(now), move: Math.round(620 * Math.min(1.15, day * 1.25 + 0.18)), moveGoal: 600, exercise: Math.round(Math.min(48, 6 + day * 52)), exerciseGoal: 30, stand: Math.max(stood - 1, 0), standGoal: 12, steps: steps(1200, 9800), workoutMinutes: 42 }],
       workouts: [
         { type: 'Strength training', kind: 'strength', start: at(0, 6, 10), minutes: 42.2, kcal: 286, totalKcal: 362, effort: 6, heartRate: 118 },

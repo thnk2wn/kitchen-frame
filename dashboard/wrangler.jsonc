@@ -15,6 +15,13 @@
   "analytics_engine_datasets": [{ "binding": "METRICS", "dataset": "kitchen_frame_metrics" }],
   "durable_objects": { "bindings": [{ "name": "MESSAGES", "class_name": "MessageRoom" }, { "name": "BRIDGE", "class_name": "ListBridge" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MessageRoom"] }, { "tag": "v2", "new_sqlite_classes": ["ListBridge"] }],
+  // Request rates (worker/limits.js): per key, and per address for calls without a working key and
+  // pairing attempts. Cloudflare's rate limiter, free; the namespace ids only need to be unique in the
+  // account.
+  "ratelimits": [
+    { "name": "KEY_LIMIT", "namespace_id": "4101", "simple": { "limit": 1200, "period": 60 } },
+    { "name": "ADDRESS_LIMIT", "namespace_id": "4102", "simple": { "limit": 120, "period": 60 } }
+  ],
   // Calendar refresh every 10 minutes; Paprika recipe sync every 15 (worker/index.js).
   "triggers": { "crons": ["*/10 * * * *", "*/15 * * * *"] },
   // Resizes photos of saved recipes once, when saved (worker/recipes.js).

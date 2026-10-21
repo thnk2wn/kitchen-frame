@@ -77,3 +77,20 @@ test('cleanFitness: dataAt (the newest Watch reading) kept as a time, else null'
   assert.equal(cleanFitness({ id: ID1, name: 'Alex', days: [], dataAt: 'soon' }).dataAt, null);
   assert.equal(cleanFitness({ id: ID1, name: 'Alex', days: [] }).dataAt, null);
 });
+
+test('weight: weigh-ins as differences from the goal, one a day, in order; the goal and height only together', () => {
+  const p = cleanFitness({ id: ID1, name: 'Sam', days: [day('2026-10-20')], weight: { unit: 'lb', points: [
+    { date: '2026-10-08', d: 15.2 }, { date: '2026-08-24', d: 19.8 }, { date: '2026-10-08', d: 15.4 }, { date: 'soon', d: 1 }, { date: '2026-10-21', d: 'x' }, { date: '2026-10-21', d: 11.8 },
+  ] } });
+  assert.deepEqual(p.weight, { unit: 'lb', points: [{ date: '2026-08-24', d: 19.8 }, { date: '2026-10-08', d: 15.4 }, { date: '2026-10-21', d: 11.8 }] });
+  // Height comes only with a goal (it's only for BMI, which needs the weight).
+  assert.ok(!('heightM' in cleanFitness({ id: ID1, name: 'Sam', weight: { points: [{ date: '2026-10-21', d: 1 }], heightM: 1.88 } }).weight));
+  const shown = cleanFitness({ id: ID1, name: 'Sam', weight: { unit: 'kg', points: [{ date: '2026-10-21', d: 1 }], goal: 84, heightM: 1.88, bmi: 24.74, bodyFat: 19.5 } }).weight;
+  assert.deepEqual([shown.unit, shown.goal, shown.heightM, shown.bmi, shown.bodyFat], ['kg', 84, 1.88, 24.7, 19.5]);
+  // BMI and body fat, like height, only with the goal.
+  const bare = cleanFitness({ id: ID1, name: 'Sam', weight: { points: [{ date: '2026-10-21', d: 1 }], bmi: 24.7, bodyFat: 19.5 } }).weight;
+  assert.ok(!('bmi' in bare) && !('bodyFat' in bare));
+  // Not shared: no weight at all.
+  assert.ok(!('weight' in cleanFitness({ id: ID1, name: 'Sam' })));
+  assert.ok(!('weight' in cleanFitness({ id: ID1, name: 'Sam', weight: { points: [] } })));
+});

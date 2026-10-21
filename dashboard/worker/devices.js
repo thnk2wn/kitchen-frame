@@ -22,6 +22,7 @@
 //   POST   /api/devices             { role: 'ops', name } -> { token, id }                       admin
 import { room } from './messages.js';
 import { phoneId } from './fitness.js';
+import { homeOnly } from './home.js';
 
 export const TOKEN_PREFIX = 'kfd_';
 export const PAIR_MS = 10 * 60 * 1000;
@@ -36,6 +37,7 @@ const PHONE = [
   ['GET', '/api/frame/guest'], ['POST', '/api/frame/guest'], ['GET', '/api/frame/home'],
   ['GET', '/api/frame/screenshot'], ['POST', '/api/frame/screenshot/request'], ['GET', '/api/frame/status'],
   ['GET', '/api/ops/summary'], ['POST', '/api/share/media'], ['POST', '/api/share/play'],
+  ['POST', '/api/devices/pin'], // its owner's PIN, for the frame (its own record only)
 ];
 const OPS = [['GET', '/api/ops/summary']];
 const ADMIN_ONLY = [['POST', '/api/devices/frame'], ['POST', '/api/devices']];
@@ -76,7 +78,10 @@ export async function devicesRoute(storage, path, req) {
   // so a revoke or another add can't be overwritten by a stale copy.
   const fresh = async () => { const token = newToken(); return { token, id: newId(), hash: await hashToken(token) }; };
   const read = async () => (await storage.get('devices')) || {};
-  const pub = (d) => ({ id: d.id, name: d.name, role: d.role, created: d.created, lastUsed: d.lastUsed || null });
+  // A phone's owner's PIN goes with it (salt and hash only), with their name and their fitness id, so
+  // the frame can take it for anything a PIN guards and for that person's own details.
+  const pub = (d) => ({ id: d.id, name: d.name, role: d.role, created: d.created, lastUsed: d.lastUsed || null,
+    ...(d.pin ? { pin: d.pin, person: d.person || d.name, fitnessId: d.fitnessId || null } : {}) });
   const add = async (key, role, name, devices) => {
     devices[key.id] = { id: key.id, name: clean(name, 60) || role, role, hash: key.hash, created: new Date().toISOString() };
     await storage.put('devices', devices);
@@ -106,6 +111,19 @@ export async function devicesRoute(storage, path, req) {
     const devices = await read();
     if (!devices[body.id]) return json({ error: 'no such device' }, 404);
     delete devices[body.id];
+    await storage.put('devices', devices);
+    return json({ ok: true });
+  }
+  // A phone sets (or clears, pin: null) its owner's PIN: the salted hash the phone made, never the
+  // digits, in the frame's own format (src/lib/pin.js).
+  if (path === '/devices/pin') {
+    const devices = await read();
+    const d = devices[body.id];
+    if (!d || d.role !== 'phone') return json({ error: 'no such phone' }, 404);
+    const p = body.pin;
+    if (p === null) { delete d.pin; delete d.person; }
+    else if (p && /^[0-9a-f]{32}$/.test(p.salt) && /^[0-9a-f]{64}$/.test(p.hash)) { d.pin = { salt: p.salt, hash: p.hash }; d.person = clean(body.person, 40) || d.name; }
+    else return json({ error: 'pin: { salt, hash } or null' }, 400);
     await storage.put('devices', devices);
     return json({ ok: true });
   }
@@ -209,10 +227,24 @@ export async function devicesApi(req, env, url, who) {
     const r = await roomCall(env, '/devices/add', { role: 'ops', name: b.name || 'Status page' });
     return json(r.body, r.status);
   }
+  if (path === '/api/devices/pin' && req.method === 'POST') {
+    if (!who || !who.device || who.device.role !== 'phone') return json({ error: 'a phone sets its own PIN' }, 403);
+    // Only from home: anyone's PIN also unlocks a door at the frame, so a phone's key used from
+    // elsewhere (a lost phone, before it's revoked) can't plant one (home.js).
+    const away = await homeOnly(env, req);
+    if (away) return away;
+    const b = await req.json().catch(() => ({}));
+    const r = await roomCall(env, '/devices/pin', { id: who.device.id, pin: b.pin === null ? null : b.pin, person: b.person });
+    // The frame fetches the PINs again now, so a new one works at once.
+    if (r.status === 200) await roomCall(env, '/command', { command: 'refresh', what: 'pins' }).catch(() => {});
+    return json(r.body, r.status);
+  }
   const m = /^\/api\/devices\/([\w-]{6,20})$/.exec(path);
   if (m && req.method === 'DELETE') {
     const r = await roomCall(env, '/devices/remove', { id: m[1] });
     forgetDevices();
+    // A revoked phone's PIN stops working on the frame now, not at its next 10-minute fetch.
+    if (r.status === 200) await roomCall(env, '/command', { command: 'refresh', what: 'pins' }).catch(() => {});
     return json(r.body, r.status);
   }
   return null;

@@ -43,6 +43,11 @@ export function demoCalendar(now) {
       'demo-game1': 'TV: CBS\nRadio: Vol Network',
       'demo-game2': 'TV: ESPN\nRadio: Vol Network',
       'demo-allergy': 'Wait 30 minutes after the shot.',
+    },
+    // The notes' links, shown as QR codes (worker/calendar.js noteLinks).
+    links: {
+      'demo-game1': [{ label: 'Tickets', url: 'https://example.com/tickets' }, { label: 'Stream', url: 'https://example.com/watch' }],
+      'demo-swim': [{ label: 'Schedule', url: 'https://example.com/swim/schedule' }],
     } };
 }
 

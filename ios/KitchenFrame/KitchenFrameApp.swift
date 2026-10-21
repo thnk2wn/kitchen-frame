@@ -212,7 +212,10 @@ struct SettingsView: View {
                     LabeledContent("Paired with", value: model.pairing?.url.host ?? "—")
                     Button("Unpair this phone", role: .destructive) { confirming = true }
                 }
-                if let api = model.api { GuestModeSection(api: api) }
+                if let api = model.api {
+                    GuestModeSection(api: api)
+                    Section { NavigationLink { PinSettingsView(api: api) } label: { LabeledContent("PIN", value: FramePin.isSet ? "Set" : "Not set") } }
+                }
                 Section {
                     NavigationLink { FitnessSettingsView() } label: { LabeledContent("Apple Health", value: FitnessSync.shared.summary) }
                 }
@@ -262,6 +265,7 @@ struct GuestModeSection: View {
 struct FitnessSettingsView: View {
     @State private var sync = FitnessSync.shared
     @State private var problem: String?
+    @FocusState private var goalFocused: Bool
 
     var body: some View {
         Form {
@@ -278,7 +282,32 @@ struct FitnessSettingsView: View {
             }
             if let problem { Text(problem).foregroundStyle(.red) }
         } footer: {
-            Text("Shows your Activity rings, today’s steps and your last few workouts (time, distance, calories, climb, effort and the weather, and average heart rate if you turn it on) on the frame’s Fitness tab, nothing else from Health. It sends when you open this app and when Health has new data, usually within the hour while your phone is unlocked now and then. Turn it off to hide yourself on the frame; turned back on, you’re there again in seconds. Guest mode (the Remote tab) hides everyone’s, with other personal things.")
+            Text("Your rings, steps and recent workouts on the frame’s Fitness tab. Sent when Health has new data, usually within the hour. Hidden in guest mode.")
+        }
+        if sync.enabled {
+            Section {
+                Toggle("Share weight trend", isOn: Binding(get: { sync.weight }, set: { on in Task { await weight(on) } }))
+                if sync.weight {
+                    LabeledContent("Goal") {
+                        HStack(spacing: 4) {
+                            TextField("Goal", value: Binding(get: { sync.weightGoal > 0 ? sync.weightGoal : nil }, set: { sync.weightGoal = max(0, $0 ?? 0) }), format: .number.precision(.fractionLength(0...1)))
+                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing).focused($goalFocused)
+                            Text(FitnessSync.weightUnit.name).foregroundStyle(.secondary)
+                        }
+                    }
+                    if let read = sync.weighInsRead { LabeledContent("Read from Health", value: read).font(.footnote) }
+                    // Only with a PIN of your own: the frame shows a weight only after its owner's PIN.
+                    Toggle(FramePin.isSet ? "Show my weight on the frame" : "Show my weight (needs your PIN)", isOn: Binding(get: { sync.showWeight && FramePin.isSet }, set: { on in sync.showWeight = on; Task { await sync.send(reason: on ? "Weight shown" : "Weight hidden") } }))
+                        .disabled(!FramePin.isSet)
+                    if !FramePin.isSet { Text("Set one in Settings → PIN first.").font(.footnote).foregroundStyle(.secondary) }
+                }
+            } header: {
+                Text("Weight")
+            } footer: {
+                Text(sync.weight && sync.weightGoal <= 0
+                     ? "Set a goal to start."
+                     : "Your pace and how far you are from your goal. Your weight itself shows only if you turn it on, and only after your PIN on the frame.")
+            }
         }
         if sync.enabled, !sync.recent.isEmpty {
             Section {
@@ -293,11 +322,27 @@ struct FitnessSettingsView: View {
             } header: {
                 Text("Sends today")
             } footer: {
-                Text("The last 24 hours, newest first: “App opened” is this app, “Health update” is Health waking it in the background.")
+                Text("The last 24 hours, newest first.")
             }
         }
         }
         .navigationTitle("Apple Health")
+        .toolbar {
+            // The decimal pad has no return key: Done sends the new goal.
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { goalFocused = false; Task { await sync.send(reason: "Weight goal changed") } }
+            }
+        }
+    }
+
+    /// Weight needs its own Health access, asked for when it's turned on; then it's watched and sent.
+    private func weight(_ on: Bool) async {
+        problem = nil
+        sync.weight = on
+        if on { do { try await sync.requestAccess() } catch { problem = error.localizedDescription } }
+        sync.rewatch()
+        await sync.send(reason: on ? "Weight on" : "Weight off")
     }
 
     /// Heart rate needs its own Health access, asked for when it's turned on; then it's sent at once.

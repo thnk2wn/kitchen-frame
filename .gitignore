@@ -16,6 +16,9 @@ kiosk/bootanimation/build/
 .impeccable/
 # Household details the pre-push check looks for (dashboard/scripts/check-private.sh). Never commit.
 .private-terms
+# Notes about this household's own setup (follow-ups, weak spots, what's where), kept out of the
+# public docs.
+PRIVATE.md
 
 # Secrets that could plausibly be created or copied here (2026-10-20 security review). Checked-in
 # examples are kept by their names (.dev.vars.example, go2rtc.example.yaml).

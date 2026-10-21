@@ -1,6 +1,6 @@
-// Activity rings and recent workouts, per person, for the frame's Fitness tab. Each person's iPhone
-// sends its own (the phone app reads HealthKit, ios/KitchenFrame/Fitness.swift); nothing else from
-// Health comes here. A phone sends when it opens and when HealthKit wakes it with new data, so a
+// Activity rings and recent workouts, per person, for the frame's Fitness tab, and weight against a
+// goal for those who share it. Each person's iPhone sends its own (the phone app reads HealthKit,
+// ios/KitchenFrame/Fitness.swift); nothing else from Health comes here. A phone sends when it opens and when HealthKit wakes it with new data, so a
 // person's numbers can be an hour or more behind; `updated` says how far.
 //   GET    /api/fitness           -> { people: [{ id, name, updated, unit, days, steps, meters, workouts }] }
 //   POST   /api/fitness           one phone's numbers (below), replacing what it sent before
@@ -22,6 +22,30 @@ const clip = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const day = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
 const inRange = (v, lo, hi, signed = false) => { const n = Number(v); return v != null && v !== '' && Number.isFinite(n) && n >= lo && n <= hi && (signed || n >= 0) ? Math.round(n * 10) / 10 : null; };
 export const phoneId = (v) => (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v.toLowerCase() : null);
+
+// Weight against a goal, only when its owner shares it (the phone's Settings → Apple Health): the last
+// year's weigh-ins, one a day, each as the difference from the goal (d), in the phone's unit, so the
+// trend and what's left need no weight at all (src/lib/weight.js). The goal itself, and height for
+// BMI, only when its owner also chose to show their weight. Out of range is dropped.
+const WEIGH_INS = 400;
+export function cleanWeight(w) {
+  if (!w || typeof w !== 'object') return null;
+  // One a day, the last sent for a date winning; at most WEIGH_INS (the input trimmed first, so a
+  // huge list costs nothing).
+  const byDate = new Map();
+  for (const p of (Array.isArray(w.points) ? w.points : []).slice(-WEIGH_INS * 2)) {
+    const d = p && day(p.date) ? inRange(p.d, -300, 300, true) : null;
+    if (d != null) byDate.set(p.date, { date: p.date, d });
+  }
+  const points = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-WEIGH_INS);
+  if (!points.length) return null;
+  const goal = inRange(w.goal, 20, 700), heightM = Number(w.heightM);
+  // The scale's own BMI and body fat (it saves them to Health), with the goal only, like height.
+  const bmi = goal != null ? inRange(w.bmi, 10, 80) : null, bodyFat = goal != null ? inRange(w.bodyFat, 2, 75) : null;
+  return { unit: w.unit === 'kg' ? 'kg' : 'lb', points, ...(goal != null ? { goal } : {}),
+    ...(goal != null && Number.isFinite(heightM) && heightM >= 1 && heightM <= 2.5 ? { heightM: Math.round(heightM * 1000) / 1000 } : {}),
+    ...(bmi != null ? { bmi } : {}), ...(bodyFat != null ? { bodyFat } : {}) };
+}
 
 // What a phone sends, kept to what the frame shows: the last 4 weeks and today of rings (with each
 // day's steps and workout minutes), today's steps and distance, and the 5 latest workouts. Anything missing or malformed is dropped, not guessed.
@@ -60,7 +84,8 @@ export function cleanFitness(b) {
   // unit: how the phone shows distances (its region's setting), so the frame matches it.
   // reason: why the phone sent (app opened, a workout saved, a Health update), for the status page.
   // dataAt: when the phone's newest Watch reading ends (how current the rings are); none from older apps.
-  return { id, name, updated: new Date().toISOString(), dataAt: iso(b.dataAt) || null, reason: clip(b.reason, 40) || null, unit: b.unit === 'km' ? 'km' : 'mi', days, steps: num(b.steps), meters: num(b.meters), workouts };
+  const weight = cleanWeight(b.weight);
+  return { id, name, updated: new Date().toISOString(), dataAt: iso(b.dataAt) || null, reason: clip(b.reason, 40) || null, unit: b.unit === 'km' ? 'km' : 'mi', days, steps: num(b.steps), meters: num(b.meters), workouts, ...(weight ? { weight } : {}) };
 }
 
 export async function listFitness(env) {

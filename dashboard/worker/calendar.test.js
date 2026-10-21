@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { expand, merge, prefilter, cleanNotes, splitNotes, place, fromBridge } from './calendar.js';
+import { expand, merge, prefilter, cleanNotes, splitNotes, splitLinks, noteLinks, place, fromBridge } from './calendar.js';
 
 const DAY = 864e5;
 const now = Date.parse('2026-10-12T12:00:00Z');
@@ -181,4 +181,37 @@ test('#quiet: kept and shown without the tag, marked quiet (title or notes, any 
   assert.equal(e.title, 'Gym');
   assert.equal(e.quiet, true);
   assert.equal(e.notes, 'bring water');
+});
+
+test('note links: labelled by their line, their text or their site; at most three, spaces encoded', () => {
+  const sports = 'W 56-9\nStreaming Video: https://www.espn.com/watch/x\nTickets: https://tickets.example.com/e/1?utm_campaign=F26 vs Alabama';
+  assert.deepEqual(noteLinks(sports), [
+    { label: 'Streaming Video', url: 'https://www.espn.com/watch/x' },
+    { label: 'Tickets', url: 'https://tickets.example.com/e/1?utm_campaign=F26%20vs%20Alabama' },
+  ]);
+  // HTML: a link whose text is its address takes the line's label; one with words takes its words.
+  assert.deepEqual(noteLinks('<p>Join: <a href="https://zoom.us/j/1">https://zoom.us/j/1</a></p><p><a href="https://example.com/form?a=1&amp;b=2">Sign up</a></p>'), [
+    { label: 'Join', url: 'https://zoom.us/j/1' },
+    { label: 'Sign up', url: 'https://example.com/form?a=1&b=2' },
+  ]);
+  // A sentence before a link isn't a label; a bare meeting link is a video call; the same link once.
+  assert.deepEqual(noteLinks('Bring snacks, details at https://www.example.org/x.\nhttps://acme.zoom.us/j/9\nhttps://www.example.org/x'), [
+    { label: 'example.org', url: 'https://www.example.org/x' },
+    { label: 'Video call', url: 'https://acme.zoom.us/j/9' },
+  ]);
+  assert.equal(noteLinks('a https://a.example\nb https://b.example\nc https://c.example\nd https://d.example').length, 3);
+  assert.deepEqual(noteLinks('mailto:x@example.com and tel:555'), []);
+  assert.deepEqual(noteLinks(''), []);
+});
+
+test('links travel only for calendars that open, beside their notes', () => {
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', 'UID:g1', 'DTSTART:20261020T150000Z', 'DTEND:20261020T160000Z',
+    'SUMMARY:Game', 'DESCRIPTION:TV: ABC\\nTickets: https://tickets.example.com/y', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const from = Date.parse('2026-10-19T00:00:00Z'), to = Date.parse('2026-10-22T00:00:00Z');
+  const open = expand(ics, 0, from, to, 'UTC', { notes: true });
+  assert.deepEqual(open[0].links, [{ label: 'Tickets', url: 'https://tickets.example.com/y' }]);
+  assert.equal(open[0].notes, 'TV: ABC');
+  assert.ok(!('links' in expand(ics, 0, from, to, 'UTC', { notes: false })[0]));
+  assert.deepEqual(splitLinks(open), { g1: [{ label: 'Tickets', url: 'https://tickets.example.com/y' }] });
+  assert.ok(!('links' in open[0]));
 });

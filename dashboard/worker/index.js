@@ -81,13 +81,15 @@
 // Optional: DISPLAY_TZ  IANA zone for times with no TZID and no X-WR-TIMEZONE (default UTC).
 import { listFitness, saveFitness, removeFitness } from './fitness.js';
 import { guestMode, setGuestMode } from './guest.js';
-import { expand, fromBridge, merge, splitNotes } from './calendar.js';
+import { expand, fromBridge, merge, splitNotes, splitLinks } from './calendar.js';
 import { getWeather } from './weather.js';
 import { getRadar } from './radar.js';
 import { LISTS, getList, addItem, updateItem, completeItem } from './todoist.js';
 import { listPhotos, photoResponse, bridgeAlbum, bridgePhotoList, bridgePhotoUpload, bridgeVideoUpload, videoResponse } from './photos.js';
 import { room } from './messages.js';
 import { screenshotRoute } from './screenshot.js';
+import { tooBig, rateKey, overLimit } from './limits.js';
+import { cspPolicy, cspReport } from './csp.js';
 import { atHome, homeCheck, homeOnly, noteHome } from './home.js';
 import { TOKEN_PREFIX, allowed, deviceById, deviceForToken, devicesApi, fitnessAllowed } from './devices.js';
 import { listNotices, addNotice } from './notices.js';
@@ -157,16 +159,26 @@ async function handle(req, env, ctx) {
       }
       if (!(res.headers.get('Content-Type') || '').includes('text/html')) return res;
       // Never cache the page, or the frame keeps running an old build after a deploy.
-      const page = new Response(res.body, res);
+      const html = await res.text();
+      const page = new Response(html, res);
       page.headers.set('Cache-Control', 'no-store');
       // Defence in depth (2026-10-20 security review): no sniffing, no embedding in another site, and
-      // the browser's default referrer policy made explicit (YouTube embeds need a referrer). Not yet a
-      // full Content-Security-Policy: Home Assistant, YouTube, maps and the relay would each need care.
+      // the browser's default referrer policy made explicit (YouTube embeds need a referrer). The full
+      // Content-Security-Policy only reports for now (csp.js); Home Assistant, YouTube, maps and the
+      // relay each need care before it blocks.
       page.headers.set('X-Content-Type-Options', 'nosniff');
       page.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
       page.headers.set('X-Frame-Options', 'DENY');
       page.headers.set('Content-Security-Policy', "frame-ancestors 'none'");
+      if (html) page.headers.set('Content-Security-Policy-Report-Only', await cspPolicy(html));
       return page;
+    }
+    // Bodies over their route's limit are refused before they're read (limits.js).
+    if (tooBig(req, url.pathname)) return json({ error: 'too large' }, 413);
+    // What the page's policy would have blocked (csp.js). The browser sends these with no key.
+    if (url.pathname === '/api/csp-report' && req.method === 'POST') {
+      if (await overLimit(env.ADDRESS_LIMIT, 'ip:' + (req.headers.get('CF-Connecting-IP') || ''))) return tooMany();
+      return cspReport(req, env);
     }
     // Agents post with their own token, which opens this one route and nothing else.
     if (url.pathname === '/api/messages' && req.method === 'POST') {
@@ -272,9 +284,16 @@ async function handle(req, env, ctx) {
       return json(body, status);
     }
     // A phone pairs with a one-time code from the frame, not a key (devices.js).
-    if (url.pathname === '/api/devices/claim' && req.method === 'POST') return devicesApi(req, env, url, null);
+    // Pairing attempts and calls without a working key count against their address (limits.js);
+    // a key's calls count against the key.
+    const address = 'ip:' + (req.headers.get('CF-Connecting-IP') || '');
+    if (url.pathname === '/api/devices/claim' && req.method === 'POST') {
+      if (await overLimit(env.ADDRESS_LIMIT, address)) return tooMany();
+      return devicesApi(req, env, url, null);
+    }
     const who = await identify(req, env);
-    if (!who) return json({ error: 'unauthorized' }, 401);
+    if (!who) return (await overLimit(env.ADDRESS_LIMIT, address)) ? tooMany() : json({ error: 'unauthorized' }, 401);
+    if (await overLimit(env.KEY_LIMIT, rateKey(who))) return tooMany();
     callers.set(req, who);
     // Each device's key opens only what that device uses (devices.js).
     if (!allowed(who, req.method, url.pathname)) return json({ error: 'This device’s key can’t do that.' }, 403);
@@ -540,7 +559,7 @@ async function updateCalendar(env, previous) {
   const feeds = (await env.CALENDAR.get(FEEDS_KEY, 'json')) || {};
   const before = JSON.stringify(feeds);
   const data = await refresh(env, previous, feeds);
-  const pick = (d) => JSON.stringify([d.events, d.errors, d.names, d.colors, d.details, d.notes]);
+  const pick = (d) => JSON.stringify([d.events, d.errors, d.names, d.colors, d.details, d.notes, d.links]);
   const same = previous && pick(previous) === pick(data);
   if (!same || Date.now() - Date.parse(previous.updated) > HEARTBEAT_MS) await env.CALENDAR.put(KEY, JSON.stringify(data));
   // Each feed's fetch record changes only when a feed is fetched on a slow schedule or fails, so
@@ -589,7 +608,8 @@ async function refresh(env, previous, feeds = {}) {
   const every = String(env.CALENDAR_REFRESH || '').split(',').map((x) => (Number(x) > 0 ? Number(x) * 3600000 : 0));
   // The last good copy of a calendar, for a feed not fetched this time (failing, or not due yet).
   const kept = (cal) => (previous?.events || []).filter((e) => e.cal === cal)
-    .map((e) => ({ ...e, startMs: Date.parse(e.start), ...(details?.[cal] && previous.notes?.[e.uid] ? { notes: previous.notes[e.uid] } : {}) }));
+    .map((e) => ({ ...e, startMs: Date.parse(e.start), ...(details?.[cal] && previous.notes?.[e.uid] ? { notes: previous.notes[e.uid] } : {}),
+      ...(details?.[cal] && previous.links?.[e.uid] ? { links: previous.links[e.uid] } : {}) }));
 
   const lists = await Promise.all(urls.map(async (link, cal) => {
     try {
@@ -646,10 +666,10 @@ async function refresh(env, previous, feeds = {}) {
   // CALENDAR_COLORS (optional, same order): the frame's colour per calendar; unset ones rotate.
   const colors = env.CALENDAR_COLORS ? String(env.CALENDAR_COLORS).split(',').map((x) => x.trim()) : null;
   const events = merge(lists);
-  const notes = splitNotes(events);
+  const notes = splitNotes(events), links = splitLinks(events);
   return { updated: new Date(now).toISOString(), calendars: urls.length, names: urls.map((_, i) => custom[i] || names[i] || null),
     colors: colors ? urls.map((_, i) => colors[i] || null) : undefined, details: details || undefined,
-    notes: Object.keys(notes).length ? notes : undefined, errors, events };
+    notes: Object.keys(notes).length ? notes : undefined, links: Object.keys(links).length ? links : undefined, errors, events };
 }
 
 // The frame sends its key as a header. <img> and WebSocket can't, so those GETs authenticate with a
@@ -712,6 +732,8 @@ async function withAuthCookie(req, env, res, who) {
   out.headers.append('Set-Cookie', AUTH_COOKIE + '=' + value + '; Path=/api; Max-Age=31536000; HttpOnly; Secure; SameSite=Strict');
   return out;
 }
+
+const tooMany = () => new Response(JSON.stringify({ error: 'too many requests' }), { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '60' } });
 
 function json(body, status = 200, cache = 'no-store') {
   return new Response(JSON.stringify(body), {

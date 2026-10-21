@@ -2,6 +2,7 @@
 // needs it (see start()), one request at a time, and unchanged results don't touch the screen.
 import { loadFitness, refreshFitness } from './fitness.svelte.js';
 import { api, cached, remember, changed, forget, mediaUrl } from './api.js';
+import { loadPins } from './pin.svelte.js';
 import { log } from './log.svelte.js';
 import { dayKey, recipeTitle, setCalendarColors, formatDate } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
@@ -247,6 +248,8 @@ showCalendar(ui.demo ? demoCalendar(new Date()) : cached('calendar')); // last c
 // Events on calendars set to open (CALENDAR_DETAILS) can be tapped for their details and notes.
 export const canOpen = (e) => !!(calendar.raw && calendar.raw.details && calendar.raw.details[e.cal]);
 export const eventNotes = (e) => (calendar.raw && calendar.raw.notes && calendar.raw.notes[e.uid]) || '';
+// The links the notes had (worker/calendar.js noteLinks): [{ label, url }], shown as QR codes.
+export const eventLinks = (e) => (calendar.raw && calendar.raw.links && calendar.raw.links[e.uid]) || [];
 export function openEvent(e) { if (canOpen(e)) ui.event = { uid: e.uid, start: e.start }; }
 
 // Display names for the show/hide list: the feed's own name, numbered when names repeat.
@@ -346,6 +349,8 @@ function connectMessages() {
       // A phone just sent its Activity rings (worker/fitness.js). KV can serve the old copy for up to a
       // minute after a write, so fetch again a minute later rather than waiting for the 10-minute poll.
       if (d.command === 'refresh' && d.what === 'fitness') { refreshFitness(); setTimeout(loadFitness, 70000); }
+      // A phone set or cleared its owner's PIN (worker/devices.js).
+      if (d.command === 'refresh' && d.what === 'pins') loadPins();
       // "Hide notifications", "close that": whatever sheet is over the screen.
       if (d.command === 'media' && d.id) {
         lastTouch = Date.now();
@@ -582,6 +587,7 @@ export function start() {
   every(60 * MIN, loadVideos);
   every(60 * MIN, loadRotations);
   every(10 * MIN, loadFitness); // the phones send when they have news; the Worker also says so (refresh)
+  if (!ui.demo) { loadPins(); every(10 * MIN, loadPins); } // the household's PINs (lib/pin.svelte.js)
   every(15 * MIN, loadWeather);
   // Both lists show on Home; each also has its own tab (App loads a list when its tab opens).
   every(MIN, () => loadList('todo'), () => !ui.idle);

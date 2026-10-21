@@ -7,6 +7,8 @@
 #                                              relay offline, fallbacks, failures
 #   scripts/frame-metrics.sh stability [days]  per day: check-ins (144 expected), page loads by reason,
 #                                              the frame's own reloads, Home Assistant drops, errors
+#   scripts/frame-metrics.sh csp [days]        what the page's report-only Content-Security-Policy would
+#                                              have blocked (worker/csp.js), by directive and origin
 # days defaults to 3 (memory) or 7.
 #
 # Needs in dashboard/.frame.vars (gitignored; not .dev.vars, whose settings go to the Worker):
@@ -18,7 +20,7 @@ get() { sed -n "s/^$1=\"\(.*\)\"[[:space:]]*$/\1/p" .frame.vars | head -1; }
 acct=$(get CF_ACCOUNT_ID); token=$(get CF_ANALYTICS_TOKEN)
 [ -n "$acct" ] && [ -n "$token" ] || { echo "Set CF_ACCOUNT_ID and CF_ANALYTICS_TOKEN in dashboard/.frame.vars (see the top of this script)." >&2; exit 2; }
 report=memory
-case "${1:-}" in memory|video|stability) report=$1; shift ;; esac
+case "${1:-}" in memory|video|stability|csp) report=$1; shift ;; esac
 days=${1:-$([ "$report" = memory ] && echo 3 || echo 7)}
 [[ "$days" =~ ^[0-9]+$ ]] || { echo "days must be a number" >&2; exit 2; }
 
@@ -43,6 +45,10 @@ case $report in
       FROM kitchen_frame_metrics WHERE index1 = 'event' AND $since GROUP BY day, event, about ORDER BY day FORMAT JSON")
     checks=$(query "SELECT toStartOfInterval(timestamp, INTERVAL '1' HOUR) AS day, sum(_sample_interval) AS n
       FROM kitchen_frame_metrics WHERE index1 = 'frame' AND $since GROUP BY day ORDER BY day FORMAT JSON") ;;
+  csp)
+    # Each origin is kept at most once per 10 minutes per Worker instance, so n counts sightings.
+    res=$(query "SELECT blob1 AS directive, blob2 AS blocked, blob3 AS page, sum(_sample_interval) AS n, max(timestamp) AS last
+      FROM kitchen_frame_metrics WHERE index1 = 'csp' AND $since GROUP BY directive, blocked, page ORDER BY n DESC FORMAT JSON") ;;
 esac
 
 python3 -I - "$report" "$res" "${checks:-}" <<'PY'
@@ -52,6 +58,12 @@ report, rows, checks = sys.argv[1], json.loads(sys.argv[2]).get('data', []), jso
 local = lambda s, f: dt.datetime.fromisoformat(s.replace(' ', 'T') + '+00:00').astimezone().strftime(f)
 if not rows and not checks: sys.exit('No data yet: the dataset fills from the frame\'s check-ins (every 10 minutes).')
 if report == 'video' and not rows: sys.exit('No video or doorbell events in that time.')
+if report == 'csp':
+    if not rows: sys.exit('Nothing the policy would have blocked in that time.')
+    print(f"{'directive':<14} {'seen':>5}  {'last':<14} blocked (on page)")
+    for r in rows:
+        print(f"{r['directive']:<14} {int(float(r['n'])):>5}  {local(r['last'], '%a %-I:%M %p'):<14} {r['blocked']}  ({r['page']})")
+    sys.exit()
 
 if report == 'memory':
     print(f"{'hour':<14} {'checks':>6} {'app MB':>7} {'max':>5} {'free MB':>8}  page    build")

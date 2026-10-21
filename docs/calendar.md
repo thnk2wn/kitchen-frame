@@ -77,10 +77,13 @@ CALENDAR_DETAILS="yes, yes, no, yes"
 - **Notes are only kept for these calendars.** The Worker reads each feed in full (an iCal link
   has no way to leave descriptions out), but for other calendars it never takes the description out
   of the feed, so it isn't stored in KV, sent to the frame or cached there.
-- **Cleaned up for a screen nobody can click:** links are removed (the kiosk can't open them), along
-  with lines left with just a label ("Tickets:"), a first line that repeats the title, separator
-  rules and HTML formatting. Notes are cut at 1,000 characters. A sports feed's "W 56-9 / TV: SEC
-  Network" survives; its ticket and streaming links don't.
+- **Cleaned up for a screen nobody can click:** links are taken out of the text (the kiosk can't
+  open them), along with lines left with just a label ("Tickets:"), a first line that repeats the
+  title, separator rules and HTML formatting. Notes are cut at 1,000 characters. A sports feed's
+  "W 56-9 / TV: SEC Network" survives as text.
+- **Links as QR codes:** the links taken out (up to three, web links only) show below the notes as
+  buttons named for their line ("Tickets", "Streaming Video"), their text, or their site; a meeting
+  link is "Video call". Tapping one shows its QR code where the map was, to open on a phone.
 - A weekly event's notes are stored once, not per week.
 - **A map** of the location shows beside the details when the place can be found: an address, or a
   named place like a stadium. The Worker looks it up with OpenStreetMap's Nominatim the first time

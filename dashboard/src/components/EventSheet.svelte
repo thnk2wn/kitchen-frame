@@ -1,11 +1,11 @@
 <script>
   import Txt from './Txt.svelte';
   // One event in detail, opened by tapping it on Home or the Calendar tab: its calendar, when, where
-  // and its notes. Only calendars set to open (CALENDAR_DETAILS) can be tapped; the Worker never
+  // and its notes, with the notes' links as QR codes to open on a phone. Only calendars set to open (CALENDAR_DETAILS) can be tapped; the Worker never
   // keeps notes for the others.
   import Icon from './Icon.svelte';
   import EventMap from './EventMap.svelte';
-  import { ui, clock, calendar, calendarNames, eventNotes } from '../lib/state.svelte.js';
+  import { ui, clock, calendar, calendarNames, eventNotes, eventLinks } from '../lib/state.svelte.js';
   import { calVars, timeRange, time, dayKey, addDays, isNow, isPast, formatDate } from '../lib/format.js';
   import { reminderFor, remindsFor } from '../lib/reminders.svelte.js';
   import { say } from '../lib/announce.svelte.js';
@@ -18,6 +18,21 @@
     return events.find((x) => x.uid === want.uid && (!want.start || x.start === want.start)) || null;
   });
   let notes = $derived(e ? eventNotes(e) : '');
+  let links = $derived(e ? eventLinks(e) : []);
+  // A tapped link's QR code, in the map's place (tap it again for the map). The QR library loads on
+  // the first tap.
+  let qrFor = $state(null), qr = $state('');
+  // Compared by address: a calendar refresh makes new link objects for the same links.
+  $effect(() => { if (!e || (qrFor && !links.some((l) => l.url === qrFor.url))) { qrFor = null; qr = ''; } });
+  async function showQr(link) {
+    if (qrFor && qrFor.url === link.url) { qrFor = null; qr = ''; return; }
+    qrFor = link;
+    const { default: qrcode } = await import('qrcode-generator');
+    const q = qrcode(0, 'M');
+    q.addData(link.url);
+    q.make();
+    if (qrFor && qrFor.url === link.url) qr = q.createSvgTag({ cellSize: 5, margin: 3, scalable: true });
+  }
   let calName = $derived(e ? calendarNames()[e.cal] || '' : '');
   // Demo mode maps only the stadiums: a local place ("Aquatic center") would be found near the
   // frame's real home and show its neighbourhood in screenshots.
@@ -60,7 +75,7 @@
 
 {#if e}
   <div class="scrim" role="presentation" onclick={close}>
-    <div class="panel sheet" class:wide={mapped && !!mapFor} role="dialog" aria-label={e.title} tabindex="-1" style={calVars(e)} onclick={(ev) => ev.stopPropagation()} onkeydown={(ev) => ev.key === 'Escape' && close()}>
+    <div class="panel sheet" class:wide={(mapped && !!mapFor) || !!qrFor} role="dialog" aria-label={e.title} tabindex="-1" style={calVars(e)} onclick={(ev) => ev.stopPropagation()} onkeydown={(ev) => ev.key === 'Escape' && close()}>
       <header>
         <span class="cal"><i></i>{calName}</span>
         <button class="x" onclick={close} aria-label="Close"><Icon name="close" size={26} /></button>
@@ -84,8 +99,18 @@
         {#if notes}
           <div class="row notes"><span class="ic"><Icon name="notes" size={24} /></span><p>{notes}</p></div>
         {/if}
+        {#if links.length}
+          <div class="row"><span class="ic"><Icon name="qrCode" size={24} /></span>
+            <div class="links">{#each links as l (l.url)}<button class="chip" class:on={qrFor && qrFor.url === l.url} onclick={() => showQr(l)}><Icon name="link" size={18} />{l.label}</button>{/each}</div>
+          </div>
+        {/if}
       </div>
-      {#if mapFor}{#key mapFor}<EventMap location={mapFor} height={Math.max(220, Math.min(rowsHeight, 420))} bind:found={mapped} />{/key}{/if}
+      {#if qrFor}
+        <div class="qr">
+          <div class="code">{#if qr}{@html qr}{/if}</div>
+          <div class="sub">Scan with your phone to open <b>{qrFor.label}</b></div>
+        </div>
+      {:else if mapFor}{#key mapFor}<EventMap location={mapFor} height={Math.max(220, Math.min(rowsHeight, 420))} bind:found={mapped} />{/key}{/if}
       </div>
     </div>
   </div>
@@ -109,5 +134,13 @@
   .sub b { font-weight: 700; color: var(--label); }
   .sub b.now { color: var(--red-text); }
   .notes { min-height: 0; }
+  .links { display: flex; flex-wrap: wrap; gap: 10px; }
+  .links .chip { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border-radius: 23px; background: var(--track); color: var(--label); font-size: 18px; font-weight: 600; }
+  .links .chip.on { background: var(--label); color: var(--sheet); }
+  /* Black on white whatever the theme, with a quiet zone: what phone cameras read best. */
+  .qr { flex: none; width: 300px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+  .qr .code { width: 280px; height: 280px; padding: 8px; border-radius: 16px; background: #fff; }
+  .qr .code :global(svg) { display: block; width: 100%; height: 100%; }
+  .qr .code :global(path) { fill: #000; }
   .notes p { margin: 0; min-height: 0; max-height: 260px; overflow-y: auto; white-space: pre-line; font-size: 19px; line-height: 1.45; overflow-wrap: anywhere; }
 </style>

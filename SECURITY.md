@@ -20,7 +20,7 @@ Only the first is always needed; each of the rest exists only if you use what it
 | Secret | Needed | Kept in | Opens |
 | --- | --- | --- | --- |
 | `DASHBOARD_KEY` | always | Worker secret; `.dev.vars` | the admin key: the whole API. Used once by the setup link (the frame swaps it for a key of its own at once), by scripts on the Mac, and to make the status page's key. Not kept on the frame or the phones |
-| Device keys (`kfd_…`) | made for you | the frame's storage; each phone's Keychain; the status page Worker's `OPS_KEY` | one device's share of the API (`worker/devices.js`): **frame**, what the page uses, pairing and the device list; **phone**, the Remote, Screenshot, sharing, guest mode, the Ops summary, and sending its own person's fitness (it can't read anyone's); **status page**, the summary only. Only a hash is stored; each is revoked alone in the frame's Settings → About → Devices |
+| Device keys (`kfd_…`) | made for you | the frame's storage; each phone's Keychain; the status page Worker's `OPS_KEY` | one device's share of the API (`worker/devices.js`): **frame**, what the page uses, pairing and the device list; **phone**, the Remote, Screenshot, sharing, guest mode, the Ops summary, and sending its own person's fitness, with weight only if they opt in (it can't read anyone's); **status page**, the summary only. Only a hash is stored; each is revoked alone in the frame's Settings → About → Devices |
 | The frame's Home Assistant token | only with Home Assistant (House tab, Music, doorbell, announcements) | the frame's storage | what the HA user it belongs to may do. Use a **non-admin** user for the frame, and tick **Can only log in from the local network** for it once the frame reaches HA by its LAN address (not Nabu Casa), so a copied token is useless outside the house |
 | `AGENT_TOKEN` | only if AI agents or automations post messages or save recipes | wherever agents run | posting messages (which may be read aloud) and saving recipes; it can't read anything |
 | `BRIDGE_TOKEN` | only with a Mac running the bridge: for Apple Reminders lists, or iCloud calendars and a shared album without public links | the Mac (`bridge/mac/`) | sending the lists, calendars and album photos the Worker asks the Mac for, and taking the frame's list changes |
@@ -81,13 +81,29 @@ None of these are ever in the repository: they live in `wrangler secret`, the gi
 - **The kiosk stays on the dashboard.** A top-level page on another host is refused (it would get
   the kiosk's bridge), and the dashboard's page is served with `nosniff`, `X-Frame-Options: DENY` /
   `frame-ancestors 'none'` and an explicit referrer policy.
+- **Limits on size and rate** (`worker/limits.js`). A request declaring a body over 1 MB is refused
+  before it's read, except the upload routes, which get room for their own caps. Each key, and each
+  address calling without a working key or trying pairing codes, has a per-minute rate through
+  Cloudflare's rate limiter, set well above what the household uses. That limiter is approximate by
+  design (see Cloudflare's notes and
+  [workers-sdk#16097](https://github.com/cloudflare/workers-sdk/issues/16097)), so treat it as a brake,
+  not a guarantee; it lets requests through if it fails.
+- **A Content-Security-Policy, reporting first** (`worker/csp.js`). The page carries a strict policy
+  in report-only mode: nothing is blocked yet, and what it would block is kept as directive and origin
+  only (`scripts/frame-metrics.sh csp`), so the enforced policy can be written from what the frame
+  really loads. Its inline scripts are allowed by hash, worked out from the page as served.
 
 ## On the frame
 
-**Unlock PIN** (Settings → Home, `lib/pin.svelte.js`): stops someone at the screen unlocking a door,
-like the PIN Alexa asks for. It's kept as a salted PBKDF2 hash, never the digits, and five misses
-start a wait that doubles up to 15 minutes. It doesn't protect the device itself: whoever can root
-the frame can read its tokens and unlock without the dashboard, which is what the steps below are for.
+**PINs** (`lib/pin.svelte.js`): each person sets their own in the phone app (Settings → PIN), which
+sends only a salted PBKDF2 hash, kept with that phone's key (`worker/devices.js`); the frame's older
+shared PIN (Settings → Home → PINs) keeps working until it's removed. Any of them stops someone at the
+screen unlocking a door, turning guest mode off, pairing a phone or revoking one; a person's own
+details (their weight, when they show it) take only their PIN. Five misses start a wait that doubles
+up to 15 minutes. Like the PIN Alexa asks for, this guards the screen, not the data: the frame's key
+can read the hashes and the details, and four digits hashed are quickly guessed offline. It doesn't
+protect the device itself either: whoever can root the frame can read its tokens and unlock without
+the dashboard, which is what the steps below are for.
 
 **Settings changes** are logged as `settings.changed` events (what changed, from what to what) and
 the 10 versions before the current backup are kept: `GET /api/frame/settings?history`.

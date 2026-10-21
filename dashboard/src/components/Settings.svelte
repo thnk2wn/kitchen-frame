@@ -83,12 +83,12 @@
     : roomLight.lit == null ? 'No light sensor found in the room: dims from sunset'
     : 'Room ' + (roomLight.lit ? 'lit' : 'dark') + ' (' + Math.round(roomLight.lux) + ' lux, dark at ' + darkLux() + ' or less): ' + (roomLight.lit ? 'photos at full strength' : 'photos dimmed');
   import { recent } from '../lib/log.svelte.js';
-  import { pin, pinAvailable, confirmPin, enterPin, savePin, removePin } from '../lib/pin.svelte.js';
+  import { pin, anyPin, pinAvailable, confirmPin, enterPin, savePin, removePin } from '../lib/pin.svelte.js';
   import { fitness, setGuest } from '../lib/fitness.svelte.js';
   // Guest mode off asks for the unlock PIN when there is one, so a guest can't just turn it off.
   async function guestOff() {
     if (!fitness.guest.on) return;
-    if (pin.set && !(await confirmPin('Enter PIN to turn off guest mode'))) return;
+    if (anyPin() && !(await confirmPin('Enter PIN to turn off guest mode'))) return;
     await setGuest(false).catch(() => {});
   }
   // The unlock PIN: set it twice; changing or removing it needs the current one first.
@@ -113,7 +113,7 @@
   let pairTimer;
   async function pair() {
     if (pairQr) { pairQr = ''; pairCode = ''; return; }
-    if (pin.set && !(await confirmPin('PIN to show the pairing code'))) return;
+    if (anyPin() && !(await confirmPin('PIN to show the pairing code'))) return;
     pairProblem = '';
     let code = '';
     try { code = (await api('/api/devices/pair', { method: 'POST' })).code || ''; } catch (e) { pairProblem = 'Couldn’t get a pairing code: ' + e.message; return; }
@@ -136,7 +136,7 @@
   }
   async function revoke(d) {
     if (revoking !== d.id) { revoking = d.id; return; } // a second tap confirms
-    if (pin.set && !(await confirmPin('PIN to revoke ' + d.name))) { revoking = ''; return; }
+    if (anyPin() && !(await confirmPin('PIN to revoke ' + d.name))) { revoking = ''; return; }
     try { await api('/api/devices/' + d.id, { method: 'DELETE' }); } catch (e) { devicesProblem = e.message; }
     revoking = '';
     loadDevices();
@@ -416,12 +416,13 @@
     {/if}
     {#if haConfigured() && !ui.demo && pinAvailable()}
       <div class="row">
-        <span>Unlock PIN<small>{pin.set ? 'Asked before unlocking a door from House; tries are logged' : 'Off: unlocking takes two taps'}</small></span>
+        <!-- Each person's own PIN, set in the phone app, works here; the frame's own PIN is the older way. -->
+        <span>PINs<small>{pin.people.length ? pin.people.map((p) => p.person).join(', ') + ' (from the phone app)' + (pin.set ? ', and the frame’s own' : '') : pin.set ? 'The frame’s own PIN. Each person can set theirs in the phone app instead' : 'Off: unlocking takes two taps. Set yours in the phone app'}; asked before unlocking a door, and more</small></span>
         <div class="tests">
           {#if pin.set}
             <button class="reload" onclick={changePin}>Change</button>
-            <button class="reload" onclick={dropPin}>Remove</button>
-          {:else}
+            <button class="reload" onclick={dropPin}>{pin.people.length ? 'Remove frame PIN' : 'Remove'}</button>
+          {:else if !pin.people.length}
             <button class="reload" onclick={newPin}><Icon name="lock" size={20} />Set PIN</button>
           {/if}
         </div>

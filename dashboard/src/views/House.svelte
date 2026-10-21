@@ -5,7 +5,7 @@
   import { ha, haUrl } from '../lib/ha.svelte.js';
   import { haImage } from '../lib/ha-image.js';
   import { ui, cameraRefresh } from '../lib/state.svelte.js';
-  import { pin, allowUnlock } from '../lib/pin.svelte.js';
+  import { anyPin, allowUnlock } from '../lib/pin.svelte.js';
   import { emojiHtml } from '../lib/emoji.js';
   import { haConfigured } from '../lib/ha.svelte.js';
   import { liveDemo, nm } from '../lib/demo-media.svelte.js';
@@ -83,7 +83,7 @@
   async function tapLock(id, name) {
     if (unavailable(id)) return;
     if (st(id).state === 'unlocked') return lock(id);
-    if (pin.set && !houseDemo.on) return (await allowUnlock(name)) ? unlock(id, 'pin') : undefined;
+    if (anyPin() && !houseDemo.on) return (await allowUnlock(name)) ? unlock(id, 'pin') : undefined;
     if (armed === id) { armed = null; clearTimeout(armTimer); return unlock(id, 'two taps'); }
     armed = id;
     clearTimeout(armTimer);

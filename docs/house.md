@@ -39,10 +39,12 @@ Put `DASHBOARD_URL`, `HA_URL`, `HA_TOKEN` and `HA_DASHBOARD` (and optionally `TH
 - **Taps** toggle lights, fans, switches and covers, run scenes and scripts, and press buttons. The
   tile says what it's doing ("Locking…") until the device reports back, and "Didn't change" if it
   doesn't.
-- **Locks:** locking is one tap. Unlocking takes two taps, or asks for a four-digit PIN once one is
-  set in **Settings → Home → Unlock PIN** (a correct PIN is trusted for a minute; five misses start
-  a wait that doubles; locks and unlocks are logged). Forgotten: `scripts/frame-url.sh --clear-pin`
-  sent over ADB removes it.
+- **Locks:** locking is one tap. Unlocking takes two taps, or asks for a four-digit PIN once there
+  is one: anyone's own PIN, set in the [phone app](../ios/README.md) (Settings → PIN), or the frame's
+  older shared one (**Settings → Home → PINs**). A correct PIN is trusted for a minute; five misses
+  start a wait that doubles; locks and unlocks are logged. A forgotten frame PIN:
+  `scripts/frame-url.sh --clear-pin` sent over ADB removes it; a forgotten own PIN is set again in
+  the phone app.
 - **Thermostats** in heat/cool keep their two setpoints apart by `THERMOSTAT_GAP` (°F, default 5,
   the ecobee's own minimum unless changed; set it in `.frame.vars`), moving the other one as the
   thermostat's app does.

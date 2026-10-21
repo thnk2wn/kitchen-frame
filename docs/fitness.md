@@ -1,8 +1,9 @@
 # Fitness
 
 Each person's Apple Watch Activity rings, steps and recent workouts on the frame: a **Fitness** tab,
-their rings on Home, and "how's my fitness" through [Alexa](alexa.md). Every person's own iPhone sends
-their numbers, through the [iPhone app](../ios/README.md); nothing else from Health leaves the phone.
+their rings on Home, and "how's my fitness" through [Alexa](alexa.md); and, for anyone who turns it
+on, their weight trend against a goal. Every person's own iPhone sends their numbers, through the
+[iPhone app](../ios/README.md); nothing else from Health leaves the phone.
 
 ![Fitness](images/fitness-light.jpg)
 
@@ -18,6 +19,10 @@ their numbers, through the [iPhone app](../ios/README.md); nothing else from Hea
 - **Recent workouts:** the latest 4 (the phone sends up to 5 from the last 2 weeks). Tap one for its
   details: time, distance, active and total calories, elevation gain, pace or speed, the effort the
   Watch recorded, the weather, and average heart rate if its owner chose to share it.
+- **Weight** (opt in, per person): a chip in the trends, such as "↓ 1.6 lb/mo · 11.6 to go", and a tap
+  for a sheet: the pace, what's left to the goal, the change from the year's peak with a progress bar
+  from there to the goal, the last weigh-in, about when the goal comes at this pace, and a chart of the
+  year's weigh-ins with a band around the goal (give or take 5) and the fitted trend.
 - **Home:** each person's rings under the clock when notices and Now Playing leave room (with the three
   numbers, or a short status when it's tight), else small rings beside the date. Tap to open Fitness.
 
@@ -35,6 +40,20 @@ zeros.
    **Share Fitness on the frame**. Allow the Health access it asks for. **Average heart rate on
    workouts** is a separate switch, off until turned on.
 3. Repeat on each person's phone. Up to six people.
+
+Weight is a third switch there, **Share weight trend**, with a **Goal** (in pounds in the US, else
+kilograms) and **Show my weight on the frame** (off). Any scale that saves to Health works (RENPHO,
+Withings, a weight typed into Health). Without a goal nothing is sent.
+
+### The weight trend
+
+People weigh in every week or two at best, so the pace isn't the last two readings: it's a straight
+line fitted through every weigh-in of the last 6 months, given only with at least 3 that cover at
+least 3 weeks (`src/lib/weight.js`). With fewer, the sheet gives the change since the weigh-in before,
+not a trend. Under half a pound (or kilo) a month either way is "steady". "At this pace" appears only
+when the trend heads toward the goal from at least 4 weigh-ins, and not when it's over 2 years out. A
+last weigh-in more than 3 weeks old says so. A goal worth aiming for is between the person and their
+doctor; the frame only measures against the one set.
 
 The Fitness tab appears once someone shares (or in demo mode). Turning sharing off removes that
 person from the frame at once; turning it back on shows them again within seconds.
@@ -73,6 +92,15 @@ What a phone sends: the last 4 weeks of daily ring totals and goals, each day's 
 workouts, today's steps and walking distance, and the last 5 workouts of the last 2 weeks (type,
 start, length, calories, distance, climb, effort, the weather recorded with it, and average heart rate
 only when that switch is on). No routes, places, heart-rate samples or anything else from Health.
+
+Weight, only with **Share weight trend** on and a goal set: the last year's weigh-ins (the last of
+each day) as the difference from the goal, such as "+11.8", never the weight itself. So the frame can
+show the pace and what's left, but not a weight, unless **Show my weight** is also on, which sends the
+goal (and the person's height, for BMI). With a PIN of their own (the app's Settings → PIN), the
+weight, goal weight, BMI and body fat stay hidden on the frame until that person's PIN is entered
+(**Show weight** on the sheet), and hide again when it closes. Turning weight off removes it from the
+frame on the next send. Weight never goes to Alexa, its model or the status page, and guest mode hides it with the rest
+of Fitness.
 
 The Worker keeps each phone's latest report as one KV entry (by a random id the phone makes, not the
 typed name), behind the dashboard key, and replaces it on every send. Turning sharing off or unpairing
