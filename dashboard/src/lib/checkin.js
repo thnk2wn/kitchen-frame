@@ -74,7 +74,29 @@ async function restore() {
 // Why the page is loading: set just before a deliberate reload, read once at the next start.
 export function reloadFor(reason) { try { sessionStorage.setItem('frame-reload-reason', reason); } catch {} }
 function loadReason() {
+  // A restart of the kiosk app (restartApp below) loads as 'start': its kiosk.restart event, just
+  // before, says why.
   try { const r = sessionStorage.getItem('frame-reload-reason'); sessionStorage.removeItem('frame-reload-reason'); return r || 'start'; } catch { return 'start'; }
+}
+
+// Restarting the kiosk app (1.12+), WebView and all: a page reload leaves the app's memory as grown as
+// it was (scripts/frame-metrics.sh memory), a restart starts it fresh. Every night at RESTART_HOUR, on the
+// clock screen with nothing over it, once the app has been up RESTART_AFTER; or when the Worker asks
+// ("restart"). It sends what's logged first.
+const RESTART_HOUR = 3;
+const RESTART_AFTER = 12 * 60; // minutes
+// Not 1.11: started again more than 10 minutes after a power-up, it showed "No dashboard URL set".
+const kioskAtLeast = (major, minor) => { const [a, b] = String(window.FrameKiosk.getVersion ? window.FrameKiosk.getVersion() : '').split('.').map(Number); return a > major || (a === major && b >= minor); };
+const canRestart = () => kiosk() && typeof window.FrameKiosk.restartApp === 'function' && kioskAtLeast(1, 12);
+function restartApp(reason) {
+  const m = memory() || {};
+  log('kiosk.restart', { reason, upMin: Math.round(m.upMin), pss: m.pss });
+  checkIn().finally(() => window.FrameKiosk.restartApp());
+}
+function restartAtNight() {
+  if (!canRestart() || ui.demo || new Date().getHours() !== RESTART_HOUR || !ui.idle || document.querySelector('[role="alertdialog"]')) return;
+  const m = memory();
+  if (m && m.upMin >= RESTART_AFTER) restartApp('nightly');
 }
 
 // An error sends what's pending within a minute, and at most every 5 minutes.
@@ -89,11 +111,13 @@ onError(() => {
 // check-in asked for right after a tab change would be dropped.
 let lastAsked = 0;
 if (typeof window !== 'undefined') window.addEventListener('frame-command', (e) => {
-  if (!kiosk() || (e.detail !== 'checkin' && e.detail !== 'reload') || Date.now() - lastAsked < 10000) return;
+  if (!kiosk() || !['checkin', 'reload', 'restart'].includes(e.detail) || Date.now() - lastAsked < 10000) return;
   lastAsked = Date.now();
   if (e.detail === 'checkin') checkIn();
   // A reload sends what's logged first, and says why it happened.
   if (e.detail === 'reload') checkIn().finally(() => { reloadFor('remote'); location.reload(); });
+  // An older kiosk can't restart: a reload is the next best thing.
+  if (e.detail === 'restart') { if (canRestart()) restartApp('remote'); else checkIn().finally(() => { reloadFor('remote'); location.reload(); }); }
 });
 
 // The frame (not a browser viewing the dashboard) tells the Worker when it's in demo mode, so Alexa
@@ -108,4 +132,5 @@ export function startCheckIn() {
   log('app.load', { version: version(), release: release(), reason: loadReason(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] });
   restore().then(() => setTimeout(checkIn, 20000)); // give Home Assistant a moment to connect first
   setInterval(checkIn, 10 * 60 * 1000);
+  setInterval(restartAtNight, 5 * 60 * 1000);
 }

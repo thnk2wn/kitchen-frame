@@ -125,7 +125,7 @@ export class MessageRoom {
       // and title), meals (Recipes → Meals) and close (whatever sheet is open): from Alexa (alexa.js).
       // refresh (what: 'meals' or 'fitness'): something the frame shows changed on the Worker; fetch it now.
       // media: a photo or video shared from a phone (shared-media.js), by id, to show full screen.
-      if (!['checkin', 'reload', 'play', 'show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close', 'refresh', 'media', 'screenshot'].includes(command)) return json({ error: 'unknown command' }, 400);
+      if (!['checkin', 'reload', 'restart', 'play', 'show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close', 'refresh', 'media', 'screenshot'].includes(command)) return json({ error: 'unknown command' }, 400);
       if (command === 'media' && (!/^[0-9a-f-]{36}$/.test(id || '') || !['photo', 'video'].includes(kind))) return json({ error: 'a shared photo or video id' }, 400);
       if (command === 'play' && !/^[\w-]{11}$/.test(id || '')) return json({ error: 'a YouTube video id' }, 400);
       const extra = command === 'play' ? { id, title: String(title || '').slice(0, 200) }

@@ -24,6 +24,7 @@
 //   POST /api/frame/checkin          asks the frame to check in now, over the messages socket
 //   POST /api/frame/demo             the frame's demo mode on or off, for Alexa (alexa.js)
 //   POST /api/frame/reload           asks it to reload the dashboard (it sends its events first)
+//   POST /api/frame/restart          asks it to restart the kiosk app (1.12+; an older one reloads)
 //   POST /api/share/media            a photo or video from the phone app, shown on the frame (shared-media.js)
 //   GET  /api/share/media/:id        that photo or video
 //   POST /api/frame/command          { command: show|slideshow|wake|close|playgroup, tab?, group? } (the phone app)
@@ -415,6 +416,7 @@ async function handle(req, env, ctx) {
         return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command, tab, group }) });
       }
       if (url.pathname === '/api/frame/reload' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'reload' }) });
+      if (url.pathname === '/api/frame/restart' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'restart' }) });
       if (url.pathname === '/api/frame/status') return json(await getStatus(env));
       if (url.pathname === '/api/frame/settings') return json(url.searchParams.has('history') ? await getSettingsHistory(env) : await getSettings(env));
       if (url.pathname === '/api/ops/summary') return json(await opsSummary(env, KEY));

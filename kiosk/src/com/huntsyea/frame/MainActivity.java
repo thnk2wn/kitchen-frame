@@ -2,7 +2,9 @@ package com.huntsyea.frame;
 
 import android.app.Activity;
 import android.app.ActivityManager;
+import android.app.AlarmManager;
 import android.app.AlertDialog;
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -40,7 +42,8 @@ import java.util.Calendar;
  * Remote debugging (chrome://inspect) only while launched with:  --ez debug true
  * Escape hatch: hold two (or more) fingers still on the screen for 2 seconds.
  *
- * This frame has no battery-backed clock: every power-up starts in 2008, and Android's own time
+ * This frame has no battery-backed clock (no clock chip on the board): every power-up starts on a
+ * stale time, usually 2008, sometimes an earlier boot's (days behind), and Android's own time
  * sync takes a minute and a half, so the first HTTPS loads fail with a certificate error. On such
  * an error with the clock plainly wrong, the kiosk reads the time from a plain-HTTP Date header
  * and sets the clock as root (su), then loads again. Without root it falls back to waiting for
@@ -68,6 +71,8 @@ public class MainActivity extends Activity {
   private TextView status;
   private volatile boolean settingClock;
   private long clockTriedAt;
+  private static final long BOOT_CHECK_MS = 10 * 60 * 1000; // "just after a power-up"
+  private static final long CLOCK_SLACK_MS = 60 * 1000;
 
   // The frame often starts before Wi-Fi is up: keep retrying the dashboard until it loads.
   private final Runnable retry = new Runnable() {
@@ -178,6 +183,9 @@ public class MainActivity extends Activity {
       // as it is this once (the page saves what it needs), and keep only the address from now on.
       if (url != null && (url.contains("?") || url.contains("#"))) getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString("url", withoutQuery(url)).apply();
     }
+    // Just after a power-up the clock can also come back days behind, not in 2008 (seen 2026-10-22:
+    // two days, until Android's sync a minute and a half later): check it against the server once.
+    if (SystemClock.elapsedRealtime() < BOOT_CHECK_MS) fixClock(true);
     if (url != null) { web.loadUrl(url); handler.postDelayed(watchdog, WATCHDOG_MS); }
     else web.loadData("<body style='background:#000;color:#999;font:24px sans-serif;padding:48px'>"
         + "No dashboard URL set. Set one over ADB:<br><br><code>adb shell am start -n "
@@ -293,6 +301,20 @@ public class MainActivity extends Activity {
       return memoryJson;
     }
 
+    /**
+     * Restarts the app, WebView and all (1.11; 1.12 for the page to use it): a page reload keeps the process and what it has grown
+     * to, a restart starts it fresh. The page asks at night (dashboard/src/lib/checkin.js). An
+     * alarm opens the app again a few seconds after this process ends.
+     */
+    @JavascriptInterface
+    public void restartApp() {
+      Log.i(TAG, "restart asked for by the page");
+      Intent again = new Intent(MainActivity.this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+      PendingIntent pi = PendingIntent.getActivity(MainActivity.this, 1, again, PendingIntent.FLAG_CANCEL_CURRENT);
+      ((AlarmManager) getSystemService(ALARM_SERVICE)).set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + 3000, pi);
+      runOnUiThread(() -> { finishAffinity(); android.os.Process.killProcess(android.os.Process.myPid()); });
+    }
+
     @JavascriptInterface
     public float getBrightness() {
       return getSharedPreferences(PREFS, MODE_PRIVATE).getFloat("brightness", -1f);
@@ -374,7 +396,10 @@ public class MainActivity extends Activity {
    * then Google's connectivity check. Seconds-accurate, which is all certificates need; Android's
    * time sync still runs and refines it. At most one try every 20 seconds.
    */
-  private void fixClock() {
+  private void fixClock() { fixClock(false); }
+
+  /** With onlyIfOff, it's left alone unless more than CLOCK_SLACK_MS out; then the page loads again. */
+  private void fixClock(final boolean onlyIfOff) {
     long now = android.os.SystemClock.elapsedRealtime();
     if (settingClock || (clockTriedAt != 0 && now - clockTriedAt < 20000)) return;
     settingClock = true;
@@ -400,12 +425,13 @@ public class MainActivity extends Activity {
           if (date > 0) break;
         }
         if (date <= 0) return;
+        if (onlyIfOff && Math.abs(date - System.currentTimeMillis()) < CLOCK_SLACK_MS) { Log.i(TAG, "clock: right after boot, within a minute"); return; }
         java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("MMddHHmmyyyy.ss", java.util.Locale.US);
         f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         Process p = Runtime.getRuntime().exec(new String[] {"su", "-c", "date -u " + f.format(new java.util.Date(date))});
         int rc = p.waitFor();
         Log.i(TAG, "clock: set from Date header, su exit " + rc + ", now " + new java.util.Date());
-        if (!clockWrong()) handler.post(() -> { handler.removeCallbacks(retry); if (!loadedOnce && url != null) web.loadUrl(url); });
+        if (!clockWrong()) handler.post(() -> { handler.removeCallbacks(retry); if ((onlyIfOff || !loadedOnce) && url != null) web.loadUrl(url); });
       } catch (Exception e) {
         Log.w(TAG, "clock: couldn't set it: " + e);
       } finally {
