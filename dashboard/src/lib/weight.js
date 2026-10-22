@@ -82,6 +82,9 @@ export function weightView(w, now) {
     rate, steady: rate != null && Math.abs(rate) < STEADY, towards, change, line, turn,
     toGo, atGoal: Math.abs(toGo) <= 0.5 || toGo < 0, peak, progress, eta,
     goal, weight, bmi, bodyFat,
+    // 'open': its owner shows the weight to anyone, chip included; 'pin' (or an older phone that didn't
+    // say): only after their PIN, never on the chip; none: no weight at all.
+    show: goal == null ? null : w.show === 'open' ? 'open' : 'pin',
   };
 }
 
@@ -89,15 +92,32 @@ export function weightView(w, now) {
 export function weightChip(v) {
   if (!v) return null;
   const u = v.unit;
-  // Never the weight itself, even when it's shown: that's behind its owner's PIN on the sheet.
-  const pace = v.rate == null ? null : v.steady ? 'Steady' : (v.rate < 0 ? '↓ ' : '↑ ') + Math.abs(v.rate).toFixed(1) + ' ' + u + '/mo';
-  const left = v.atGoal ? 'at goal' : v.toGo.toFixed(1) + ' ' + u + ' to go';
-  return { text: [pace, left].filter(Boolean).join(' · '), tone: v.towards || v.atGoal ? 'good' : v.rate != null && !v.steady ? 'low' : '' };
+  // The weight leads only when its owner shows it to anyone ('open'); behind a PIN it's never here.
+  const open = v.show === 'open' && v.weight != null;
+  const pace = v.rate == null ? null : v.steady ? 'Steady' : (v.rate < 0 ? '↓ ' : '↑ ') + Math.abs(v.rate).toFixed(1) + (open ? '/mo' : ' ' + u + '/mo');
+  const left = v.atGoal ? 'at goal' : v.toGo.toFixed(1) + (open ? '' : ' ' + u) + ' to go';
+  return { text: [open ? v.weight.toFixed(1) + ' ' + u : null, pace, left].filter(Boolean).join(' · '), tone: v.towards || v.atGoal ? 'good' : v.rate != null && !v.steady ? 'low' : '' };
 }
 
 // Invented weigh-ins for demo mode: about every two weeks, down from a summer peak toward the goal.
+// With ?weightdaily, a year of daily ones instead (a day's wobble, the odd day missed), to see the
+// chart as a daily weigher would.
 export function demoWeight(now) {
+  if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('weightdaily')) return demoDaily(now);
   const ago = (days) => { const d = new Date(now.getTime() - days * dayMs); return d.toISOString().slice(0, 10); };
   const pts = [[330, 9.2], [290, 10.6], [250, 12.1], [215, 14.5], [190, 17], [160, 19.8], [135, 18.6], [110, 17.2], [85, 16], [60, 14.6], [38, 13.4], [18, 12.3], [4, 11.6]];
   return { unit: 'lb', points: pts.map(([days, d]) => ({ date: ago(days), d })) };
+}
+
+function demoDaily(now) {
+  const points = [];
+  for (let i = 360; i >= 0; i--) {
+    if (i % 9 === 4 || i % 13 === 7) continue; // days without a weigh-in
+    const date = new Date(now.getTime() - i * dayMs).toISOString().slice(0, 10);
+    // Up to a peak about 160 days ago, then down; a pound or two of daily wobble on top.
+    const trend = i > 160 ? 19.8 - (i - 160) * 0.05 : 19.8 - (160 - i) * 0.055;
+    const wobble = Math.sin(i * 1.7) * 1.1 + Math.sin(i * 0.37) * 0.6;
+    points.push({ date, d: Math.round((trend + wobble) * 10) / 10 });
+  }
+  return { unit: 'lb', points };
 }

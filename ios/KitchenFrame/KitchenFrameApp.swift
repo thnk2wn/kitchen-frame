@@ -296,17 +296,19 @@ struct FitnessSettingsView: View {
                         }
                     }
                     if let read = sync.weighInsRead { LabeledContent("Read from Health", value: read).font(.footnote) }
-                    // Only with a PIN of your own: the frame shows a weight only after its owner's PIN.
-                    Toggle(FramePin.isSet ? "Show my weight on the frame" : "Show my weight (needs your PIN)", isOn: Binding(get: { sync.showWeight && FramePin.isSet }, set: { on in sync.showWeight = on; Task { await sync.send(reason: on ? "Weight shown" : "Weight hidden") } }))
-                        .disabled(!FramePin.isSet)
-                    if !FramePin.isSet { Text("Set one in Settings → PIN first.").font(.footnote).foregroundStyle(.secondary) }
+                    Picker("On the frame", selection: Binding(get: { sync.weightShow }, set: { v in sync.weightShow = v; Task { await sync.send(reason: "Weight on the frame: \(v.rawValue)") } })) {
+                        Text("Trend only").tag(FitnessSync.WeightShow.trend)
+                        Text("Weight with my PIN").tag(FitnessSync.WeightShow.pin)
+                        Text("Weight, no PIN").tag(FitnessSync.WeightShow.open)
+                    }
+                    if sync.weightShow == .pin && !FramePin.isSet { Text("Set your PIN in Settings → PIN; until then only the trend shows.").font(.footnote).foregroundStyle(.secondary) }
                 }
             } header: {
                 Text("Weight")
             } footer: {
                 Text(sync.weight && sync.weightGoal <= 0
                      ? "Set a goal to start."
-                     : "Your pace and how far you are from your goal. Your weight itself shows only if you turn it on, and only after your PIN on the frame.")
+                     : "Trend only: your pace and how far you are from your goal, no weight. With my PIN: your weight too, on the frame after your PIN. No PIN: your weight for anyone, on your Fitness card too.")
             }
         }
         if sync.enabled, !sync.recent.isEmpty {

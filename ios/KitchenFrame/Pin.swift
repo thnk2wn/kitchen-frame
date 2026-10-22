@@ -88,7 +88,7 @@ struct PinSettingsView: View {
             try await FramePin.set(first, person: person, api: api)
             isSet = true; editing = false; first = ""; again = ""; problem = nil
             // Showing the weight waited for a PIN: send it now that there is one.
-            if FitnessSync.shared.showWeight { await FitnessSync.shared.send(reason: "PIN set") }
+            if FitnessSync.shared.weightShow == .pin { await FitnessSync.shared.send(reason: "PIN set") }
         } catch { problem = error.localizedDescription }
     }
 
@@ -98,11 +98,8 @@ struct PinSettingsView: View {
         do {
             try await FramePin.remove(api: api)
             isSet = false; problem = nil
-            // No PIN, no weight on the frame: showing it needs one.
-            if FitnessSync.shared.showWeight {
-                FitnessSync.shared.showWeight = false
-                await FitnessSync.shared.send(reason: "Weight hidden (PIN removed)")
-            }
+            // "With my PIN" and no PIN: the trend only, until there's one again.
+            if FitnessSync.shared.weightShow == .pin { await FitnessSync.shared.send(reason: "Weight hidden (PIN removed)") }
         } catch { problem = error.localizedDescription }
     }
 }

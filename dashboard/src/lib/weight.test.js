@@ -56,8 +56,14 @@ test('the weight and BMI only when the goal (and height) were sent', () => {
   // The scale's BMI wins over the worked-out one; body fat comes with it.
   const s = weightView({ unit: 'lb', points: pts, goal: 185, heightM: 1.88, bmi: 24.7, bodyFat: 19.5 }, now);
   assert.deepEqual([s.bmi, s.bodyFat], [24.7, 19.5]);
-  // Shown or not, the chip never carries the weight (that's behind the PIN on the sheet).
+  // Behind the PIN (the default, and an older phone that didn't say): never on the chip.
+  assert.equal(s.show, 'pin');
   assert.equal(weightChip(s).text, '11.8 lb to go');
+  // Shown to anyone: it leads the chip, and the unit is said once.
+  const open = weightView({ unit: 'lb', points: pts, goal: 185, show: 'open' }, now);
+  assert.equal(weightChip(open).text, '196.8 lb · 11.8 to go');
+  // Trend only (no goal sent): no weight, no show.
+  assert.equal(weightView({ unit: 'lb', points: pts }, now).show, null);
 });
 
 test('weigh-ins older than a year are left out; none at all is nothing to show', () => {

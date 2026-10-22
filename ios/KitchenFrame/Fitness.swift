@@ -39,7 +39,12 @@ final class FitnessSync {
     /// Kept with the unit it was typed in: after a change of region (pounds to kilograms) it's no goal
     /// until set again, rather than 180 lb read as 180 kg.
     var weightGoal: Double { didSet { defaults.set(weightGoal, forKey: "fitness.weightGoal"); defaults.set(Self.weightUnit.name, forKey: "fitness.weightGoalUnit") } }
-    var showWeight: Bool { didSet { defaults.set(showWeight, forKey: "fitness.showWeight") } }
+    /// Settings → Weight → On the frame: the trend only (no weight leaves the phone), the weight behind
+    /// this person's PIN, or the weight shown to anyone (on the Fitness card's chip too).
+    enum WeightShow: String, CaseIterable { case trend, pin, open }
+    var weightShow: WeightShow { didSet { defaults.set(weightShow.rawValue, forKey: "fitness.weightShow") } }
+    /// What's sent: "with my PIN" without a PIN set is the trend only, until there is one.
+    var weightShown: WeightShow { weightShow == .pin && !FramePin.isSet ? .trend : weightShow }
     /// What the last send read from Health, for Settings → Weight: "9 weigh-ins (8 days) from Jun 15 · RENPHO".
     private(set) var weighInsRead: String? { didSet { defaults.set(weighInsRead, forKey: "fitness.weighInsRead") } }
     static var weightUnit: (hk: HKUnit, name: String) { Locale.current.measurementSystem == .us ? (.pound(), "lb") : (.gramUnit(with: .kilo), "kg") }
@@ -64,7 +69,8 @@ final class FitnessSync {
         weight = defaults.bool(forKey: "fitness.weight")
         let goalUnit = defaults.string(forKey: "fitness.weightGoalUnit")
         weightGoal = goalUnit == nil || goalUnit == Self.weightUnit.name ? defaults.double(forKey: "fitness.weightGoal") : 0
-        showWeight = defaults.bool(forKey: "fitness.showWeight")
+        // Carried over from the earlier "Show my weight" switch (on meant behind the PIN).
+        weightShow = WeightShow(rawValue: defaults.string(forKey: "fitness.weightShow") ?? "") ?? (defaults.bool(forKey: "fitness.showWeight") ? .pin : .trend)
         weighInsRead = defaults.string(forKey: "fitness.weighInsRead")
         history = (defaults.data(forKey: "fitness.history")).flatMap { try? JSONDecoder().decode([Sent].self, from: $0) } ?? []
         if let id = defaults.string(forKey: "fitness.id") { phoneId = id } else {
@@ -231,7 +237,7 @@ final class FitnessSync {
         /// Weight, when shared: a year of weigh-ins (the day's last) as the difference from the goal.
         struct Weight: Encodable {
             struct Point: Encodable { var date: String; var d: Double }
-            var unit: String; var points: [Point]; var goal: Double?; var heightM: Double?; var bmi: Double?; var bodyFat: Double?
+            var unit: String; var points: [Point]; var goal: Double?; var heightM: Double?; var bmi: Double?; var bodyFat: Double?; var show: String?
         }
         var weight: Weight?
     }
@@ -311,7 +317,7 @@ final class FitnessSync {
         // height setting may differ from Health's), else height so the frame can work BMI out.
         var heightM: Double?, bmi: Double?, bodyFat: Double?
         // Shown only with a PIN of this phone's owner (Settings → PIN): the frame shows a weight only after it.
-        let show = showWeight && FramePin.isSet
+        let show = weightShown != .trend
         if show {
             let latest = { (type: HKQuantityType) async -> HKQuantitySample? in
                 let q = HKSampleQueryDescriptor(predicates: [.quantitySample(type: type)], sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)], limit: 1)
@@ -324,7 +330,7 @@ final class FitnessSync {
             bmi = sameDay(await latest(Self.bmi))?.quantity.doubleValue(for: .count())
             bodyFat = (sameDay(await latest(Self.bodyFat))?.quantity.doubleValue(for: .percent())).map { $0 * 100 }
         }
-        return Report.Weight(unit: unit.name, points: points, goal: show ? weightGoal : nil, heightM: heightM, bmi: bmi, bodyFat: bodyFat)
+        return Report.Weight(unit: unit.name, points: points, goal: show ? weightGoal : nil, heightM: heightM, bmi: bmi, bodyFat: bodyFat, show: show ? weightShown.rawValue : nil)
     }
 
     /// "2026-10-19" for the day a Date falls on here.

@@ -15,7 +15,8 @@
   // if their phone sends it (an older app): the phone app asks for a PIN before it sends one.
   let unlocked = $state(false);
   let ownPin = $derived(hasOwnPin(id));
-  let locked = $derived(full.goal != null && !(ownPin && unlocked));
+  // Shown to anyone ('open'): nothing to unlock. Behind a PIN: only after its owner's.
+  let locked = $derived(full.goal != null && full.show !== 'open' && !(ownPin && unlocked));
   let v = $derived(locked ? { ...full, goal: null, weight: null, bmi: null, bodyFat: null } : full);
   async function unlock() { if (await confirmOwnPin(id, who + '’s PIN', 'to show the weight')) unlocked = true; }
   const u = $derived(v.unit);
@@ -40,7 +41,23 @@
   let hi = $derived(Math.max(BAND, ...v.points.map((p) => p.d)) + 1);
   const X = (ms) => L + ((ms - x0) / (x1 - x0)) * (W - L - R);
   const Y = (d) => T + ((hi - d) / (hi - lo)) * (H - T - B);
-  let path = $derived(v.points.map((p, i) => (i ? 'L' : 'M') + X(t(p.date)).toFixed(1) + ' ' + Y(p.d).toFixed(1)).join(' '));
+  // Weigh-ins closer than DENSE_PX apart (daily ones over a year): small faint dots, and the line a
+  // 7-day average, so it shows the trend rather than each day's wobble. Sparse ones: dots and the line
+  // through them, as they are.
+  const DENSE_PX = 10;
+  let dense = $derived(v.points.length > 1 && (W - L - R) / (v.points.length - 1) < DENSE_PX);
+  let linePoints = $derived(dense ? v.points.map((p) => {
+    const from = t(p.date) - 6 * 864e5, week = v.points.filter((q) => t(q.date) >= from && t(q.date) <= t(p.date));
+    return { date: p.date, d: week.reduce((a, q) => a + q.d, 0) / week.length };
+  }) : v.points);
+  let path = $derived(linePoints.map((p, i) => (i ? 'L' : 'M') + X(t(p.date)).toFixed(1) + ' ' + Y(p.d).toFixed(1)).join(' '));
+  // A tap anywhere on the chart picks the weigh-in nearest it in time, however close together they are.
+  function pick(ev) {
+    const box = ev.currentTarget.ownerSVGElement.getBoundingClientRect();
+    const x = ((ev.clientX - box.left) / box.width) * W;
+    const near = v.points.reduce((best, p) => (Math.abs(X(t(p.date)) - x) < Math.abs(X(t(best.date)) - x) ? p : best), v.points[0]);
+    picked = picked === near ? null : near;
+  }
   // Month labels: about four, at the first of the month.
   let months = $derived.by(() => {
     const out = [], d = new Date(x0); d.setDate(1); d.setMonth(d.getMonth() + 1);
@@ -86,13 +103,14 @@
       {#if top > BAND + 1}<text x={L - 6} y={Y(top) + 5} class="ylab">{yLabel(top)}</text>{/if}
       {#each months as m (m.x)}<text x={m.x} y={H - 6} class="xlab">{m.label}</text>{/each}
       <path d={path} class="series" />
-      {#each v.points as p (p.date)}<circle cx={X(t(p.date))} cy={Y(p.d)} r="4.5" class="dot" class:on={picked === p} />{/each}
+      {#each v.points as p (p.date)}<circle cx={X(t(p.date))} cy={Y(p.d)} r={dense ? 2 : 4.5} class="dot" class:dense class:on={picked === p} />{/each}
       <!-- The fitted trend, over the weigh-ins it was fitted to, on top so it shows where they agree. -->
       {#if v.line}<line x1={X(t(v.line[0].date))} y1={Y(v.line[0].d)} x2={X(t(v.line[1].date))} y2={Y(v.line[1].d)} class="trend" />
         <!-- Said once, under its end: the line fitted through the weigh-ins (the pace), not a target. -->
         <text x={X(t(v.line[1].date)) - 4} y={Y(v.line[1].d) + 24} class="trendlab">trend</text>{/if}
       <!-- Finger-sized tap areas over the dots, then the tapped one's label, kept inside the chart. -->
-      {#each v.points as p (p.date)}<circle cx={X(t(p.date))} cy={Y(p.d)} r="20" class="hit" role="button" tabindex="-1" aria-label={pickText(p)} onclick={() => (picked = picked === p ? null : p)} />{/each}
+      <rect x={L} y={T} width={W - L - R} height={H - T - B} class="hit" role="button" tabindex="-1" aria-label="Tap a weigh-in for its date and weight" onclick={pick} />
+      {#if picked && dense}<circle cx={X(t(picked.date))} cy={Y(picked.d)} r="5" class="dot on" />{/if}
       {#if picked}
         <!-- About 8.6 px a character at this size, plus padding; kept inside the chart. -->
         {@const tw = Math.round(pickText(picked).length * 8.6 + 28)}
@@ -135,7 +153,8 @@
   .trend { stroke: var(--orange); stroke-width: 2.5; stroke-dasharray: 7 6; opacity: .9; }
   .series { fill: none; stroke: var(--blue); stroke-width: 2.5; stroke-linejoin: round; }
   .dot { fill: var(--sheet); stroke: var(--blue); stroke-width: 2.5; }
-  .dot.on { fill: var(--blue); }
+  .dot.dense { fill: var(--blue); stroke: none; opacity: .35; }
+  .dot.on { fill: var(--blue); opacity: 1; }
   .hit { fill: transparent; cursor: pointer; }
   .tip { fill: var(--label); }
   .tiptext { font-size: 15px; font-weight: 700; fill: var(--sheet); text-anchor: middle; }
