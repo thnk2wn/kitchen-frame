@@ -42,7 +42,7 @@
   import { ui, clock, weather, photos, messages, start, startSlideshow, loadList, photosVisible, videos, loadVideos, nowVideo, exitIdle } from './lib/state.svelte.js';
   import { noteAlbum, prepare } from './lib/slides.js';
   import { fakeMedia, loadDemoMedia } from './lib/demo-media.svelte.js';
-  import { podcasts, loadPodcasts } from './lib/podcasts.svelte.js';
+  import { podcasts, loadPodcasts, pod, echo } from './lib/podcasts.svelte.js';
   import Podcasts from './views/Podcasts.svelte';
   import './lib/alexa-heard.svelte.js'; // what each Echo heard, for the status page's Alexa log
   import { time, clockTime, weatherInfo } from './lib/format.js';
@@ -90,7 +90,22 @@
   const DEMO_NP = { entity_id: 'media_player.spotify_demo', state: 'playing', media_title: 'Golden Hour', media_artist: 'The Lanterns', media_playlist: 'Sunday Morning' };
   // ?np=off: nothing playing in demo mode (screenshots of Home's room under the clock without music).
   const NO_DEMO_NP = new URLSearchParams(location.search).get('np') === 'off';
-  let playing = $derived(fakeMedia() ? (NO_DEMO_NP ? null : DEMO_NP) : shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
+  // A podcast, on the frame or on an Echo (which Home Assistant doesn't report), takes Now Playing in
+  // the same shape as a speaker (components/NowPlaying.svelte knows it by podcast). Playing, it always
+  // does; paused, it stays like a paused speaker (PODCAST_HOLD), unless a speaker is playing.
+  const PODCAST_HOLD = 30 * 60 * 1000;
+  let framePodAt = 0; // when the frame's own podcast last played
+  $effect(() => { if (pod.playing) framePodAt = clock.now.getTime(); });
+  let podcastNow = $derived.by(() => {
+    const now = clock.now.getTime();
+    if (pod.ep && (pod.playing || pod.loading || now - framePodAt < PODCAST_HOLD)) return { entity_id: 'podcast', podcast: 'frame', state: pod.playing || pod.loading ? 'playing' : 'paused', media_title: pod.ep.title, media_artist: pod.show && pod.show.title, art: pod.show && pod.show.art };
+    const n = echo.now;
+    const live = n && n.episode && (n.state === 'playing' || n.state === 'starting' || (n.state === 'paused' && now - (n.at || 0) < PODCAST_HOLD));
+    if (live) return { entity_id: 'podcast', podcast: 'echo', state: n.state === 'paused' ? 'paused' : 'playing', media_title: n.episode.title, media_artist: n.show && n.show.title, art: n.show && n.show.art };
+    return null;
+  });
+  let speakerNow = $derived(shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
+  let playing = $derived(fakeMedia() ? (NO_DEMO_NP ? null : DEMO_NP) : podcastNow && (podcastNow.state === 'playing' || !speakerNow || speakerNow.state !== 'playing') ? podcastNow : speakerNow);
   let mini = $derived(!!playing && ui.tab !== 'home' && ui.tab !== 'music');
 </script>
 

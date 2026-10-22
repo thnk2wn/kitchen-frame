@@ -1,3 +1,4 @@
+import { untrack } from 'svelte';
 // Media → Podcasts: the Apple Podcasts library, through the Mac bridge and the Worker
 // (worker/podcasts.js), played on the frame from the episode's own audio link.
 //
@@ -115,8 +116,11 @@ export async function loadEchos() {
       devices = new Map(reg.filter((e) => e.pl === 'alexa_devices' && e.di && String(e.ei).startsWith('media_player.')).map((e) => [e.ei, e.di]));
     } catch { devices = new Map(); }
   }
-  echo.list = ha.players.filter((p) => devices.has(p.entity_id)).map((p) => ({ id: p.entity_id, name: p.friendly_name || p.label }));
-  if (echo.target !== 'frame' && !echo.list.some((e) => e.id === echo.target)) echo.target = 'frame';
+  // Written only when the Echos themselves change, not on every player update (an Echo playing reports
+  // its position all the time): a view that reruns this when the players change mustn't set it off again.
+  const list = ha.players.filter((p) => devices.has(p.entity_id)).map((p) => ({ id: p.entity_id, name: p.friendly_name || p.label }));
+  if (JSON.stringify(list) !== JSON.stringify(untrack(() => echo.list))) echo.list = list;
+  if (untrack(() => echo.target) !== 'frame' && !list.some((e) => e.id === untrack(() => echo.target))) echo.target = 'frame';
 }
 export function setTarget(id) { echo.target = id; try { localStorage.setItem('frame-podcast-speaker', id); } catch {} }
 const say = (words) => callService('alexa_devices', 'send_text_command', { device_id: devices.get(echo.target), text_command: words });
@@ -150,6 +154,15 @@ export async function echoCommand(what) {
     else watchEcho();
   } catch (e) { echo.error = e.message; echo.now = { ...echo.now, state: was }; }
   finally { echo.busy = false; }
+}
+// What an Echo is playing now, whatever this page did (at load, and when the Worker says it changed):
+// for Home's Now Playing and the Podcasts bar. Only something still going, and from the last 6 hours.
+export async function loadEchoNow() {
+  try {
+    const now = (await api('/api/podcasts/now')).now;
+    const live = now && ['starting', 'playing', 'paused'].includes(now.state) && Date.now() - (now.at || 0) < 6 * 3600000;
+    echo.now = live ? now : null;
+  } catch {}
 }
 async function checkEcho() {
   try {

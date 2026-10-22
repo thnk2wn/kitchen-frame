@@ -3,7 +3,7 @@
   // Media → Podcasts: the shows followed in Apple Podcasts (through the Mac bridge; lib/podcasts.svelte.js),
   // most listened to first, then a row for each group in PODCASTS_EXTRA (someone else's shows). Continue: episodes half played here or on the phone. Tap a show for its
   // episodes with their descriptions; tap an episode to play it on the frame from where it was left.
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import MediaSwitch from '../components/MediaSwitch.svelte';
   import Icon from '../components/Icon.svelte';
   import { podcasts, loadPodcasts, inProgress, positions, startAt, pod, playEpisode, toggle, skip, seekTo, setVolume, stopPodcast, echo, loadEchos, setTarget, playOnEcho, echoCommand } from '../lib/podcasts.svelte.js';
@@ -12,7 +12,9 @@
 
   onMount(() => { loadPodcasts(); });
   // The Echos it can play on (Home Assistant's Alexa Devices), once Home Assistant is connected.
-  $effect(() => { if (ha.status === 'connected' && ha.players.length) loadEchos(); });
+  // Follows Home Assistant's players only: loadEchos reads and writes echo state, which mustn't count
+  // here, or a write would run this again (an endless loop once an Echo plays, 2026-10-22).
+  $effect(() => { if (ha.status === 'connected' && ha.players.length) untrack(() => loadEchos()); });
   let onEcho = $derived(echo.target !== 'frame');
   let echoName = $derived((echo.list.find((e) => e.id === echo.target) || {}).name || 'the Echo');
   let picking = $state(false);

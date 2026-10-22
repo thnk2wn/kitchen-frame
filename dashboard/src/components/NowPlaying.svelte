@@ -6,6 +6,7 @@
   import { ui } from '../lib/state.svelte.js';
   import { busy, expectFor } from '../lib/pending.svelte.js';
   import { playlistOf } from '../lib/playlist.svelte.js';
+  import { toggle as podToggle, echoCommand } from '../lib/podcasts.svelte.js';
   // Two sizes: a card in Home's left column (cover, song, artist), and a mini pill in the top bar of
   // the other tabs (cover and play/pause; with the clock and notice chip there, that's all that fits).
   // cover: a big cover above the song (px), when the card has the height for it.
@@ -13,11 +14,15 @@
   let { player, card = false, cover = 0, slim = false } = $props();
   let from = $derived(card ? playlistOf(player) : null);
   // Opens the Media tab on what's playing: the TV view for a TV, Music otherwise.
-  const openIt = () => { ui.media = player.tv ? 'tv' : 'music'; ui.tab = 'music'; };
+  // A podcast (App.svelte's podcastNow) opens Podcasts.
+  const openIt = () => { ui.media = player.podcast ? 'podcasts' : player.tv ? 'tv' : 'music'; ui.tab = 'music'; };
 
   // The pill opens the Music tab; the button pauses without leaving the tab.
   function toggle(e) {
     e.stopPropagation();
+    // A podcast pauses where it plays: the frame's own audio, or the Echo through the skill.
+    if (player.podcast === 'frame') { podToggle(); return; }
+    if (player.podcast === 'echo') { echoCommand(player.state === 'playing' ? 'pause' : 'resume'); return; }
     expectFor(player, 'media_play_pause');
     callService('media_player', 'media_play_pause', {}, { entity_id: player.entity_id }).catch(() => {});
   }
@@ -26,7 +31,8 @@
 
 <div class="np" class:card class:slim class:tall={cover > 0} class:sheet={card} style={cover ? '--cover:' + cover + 'px' : ''} role="button" tabindex="0" title={player.media_title} onclick={openIt} onkeydown={(e) => e.key === 'Enter' && openIt()}>
   <!-- A cover that fails to load (Home Assistant's art proxy can) shows the note, not a broken image. -->
-  {#if player.entity_picture && failedArt !== player.entity_picture}<img {@attach haImage(haUrl(player.entity_picture))} alt="" onerror={() => (failedArt = player.entity_picture)} />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
+  {#if player.podcast}{#if player.art && failedArt !== player.art}<img src={player.art} alt="" decoding="async" onerror={() => (failedArt = player.art)} />{:else}<span class="noart"><Icon name="podcast" size={20} /></span>{/if}
+  {:else if player.entity_picture && failedArt !== player.entity_picture}<img {@attach haImage(haUrl(player.entity_picture))} alt="" onerror={() => (failedArt = player.entity_picture)} />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
   {#if card}
     <div class="txt">
       <div class="title">{player.media_title}</div>

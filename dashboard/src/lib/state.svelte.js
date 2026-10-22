@@ -358,6 +358,8 @@ function connectMessages() {
       if (d.command === 'refresh' && d.what === 'fitness') { refreshFitness(); setTimeout(loadFitness, 70000); }
       // A phone set or cleared its owner's PIN (worker/devices.js).
       if (d.command === 'refresh' && d.what === 'pins') loadPins();
+      // An Echo's podcast started, paused or ended (worker/podcast-audio.js).
+      if (d.command === 'refresh' && d.what === 'podcast') import('./podcasts.svelte.js').then((m) => m.loadEchoNow());
       // "Hide notifications", "close that": whatever sheet is over the screen.
       if (d.command === 'media' && d.id) {
         lastTouch = Date.now();
@@ -595,6 +597,7 @@ export function start() {
   every(60 * MIN, loadRotations);
   every(10 * MIN, loadFitness); // the phones send when they have news; the Worker also says so (refresh)
   if (!ui.demo) { loadPins(); every(10 * MIN, loadPins); } // the household's PINs (lib/pin.svelte.js)
+  if (!ui.demo) import('./podcasts.svelte.js').then((m) => m.loadEchoNow()); // a podcast already on an Echo
   every(15 * MIN, loadWeather);
   // Both lists show on Home; each also has its own tab (App loads a list when its tab opens).
   every(MIN, () => loadList('todo'), () => !ui.idle);

@@ -5,6 +5,16 @@
 //   - by voice: "Alexa, ask Kitchen Frame to play Science Friday" (its half-played or newest episode).
 // Alexa reports playback (started, stopped with the place, finished); where each episode got to is
 // kept, so the frame's Continue row and the next play pick up from there.
+// What's playing on an Echo, the frame's last request and where each episode got to live in the message
+// room's store (store.js), not KV: KV can serve a minute-old copy elsewhere, so the frame showed
+// "Starting…" for a minute after the Echo began, and every progress report was a KV write.
+// Without the room (tests), KV.
+import { roomStore } from './store.js';
+import { room } from './messages.js';
+// Tells an open frame the Echo's podcast changed, so Home and Podcasts show it at once.
+const tellFrame = (env) => (env.MESSAGES ? room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'refresh', what: 'podcast' }) }).catch(() => {}) : null);
+const kvOf = (env) => (env.MESSAGES ? roomStore(env) : env.CALENDAR);
+
 const CAST_KEY = 'podcast-cast';      // what the frame asked for last: { episode, show, position, at }
 const NOW_KEY = 'podcast-now';        // what the Echo is (or was last) playing: { episode, show, position, state, at }
 const SPOT_KEY = 'podcast-echo-spots'; // episode id -> { pos, at, done? }, the 200 most recent
@@ -18,18 +28,19 @@ const clean = (e = {}, s = {}) => ({
 export async function saveCast(env, body) {
   const c = clean(body.episode, body.show);
   if (!c.episode.id || !c.episode.url) return { status: 400, body: { error: 'an episode with an https audio link' } };
-  await env.CALENDAR.put(CAST_KEY, JSON.stringify({ ...c, position: Math.max(0, Math.round(Number(body.position) || 0)), at: Date.now() }));
+  await kvOf(env).put(CAST_KEY, JSON.stringify({ ...c, position: Math.max(0, Math.round(Number(body.position) || 0)), at: Date.now() }));
   return { status: 200, body: { ok: true } };
 }
 
-export const echoNow = async (env) => (await env.CALENDAR.get(NOW_KEY, 'json')) || null;
-export const echoSpots = async (env) => (await env.CALENDAR.get(SPOT_KEY, 'json')) || {};
+export const echoNow = async (env) => (await kvOf(env).get(NOW_KEY, 'json')) || null;
+// Until the first write after the move, the places KV kept.
+export const echoSpots = async (env) => (await kvOf(env).get(SPOT_KEY, 'json')) || (env.MESSAGES && (await env.CALENDAR.get(SPOT_KEY, 'json'))) || {};
 
 async function noteSpot(env, id, pos, done = false) {
   const spots = await echoSpots(env);
   spots[id] = { pos: Math.round(pos), at: Date.now(), ...(done ? { done: true } : {}) };
   const keep = Object.entries(spots).sort((a, b) => b[1].at - a[1].at).slice(0, 200);
-  await env.CALENDAR.put(SPOT_KEY, JSON.stringify(Object.fromEntries(keep)));
+  await kvOf(env).put(SPOT_KEY, JSON.stringify(Object.fromEntries(keep)));
 }
 
 // The AudioPlayer directive that streams an episode from `position` seconds.
@@ -59,13 +70,14 @@ export async function playPodcast(env, asked, shows) {
     const ep = show.episodes.find((e) => at(e) > 30) || show.episodes[0];
     item = clean(ep, show); position = at(ep);
   } else {
-    const cast = await env.CALENDAR.get(CAST_KEY, 'json');
+    const cast = await kvOf(env).get(CAST_KEY, 'json');
     const now = await echoNow(env);
     if (cast && Date.now() - cast.at < CAST_FRESH_MS) { item = cast; position = cast.position; }
     else if (now && now.episode) { item = now; position = now.state === 'finished' ? 0 : now.position; }
   }
   if (!item || !item.episode.url) return { version: '1.0', response: { outputSpeech: { type: 'PlainText', text: 'Pick an episode on the frame first, or say which podcast.' }, shouldEndSession: true } };
-  await env.CALENDAR.put(NOW_KEY, JSON.stringify({ episode: item.episode, show: item.show, position, state: 'starting', at: Date.now() }));
+  await kvOf(env).put(NOW_KEY, JSON.stringify({ episode: item.episode, show: item.show, position, state: 'starting', at: Date.now() }));
+  await tellFrame(env);
   return played('Playing ' + item.episode.title + '.', [playDirective(item, position)]);
 }
 
@@ -78,8 +90,9 @@ export async function audioEvent(env, type, req, audio = {}) {
   const mine = now && now.episode && now.episode.id === token;
   const save = async (state, done = false) => {
     if (!mine) return;
-    await env.CALENDAR.put(NOW_KEY, JSON.stringify({ ...now, position: done ? 0 : Math.round(pos), state, at: Date.now() }));
+    await kvOf(env).put(NOW_KEY, JSON.stringify({ ...now, position: done ? 0 : Math.round(pos), state, at: Date.now() }));
     await noteSpot(env, token, pos, done);
+    await tellFrame(env);
   };
   if (type === 'AudioPlayer.PlaybackStarted') await save('playing');
   else if (type === 'AudioPlayer.PlaybackStopped') await save('paused');
