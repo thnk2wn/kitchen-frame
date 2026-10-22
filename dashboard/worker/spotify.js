@@ -119,6 +119,24 @@ export function sourceOf(body, playlistTitle) {
   return { kind: 'none' };
 }
 
+// A playlist's name when it isn't in the library: the Web API's, else Spotify's public embed info
+// (open.spotify.com/oembed). The API refuses Spotify's own playlists, the mixes and editorial ones
+// ("Chill Good Vibes Mix", ids starting 37i9dQZF), for apps like this one since late 2024; the embed
+// info still names them. Kept per playlist, so a song change doesn't ask again.
+const names = new Map(); // uri -> name or ''
+async function playlistName(env, uri) {
+  if (names.has(uri)) return names.get(uri) || null;
+  const id = uri.split(':').pop();
+  let name = ((await call(env, '/playlists/' + id + '?fields=name').catch(() => null)) || {}).name || '';
+  if (!name) {
+    const r = await fetch('https://open.spotify.com/oembed?url=' + encodeURIComponent('https://open.spotify.com/playlist/' + id)).catch(() => null);
+    name = (r && r.ok && ((await r.json().catch(() => null)) || {}).title) || '';
+  }
+  if (names.size > 200) names.clear();
+  names.set(uri, String(name).slice(0, 120));
+  return name || null;
+}
+
 export async function getNow(env) {
   if (current && Date.now() - current.at < 10000) return current.value;
   const res = await fetch(API + '/me/player/currently-playing', { headers: { Authorization: 'Bearer ' + (await accessToken(env)) } });
@@ -131,11 +149,7 @@ export async function getNow(env) {
   if (ctx) {
     const known = lists && lists.items.find((p) => p.media_content_id === ctx.uri);
     if (known) title = known.title;
-    else {
-      // Not in the library (a Spotify mix, say): ask for its name; Spotify refuses some of these.
-      const r = await call(env, '/playlists/' + ctx.uri.split(':').pop() + '?fields=name').catch(() => null);
-      title = r && r.name || null;
-    }
+    else title = await playlistName(env, ctx.uri);
   }
   const item = body && body.item;
   current = { at: Date.now(), value: {
