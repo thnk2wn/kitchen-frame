@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import Icon from './components/Icon.svelte';
+  import { keyState } from './lib/keystate.svelte.js';
   import Home from './views/Home.svelte';
   import Week from './views/Week.svelte';
   import List from './views/List.svelte';
@@ -110,6 +111,10 @@
 </script>
 
 <div class="stage">
+  <!-- The Worker turns this screen's key down: say so plainly, not as a quiet "Offline" (lib/keystate.svelte.js). -->
+  {#if keyState.rejected && !ui.demo}
+    <div class="keyproblem" role="alert"><Icon name="lock" size={18} />This screen’s key isn’t accepted, so what you see may be old. Open the dashboard with a setup link to fix it.</div>
+  {/if}
   <header class="top">
     <!-- The tab bar and the status on the right, together: if they fail, the placeholder holds their place. -->
     <Safe name="The top bar">
@@ -184,6 +189,7 @@
 </div>
 
 <style>
+  .keyproblem { position: fixed; top: 0; left: 0; right: 0; z-index: 60; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; background: var(--red); color: #fff; font-size: 16px; font-weight: 700; }
   /* Fills the viewport: 1280×720 on the 1920×1080 FRAME156 (shown at 1.5×), 1280×800 on 10" frames. */
   .stage { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
   /* Tabs from the left edge; time, weather and buttons on the right. */

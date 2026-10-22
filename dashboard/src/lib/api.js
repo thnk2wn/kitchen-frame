@@ -1,4 +1,5 @@
 import { log } from './log.svelte.js';
+import { keyState } from './keystate.svelte.js';
 // The frame opens the dashboard once with a setup link (#key=…, moved into the query by index.html),
 // then remembers the key.
 const q = new URLSearchParams(location.search);
@@ -42,6 +43,8 @@ export async function api(path, init = {}) {
   }
   const body = await res.json().catch(() => ({}));
   const ms = Date.now() - started;
+  // A key turned down (401) says so on screen until a call gets through again (keystate.svelte.js).
+  keyState.rejected = res.status === 401;
   if (!res.ok) {
     if (!quiet) log('api.failed', { path: where, status: res.status, error: body.error, ms }, res.status >= 500 ? 'error' : 'warn');
     throw new Error(body.error || 'HTTP ' + res.status);

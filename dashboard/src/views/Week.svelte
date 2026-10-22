@@ -1,7 +1,7 @@
 <script>
   import Txt from '../components/Txt.svelte';
   import Icon from '../components/Icon.svelte';
-  import { clock, calendar, loadCalendar, canOpen, openEvent } from '../lib/state.svelte.js';
+  import { clock, calendar, loadCalendar, canOpen, openEvent, pinFor } from '../lib/state.svelte.js';
   import CalendarPicker from '../components/CalendarPicker.svelte';
   import { calVars, eventsOn, addDays, time, isPast, formatDate } from '../lib/format.js';
   import Month from './Month.svelte';
@@ -70,7 +70,8 @@
             {#each d.events as e (key(e))}
               <button class="ev" class:past={isPast(e, clock.now)} class:open={open === key(e)} style={calVars(e)}
                 onclick={() => (canOpen(e) ? openEvent(e) : (open = open === key(e) ? null : key(e)))}>
-                <span class="title"><Txt text={e.title} /></span>
+                <!-- A small lock for an event that opens after its owner's PIN (CALENDAR_DETAILS pin:<name>). -->
+                <span class="title">{#if pinFor(e)}<span class="lock"><Icon name="lock" size={12} /></span>{/if}<Txt text={e.title} /></span>
                 {#if !e.allDay}<span class="t num">{time(new Date(e.start))}{open === key(e) ? ' – ' + time(new Date(e.end)) : ''}</span>{/if}
                 {#if open === key(e) && e.location}<span class="t">{e.location}</span>{/if}
               </button>
@@ -114,6 +115,7 @@
   :global([data-theme="dark"]) .ev:not(.past) .title { color: var(--c); }
   .ev.past { background: transparent; border-left-color: transparent; padding-left: 0; padding-right: 0; }
   .ev.past .title { color: var(--secondary); }
+  .lock { display: inline-block; margin-right: 3px; vertical-align: -1px; color: var(--secondary); }
   .title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 17px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
   .open .title { display: block; }
   .t { display: block; font-size: 14px; color: var(--secondary); margin-top: 2px; }

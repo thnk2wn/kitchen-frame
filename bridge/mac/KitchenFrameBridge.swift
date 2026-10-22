@@ -157,6 +157,21 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
     return status == .authorized || status == .limited
   }
 
+  // An event calendar by its name, or by its name and account, "Calendar (Exchange)", for when two
+  // accounts both have a "Calendar" (an Exchange or Google account's main one is named that).
+  func eventCalendar(named name: String) -> EKCalendar? {
+    let all = store.calendars(for: .event)
+    let same = { (a: String, b: String) in a.compare(b, options: [.caseInsensitive]) == .orderedSame }
+    if let m = name.range(of: #"^(.*) \(([^()]+)\)$"#, options: .regularExpression) {
+      let parts = String(name[m]).dropLast().components(separatedBy: " (")
+      let title = parts.dropLast().joined(separator: " ("), account = parts.last ?? ""
+      if let c = all.first(where: { same($0.title, title) && same($0.source.title, account) }) { return c }
+    }
+    return all.first { same($0.title, name) }
+  }
+  // "Calendar (Exchange)" for each event calendar: what to put after bridge: in CALENDAR_URLS.
+  var eventCalendarNames: [String] { store.calendars(for: .event).map { "\($0.title) (\($0.source.title))" }.sorted() }
+
   func calendar(named name: String) -> EKCalendar? {
     store.calendars(for: .reminder).first { $0.title.compare(name, options: [.caseInsensitive]) == .orderedSame }
   }
@@ -641,7 +656,7 @@ final class Bridge: NSObject, URLSessionWebSocketDelegate, PHPhotoLibraryChangeO
     var out: [String: [[String: Any]]] = [:]
     if !calendars.isEmpty { keepOpen("com.apple.iCal", "Calendar") }
     for (name, notes) in calendars {
-      guard let c = store.calendars(for: .event).first(where: { $0.title.compare(name, options: [.caseInsensitive]) == .orderedSame }) else {
+      guard let c = eventCalendar(named: name) else {
         problem("calendar:" + name, "No calendar named \"\(name)\" on this Mac. Check the name, and that iCloud Calendars is on.")
         continue
       }
@@ -918,7 +933,7 @@ Task { @MainActor in
       log(bridge.photosAccess ? "Photos access OK. Album \"\(pc.album)\": " + (bridge.albumAssets(pc.album).map { "\($0.count) photos" } ?? "NOT FOUND") : "Photos access NOT granted.")
     }
     if !bridge.calendars.isEmpty {
-      log(bridge.calendarAccess ? "Calendar access OK. Calendars on this Mac: " + bridge.store.calendars(for: .event).map { $0.title }.sorted().joined(separator: ", ") : "Calendar access NOT granted.")
+      log(bridge.calendarAccess ? "Calendar access OK. Calendars on this Mac (account in brackets): " + bridge.eventCalendarNames.joined(separator: ", ") : "Calendar access NOT granted.")
     }
     exit(0)
   }
