@@ -56,7 +56,7 @@ All optional, comma-separated, in the same order as `CALENDAR_URLS`:
 | Setting | What it does |
 | --- | --- |
 | `CALENDAR_NAMES` | Names in the frame's **Calendars** list, when a feed's own name isn't useful (Exchange calls everything "Calendar"). |
-| `CALENDAR_DETAILS` | `yes` for calendars whose events open with their details when tapped; others (unset or `no`) don't. See [Event details](#event-details). |
+| `CALENDAR_DETAILS` | `yes` for calendars whose events open with their details when tapped, `pin:<name>` for ones that open only after that person's own PIN; others (unset or `no`) don't. See [Event details](#event-details). |
 | `CALENDAR_REFRESH` | Hours between fetches of that feed (blank: every 10 minutes). For a feed that rarely changes, such as a season's game schedule, or a site that refuses a cloud server asking often. |
 | `CALENDAR_COLORS` | Each calendar's colour, to match your phone say: `red`, `orange`, `yellow`, `green`, `teal`, `blue`, `indigo`, `purple`, `pink`, `brown`, `gray`, or `#rrggbb`. Unset ones rotate through red, blue, green, purple, orange, teal. Named colours have light and dark versions that follow the frame's theme. |
 
@@ -73,6 +73,19 @@ week view a tap opens the sheet instead of just showing the end time. For exampl
 ```
 CALENDAR_DETAILS="yes, yes, no, yes"
 ```
+
+`pin:<name>` opens a calendar's events only after that person's own PIN, the one they set in the
+[phone app](../ios/README.md) (Settings → PIN; `<name>` is the name it shows them by). A lock shows in
+place of the ›, and once the PIN is right their events open without asking again for 5 minutes. With
+that person's work calendar third, say:
+
+```
+CALENDAR_DETAILS="yes, yes, pin:Sam, yes"
+```
+
+The notes are kept and sent to the frame like a `yes` calendar's: the PIN keeps them from someone at
+the screen, not from whoever holds the frame's key. A feed published without its details (Outlook's
+"Can view titles and locations") has no notes to show; publish it with all details for them.
 
 - **Notes are only kept for these calendars.** The Worker reads each feed in full (an iCal link
   has no way to leave descriptions out), but for other calendars it never takes the description out

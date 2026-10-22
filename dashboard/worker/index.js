@@ -559,7 +559,7 @@ async function updateCalendar(env, previous) {
   const feeds = (await env.CALENDAR.get(FEEDS_KEY, 'json')) || {};
   const before = JSON.stringify(feeds);
   const data = await refresh(env, previous, feeds);
-  const pick = (d) => JSON.stringify([d.events, d.errors, d.names, d.colors, d.details, d.notes, d.links]);
+  const pick = (d) => JSON.stringify([d.events, d.errors, d.names, d.colors, d.details, d.notes, d.links, d.pins]);
   const same = previous && pick(previous) === pick(data);
   if (!same || Date.now() - Date.parse(previous.updated) > HEARTBEAT_MS) await env.CALENDAR.put(KEY, JSON.stringify(data));
   // Each feed's fetch record changes only when a feed is fetched on a slow schedule or fails, so
@@ -590,9 +590,15 @@ const BRIDGE_CAL_KEY = 'bridge-calendars';
 const BRIDGE_CAL_STALE_MS = 3 * 60 * 60 * 1000; // the Mac resends at least hourly
 function bridgeCalendars(env) {
   const urls = String(env.CALENDAR_URLS || '').split(/[\s,]+/).filter(Boolean);
-  const details = String(env.CALENDAR_DETAILS || '').split(',');
-  return urls.map((u, cal) => ({ cal, name: /^bridge:/i.test(u) ? decodeURIComponent(u.slice(7)) : null, notes: /^(yes|y|true|on)$/i.test((details[cal] || '').trim()) }))
+  return urls.map((u, cal) => ({ cal, name: /^bridge:/i.test(u) ? decodeURIComponent(u.slice(7)) : null, notes: detailsOf(env, cal).open }))
     .filter((c) => c.name);
+}
+// One calendar's CALENDAR_DETAILS: yes (opens with its details), pin:<name> (opens with them after that
+// person's own PIN on the frame), or no (titles and times only; its notes are never kept).
+export function detailsOf(env, cal) {
+  const v = (String(env.CALENDAR_DETAILS || '').split(',')[cal] || '').trim();
+  const pin = /^pin:\s*(.{1,40})$/i.exec(v);
+  return { open: !!pin || /^(yes|y|true|on)$/i.test(v), pin: pin ? pin[1].trim() : null };
 }
 
 async function refresh(env, previous, feeds = {}) {
@@ -604,7 +610,9 @@ async function refresh(env, previous, feeds = {}) {
   const errors = [];
   const names = [];
   // CALENDAR_DETAILS (optional, same order): which calendars' events open with their notes.
-  const details = env.CALENDAR_DETAILS ? urls.map((_, i) => /^(yes|y|true|on)$/i.test((String(env.CALENDAR_DETAILS).split(',')[i] || '').trim())) : null;
+  const details = env.CALENDAR_DETAILS ? urls.map((_, i) => detailsOf(env, i).open) : null;
+  // Whose PIN opens each calendar's events, for those set to pin:<name>.
+  const pins = env.CALENDAR_DETAILS ? urls.map((_, i) => detailsOf(env, i).pin) : [];
   const every = String(env.CALENDAR_REFRESH || '').split(',').map((x) => (Number(x) > 0 ? Number(x) * 3600000 : 0));
   // The last good copy of a calendar, for a feed not fetched this time (failing, or not due yet).
   const kept = (cal) => (previous?.events || []).filter((e) => e.cal === cal)
@@ -669,6 +677,7 @@ async function refresh(env, previous, feeds = {}) {
   const notes = splitNotes(events), links = splitLinks(events);
   return { updated: new Date(now).toISOString(), calendars: urls.length, names: urls.map((_, i) => custom[i] || names[i] || null),
     colors: colors ? urls.map((_, i) => colors[i] || null) : undefined, details: details || undefined,
+    pins: pins.some(Boolean) ? pins : undefined,
     notes: Object.keys(notes).length ? notes : undefined, links: Object.keys(links).length ? links : undefined, errors, events };
 }
 

@@ -215,3 +215,12 @@ test('links travel only for calendars that open, beside their notes', () => {
   assert.deepEqual(splitLinks(open), { g1: [{ label: 'Tickets', url: 'https://tickets.example.com/y' }] });
   assert.ok(!('links' in open[0]));
 });
+
+test('CALENDAR_DETAILS: yes opens, pin:<name> opens after that person\'s PIN, anything else stays shut', async () => {
+  const { detailsOf } = await import('./index.js');
+  const env = { CALENDAR_DETAILS: 'no, yes, pin:Alex, pin: Sam Smith ,, junk' };
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map((i) => detailsOf(env, i)), [
+    { open: false, pin: null }, { open: true, pin: null }, { open: true, pin: 'Alex' }, { open: true, pin: 'Sam Smith' },
+    { open: false, pin: null }, { open: false, pin: null }, { open: false, pin: null },
+  ]);
+});

@@ -2,7 +2,7 @@
 // needs it (see start()), one request at a time, and unchanged results don't touch the screen.
 import { loadFitness, refreshFitness } from './fitness.svelte.js';
 import { api, cached, remember, changed, forget, mediaUrl } from './api.js';
-import { loadPins } from './pin.svelte.js';
+import { loadPins, allowPerson } from './pin.svelte.js';
 import { log } from './log.svelte.js';
 import { dayKey, recipeTitle, setCalendarColors, formatDate } from './format.js';
 import { demoCalendar, demoList, demoMeta, demoMeals } from './demo.js';
@@ -250,7 +250,14 @@ export const canOpen = (e) => !!(calendar.raw && calendar.raw.details && calenda
 export const eventNotes = (e) => (calendar.raw && calendar.raw.notes && calendar.raw.notes[e.uid]) || '';
 // The links the notes had (worker/calendar.js noteLinks): [{ label, url }], shown as QR codes.
 export const eventLinks = (e) => (calendar.raw && calendar.raw.links && calendar.raw.links[e.uid]) || [];
-export function openEvent(e) { if (canOpen(e)) ui.event = { uid: e.uid, start: e.start }; }
+// A calendar set to pin:<name> (CALENDAR_DETAILS) opens only after that person's PIN.
+export const pinFor = (e) => (calendar.raw && calendar.raw.pins && calendar.raw.pins[e.cal]) || null;
+export async function openEvent(e) {
+  if (!canOpen(e)) return;
+  const who = pinFor(e);
+  if (who && !(await allowPerson(who, (calendarNames()[e.cal] || 'calendar') + ' event'))) return;
+  ui.event = { uid: e.uid, start: e.start };
+}
 
 // Display names for the show/hide list: the feed's own name, numbered when names repeat.
 export function calendarNames() {

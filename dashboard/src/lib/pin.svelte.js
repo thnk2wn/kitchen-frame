@@ -39,8 +39,11 @@ const PEOPLE = 'frame-pins';
 export const pin = $state({ set: !!read(KEY), ask: null, people: read(PEOPLE) || [] });
 // Any PIN at all: the frame's, or anyone's.
 export const anyPin = () => pin.set || pin.people.length > 0;
-// Whether this person (by their fitness id) has a PIN of their own.
-export const hasOwnPin = (fitnessId) => !!fitnessId && pin.people.some((p) => p.fitnessId === fitnessId);
+// A person's PINs, by their fitness id (weight) or their name as the phone app set it ("Sam", for a
+// calendar's pin:Sam in CALENDAR_DETAILS).
+const theirs = (who) => pin.people.filter((p) => p.fitnessId === who || (p.person || '').toLowerCase() === String(who || '').toLowerCase());
+// Whether this person has a PIN of their own.
+export const hasOwnPin = (who) => !!who && theirs(who).length > 0;
 
 // The household's PINs, from the device list (the frame's key may read it; a phone's may not).
 export async function loadPins() {
@@ -82,6 +85,18 @@ export const enterPin = (title, note) => open('enter', title, note);
 // A person's own details: their PIN only, each time it's asked (the caller keeps them shown while
 // its sheet is open). No PIN of their own: nothing to ask.
 export const confirmOwnPin = (fitnessId, title, note) => (hasOwnPin(fitnessId) ? open('check', title, note, fitnessId).then((ok) => !!ok) : Promise.resolve(true));
+// A person's private calendar (CALENDAR_DETAILS pin:Sam): their PIN, then PERSON_TRUST_MS without
+// asking again, so opening several of their events asks once. No PIN of their own: it stays shut.
+const PERSON_TRUST_MS = 5 * 60000;
+const personTrust = new Map(); // name, lower case -> until
+export async function allowPerson(name, note) {
+  const k = String(name || '').toLowerCase();
+  if (Date.now() < (personTrust.get(k) || 0)) return true;
+  if (!hasOwnPin(name)) { log('pin.none', { for: note, whose: name }, 'warn'); return false; }
+  const ok = !!(await open('check', name + '’s PIN', note, name));
+  if (ok) personTrust.set(k, Date.now() + PERSON_TRUST_MS);
+  return ok;
+}
 
 // Called by the keypad with four digits: { ok } | { wrong, left } | { wait } (ms until it can try again).
 export async function tryPin(digits) {
@@ -93,7 +108,7 @@ export async function tryPin(digits) {
   if (f.n && wait > 0) return { wait };
   // Whose PINs count: for a person's details, theirs; otherwise the frame's and everyone's.
   const person = pin.ask?.person;
-  const candidates = person ? pin.people.filter((p) => p.fitnessId === person) : [{ person: 'frame', salt: '', hash: '', frame: true }, ...pin.people];
+  const candidates = person ? theirs(person) : [{ person: 'frame', salt: '', hash: '', frame: true }, ...pin.people];
   for (const c of candidates) {
     if (await pinMatches(digits, c.frame ? read(KEY) : c)) {
       write(fails, null);

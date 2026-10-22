@@ -2,7 +2,7 @@
   import Txt from './Txt.svelte';
   import Icon from './Icon.svelte';
   import { calVars, timeRange, isPast, isNow } from '../lib/format.js';
-  import { canOpen, openEvent } from '../lib/state.svelte.js';
+  import { canOpen, openEvent, pinFor } from '../lib/state.svelte.js';
   // place: show the location after the time (Today does; Upcoming keeps rows short).
   let { event, now, place = true } = $props();
   let live = $derived(isNow(event, now));
@@ -18,7 +18,8 @@
       {#if event.allDay}All day{:else if live}<b class="now">Now</b> until {timeRange(event).split(' – ')[1]}{:else}{timeRange(event)}{/if}{event.location && place ? ' · ' + event.location : ''}
     </div>
   </div>
-  {#if tappable}<span class="more"><Icon name="chevronRight" size={20} /></span>{/if}
+  <!-- A lock for a calendar that opens after its owner's PIN (CALENDAR_DETAILS pin:<name>). -->
+  {#if tappable}<span class="more"><Icon name={pinFor(event) ? 'lock' : 'chevronRight'} size={pinFor(event) ? 16 : 20} /></span>{/if}
 </div>
 
 <style>
