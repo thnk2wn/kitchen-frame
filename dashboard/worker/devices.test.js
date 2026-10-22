@@ -12,6 +12,7 @@ function setup() {
       get: async (k) => structuredClone(data.get(k)),
       put: async (k, v) => { data.set(k, structuredClone(v)); },
       delete: async (k) => { for (const x of [].concat(k)) data.delete(x); },
+      list: async ({ prefix = '' } = {}) => new Map([...data.entries()].filter(([k]) => k.startsWith(prefix)).sort().map(([k, v]) => [k, structuredClone(v)])),
       setAlarm: async () => {}, deleteAlarm: async () => {},
     },
     getWebSockets: () => [], acceptWebSocket() {}, setWebSocketAutoResponse() {},
@@ -92,7 +93,7 @@ test('a phone sends fitness for one person only', async () => {
   const t = setup();
   const { phone } = await frameAndPhone(t);
   const send = (id) => t.call('/api/fitness', { key: phone.token, method: 'POST', body: { id, name: 'Sam', days: [] } });
-  assert.notEqual((await send('11111111-1111-4111-8111-111111111111')).status, 403);
+  assert.equal((await send('11111111-1111-4111-8111-111111111111')).status, 200);
   assert.equal((await send('22222222-2222-4222-8222-222222222222')).status, 403);
   assert.equal((await t.call('/api/fitness?id=22222222-2222-4222-8222-222222222222', { key: phone.token, method: 'DELETE' })).status, 403);
   // The same id in another case is still this phone's (iOS writes UUIDs in upper case).

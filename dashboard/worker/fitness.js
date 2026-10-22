@@ -9,6 +9,8 @@
 // the same name can't overwrite or remove each other. One KV entry per phone (CALENDAR namespace,
 // "fitness:<id>"), so two phones sending at once can't lose each other's update either. A phone
 // writes at most every few minutes, mostly hourly or less, far inside KV's free allowance.
+import { roomStore } from './store.js';
+
 const PREFIX = 'fitness:';
 const MAX_PEOPLE = 6;
 const DAYS = 29; // 4 weeks before today, and today
@@ -42,7 +44,9 @@ export function cleanWeight(w) {
   const goal = inRange(w.goal, 20, 700), heightM = Number(w.heightM);
   // The scale's own BMI and body fat (it saves them to Health), with the goal only, like height.
   const bmi = goal != null ? inRange(w.bmi, 10, 80) : null, bodyFat = goal != null ? inRange(w.bodyFat, 2, 75) : null;
-  return { unit: w.unit === 'kg' ? 'kg' : 'lb', points, ...(goal != null ? { goal } : {}),
+  // show: how its owner shows the weight, 'pin' (after their PIN) or 'open' (to anyone, on the chip
+  // too); only with the goal, which is what lets the frame work the weight out.
+  return { unit: w.unit === 'kg' ? 'kg' : 'lb', points, ...(goal != null ? { goal, show: w.show === 'open' ? 'open' : 'pin' } : {}),
     ...(goal != null && Number.isFinite(heightM) && heightM >= 1 && heightM <= 2.5 ? { heightM: Math.round(heightM * 1000) / 1000 } : {}),
     ...(bmi != null ? { bmi } : {}), ...(bodyFat != null ? { bodyFat } : {}) };
 }
@@ -88,26 +92,49 @@ export function cleanFitness(b) {
   return { id, name, updated: new Date().toISOString(), dataAt: iso(b.dataAt) || null, reason: clip(b.reason, 40) || null, unit: b.unit === 'km' ? 'km' : 'mi', days, steps: num(b.steps), meters: num(b.meters), workouts, ...(weight ? { weight } : {}) };
 }
 
-export async function listFitness(env) {
+// Each phone's numbers live in the room's store (store.js), not KV: written hourly and after every
+// workout, and listed whenever the frame looks. Without the room (tests), KV.
+const store = (env) => (env.MESSAGES ? roomStore(env) : env.CALENDAR);
+const all = async (env) => {
+  const s = store(env);
+  if (s.entries) return (await s.entries(PREFIX)).map((e) => JSON.parse(e.value));
+  const { keys } = await s.list({ prefix: PREFIX });
+  return (await Promise.all(keys.map((k) => s.get(k.name, 'json')))).filter(Boolean);
+};
+// Once, after the move: the people KV still had, so nobody disappears until their phone next sends.
+async function moveFromKv(env) {
+  const s = store(env);
+  if (!env.MESSAGES || (await s.get('fitness-moved'))) return;
   const { keys } = await env.CALENDAR.list({ prefix: PREFIX });
-  const people = (await Promise.all(keys.map((k) => env.CALENDAR.get(k.name, 'json')))).filter(Boolean);
+  for (const k of keys) {
+    const p = await env.CALENDAR.get(k.name, 'json');
+    if (p && !(await s.get(k.name))) await s.put(k.name, JSON.stringify(p), { expirationTtl: TTL_DAYS * 86400 });
+  }
+  await s.put('fitness-moved', '1');
+}
+
+export async function listFitness(env) {
+  await moveFromKv(env);
+  const people = await all(env);
   return { people: people.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)) };
 }
 
 export async function saveFitness(env, body) {
   const p = cleanFitness(body);
   if (!p) return { status: 400, body: { error: 'id and name are required' } };
-  if (!(await env.CALENDAR.get(PREFIX + p.id))) {
-    const { keys } = await env.CALENDAR.list({ prefix: PREFIX });
+  await moveFromKv(env);
+  const s = store(env);
+  if (!(await s.get(PREFIX + p.id))) {
+    const { keys } = await s.list({ prefix: PREFIX });
     if (keys.length >= MAX_PEOPLE) return { status: 400, body: { error: 'too many people' } };
   }
   // Gone by itself after TTL_DAYS without a send (a phone unpaired offline, the app deleted), each send renewing it.
-  await env.CALENDAR.put(PREFIX + p.id, JSON.stringify(p), { expirationTtl: TTL_DAYS * 86400 });
+  await s.put(PREFIX + p.id, JSON.stringify(p), { expirationTtl: TTL_DAYS * 86400 });
   return { status: 200, body: { ok: true, updated: p.updated } };
 }
 
 export async function removeFitness(env, id) {
   const key = phoneId(id);
-  if (key) await env.CALENDAR.delete(PREFIX + key);
+  if (key) { await store(env).delete(PREFIX + key); if (env.MESSAGES) await env.CALENDAR.delete(PREFIX + key).catch(() => {}); }
   return { status: 200, body: { ok: true } };
 }

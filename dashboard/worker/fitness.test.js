@@ -86,7 +86,10 @@ test('weight: weigh-ins as differences from the goal, one a day, in order; the g
   // Height comes only with a goal (it's only for BMI, which needs the weight).
   assert.ok(!('heightM' in cleanFitness({ id: ID1, name: 'Sam', weight: { points: [{ date: '2026-10-21', d: 1 }], heightM: 1.88 } }).weight));
   const shown = cleanFitness({ id: ID1, name: 'Sam', weight: { unit: 'kg', points: [{ date: '2026-10-21', d: 1 }], goal: 84, heightM: 1.88, bmi: 24.74, bodyFat: 19.5 } }).weight;
-  assert.deepEqual([shown.unit, shown.goal, shown.heightM, shown.bmi, shown.bodyFat], ['kg', 84, 1.88, 24.7, 19.5]);
+  assert.deepEqual([shown.unit, shown.goal, shown.heightM, shown.bmi, shown.bodyFat, shown.show], ['kg', 84, 1.88, 24.7, 19.5, 'pin']);
+  // Shown to anyone only when its owner said so; anything else is behind their PIN.
+  assert.equal(cleanFitness({ id: ID1, name: 'Sam', weight: { points: [{ date: '2026-10-21', d: 1 }], goal: 84, show: 'open' } }).weight.show, 'open');
+  assert.equal(cleanFitness({ id: ID1, name: 'Sam', weight: { points: [{ date: '2026-10-21', d: 1 }], goal: 84, show: 'everyone' } }).weight.show, 'pin');
   // BMI and body fat, like height, only with the goal.
   const bare = cleanFitness({ id: ID1, name: 'Sam', weight: { points: [{ date: '2026-10-21', d: 1 }], bmi: 24.7, bodyFat: 19.5 } }).weight;
   assert.ok(!('bmi' in bare) && !('bodyFat' in bare));

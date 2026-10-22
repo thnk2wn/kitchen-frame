@@ -20,6 +20,8 @@
 // Kept in KV (the CALENDAR namespace): "frame:status" on each check-in (about 150 writes a day), and
 // "frame:settings" only when the settings changed, with "frame:settings:history" when one a person
 // chose did. Only the kiosk app checks in, not a browser.
+import { roomStore } from './store.js';
+
 const STATUS = 'frame:status';
 const SETTINGS = 'frame:settings';
 const SETTINGS_HISTORY = 'frame:settings:history';
@@ -129,6 +131,10 @@ function writeMetrics(env, status) {
   } catch (e) { console.warn({ source: 'frame', message: 'metrics write failed', error: String(e) }); }
 }
 
+// The check-in status lives in the room's store (store.js), not KV: it's written every 10 minutes.
+// Without the room (tests), KV.
+const statusStore = (env) => (env.MESSAGES ? roomStore(env) : env.CALENDAR);
+
 export async function saveStatus(env, body) {
   const b = body || {};
   const events = (Array.isArray(b.events) ? b.events.slice(-300) : []).map(cleanEvent).filter(Boolean);
@@ -158,12 +164,12 @@ export async function saveStatus(env, body) {
     }
   }
   // Keep the log and a day of check-ins (the status page's timeline) across check-ins.
-  const prev = (await env.CALENDAR.get(STATUS, 'json')) || {};
+  const prev = (await getStatus(env)) || {};
   status.log = (prev.log || []).concat(events).slice(-KEEP_EVENTS);
   status.history = (prev.history || []).concat({ t: status.receivedAt, screen: status.screen, ha: status.ha, v: status.version, ...(status.memory ? { m: status.memory.pss } : {}) }).slice(-KEEP_HISTORY);
   writeMetrics(env, status);
   writeEventMetrics(env, events, status.version);
-  await env.CALENDAR.put(STATUS, JSON.stringify(status));
+  await statusStore(env).put(STATUS, JSON.stringify(status));
   if (saveSettings) await env.CALENDAR.put(SETTINGS, saveSettings);
   if (version) {
     const versions = (await env.CALENDAR.get(SETTINGS_HISTORY, 'json')) || [];
@@ -172,6 +178,7 @@ export async function saveStatus(env, body) {
   return { status: 200, body: { ok: true } };
 }
 
-export const getStatus = async (env) => (await env.CALENDAR.get(STATUS, 'json')) || {};
+// Until the first check-in after the move, the last one KV kept.
+export const getStatus = async (env) => (await statusStore(env).get(STATUS, 'json')) || (env.MESSAGES && (await env.CALENDAR.get(STATUS, 'json'))) || {};
 export const getSettings = async (env) => (await env.CALENDAR.get(SETTINGS, 'json')) || { settings: {}, savedAt: null };
 export const getSettingsHistory = async (env) => (await env.CALENDAR.get(SETTINGS_HISTORY, 'json')) || [];

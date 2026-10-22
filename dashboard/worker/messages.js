@@ -23,6 +23,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 
 // The Worker's stub for the room. Every request goes through one instance, so the list is consistent.
 import { devicesRoute } from './devices.js';
+import { storeRoute } from './store.js';
 
 export const room = (env) => env.MESSAGES.get(env.MESSAGES.idFromName('frame'));
 
@@ -49,6 +50,8 @@ export class MessageRoom {
     // Written only when it changes, so a check-in every 10 minutes doesn't write each time.
     // Devices and their keys (devices.js): stored here, with everything else about the frame.
     if (path.startsWith('/devices/')) return devicesRoute(this.ctx.storage, path, req);
+    // What's written all day (the frame's check-ins, fitness): a small store here instead of KV (store.js).
+    if (path.startsWith('/store/')) return json(await storeRoute(this.ctx.storage, path.slice(7), await req.json().catch(() => ({}))));
     if (path === '/home') {
       const home = (await this.ctx.storage.get('home')) || {};
       if (req.method === 'POST') {

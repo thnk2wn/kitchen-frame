@@ -42,8 +42,11 @@ zeros.
 3. Repeat on each person's phone. Up to six people.
 
 Weight is a third switch there, **Share weight trend**, with a **Goal** (in pounds in the US, else
-kilograms) and **Show my weight on the frame** (off). Any scale that saves to Health works (RENPHO,
-Withings, a weight typed into Health). Without a goal nothing is sent.
+kilograms) and **On the frame**: **Trend only** (the default: the pace and what's left, no weight),
+**Weight with my PIN** (the weight, BMI and body fat on the sheet after that person's PIN, which they
+set in the app's Settings → PIN), or **Weight, no PIN** (the weight for anyone, leading the chip too).
+Any scale that saves to Health works (RENPHO, Withings, a weight typed into Health). Without a goal
+nothing is sent.
 
 ### The weight trend
 
@@ -95,15 +98,16 @@ only when that switch is on). No routes, places, heart-rate samples or anything 
 
 Weight, only with **Share weight trend** on and a goal set: the last year's weigh-ins (the last of
 each day) as the difference from the goal, such as "+11.8", never the weight itself. So the frame can
-show the pace and what's left, but not a weight, unless **Show my weight** is also on, which sends the
-goal (and the person's height, for BMI). With a PIN of their own (the app's Settings → PIN), the
-weight, goal weight, BMI and body fat stay hidden on the frame until that person's PIN is entered
-(**Show weight** on the sheet), and hide again when it closes. Turning weight off removes it from the
+show the pace and what's left, but not a weight, unless **On the frame** is one of the weight options,
+which sends the goal (and the scale's BMI and body fat, or height for BMI). With **Weight with my
+PIN**, the weight, goal weight, BMI and body fat stay hidden on the frame until that person's PIN is
+entered (**Show weight** on the sheet), and hide again when it closes; with no PIN set it sends the
+trend only. Turning weight off removes it from the
 frame on the next send. Weight never goes to Alexa, its model or the status page, and guest mode hides it with the rest
 of Fitness.
 
-The Worker keeps each phone's latest report as one KV entry (by a random id the phone makes, not the
-typed name), behind the dashboard key, and replaces it on every send. Turning sharing off or unpairing
+The Worker keeps each phone's latest report as one entry in its Durable Object's storage (by a random
+id the phone makes, not the typed name; `worker/store.js`), behind the dashboard key, and replaces it on every send. Turning sharing off or unpairing
 deletes it, and one that hasn't been sent for 14 days (a phone unpaired offline, the app deleted) goes
 by itself. Alexa's spoken summary is worded by an open-weight model on Cloudflare's Workers AI from
 these numbers (names, rings, steps, streaks, the latest workouts; no heart rate), cached for half an
