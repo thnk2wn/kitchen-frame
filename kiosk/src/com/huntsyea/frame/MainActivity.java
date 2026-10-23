@@ -76,13 +76,13 @@ public class MainActivity extends Activity {
 
   // The frame often starts before Wi-Fi is up: keep retrying the dashboard until it loads.
   private final Runnable retry = new Runnable() {
-    @Override public void run() { if (url != null) { Log.i(TAG, "retrying load"); web.loadUrl(url); } }
+    @Override public void run() { if (url != null) { KioskLog.add("I", "retrying load"); web.loadUrl(url); } }
   };
 
   // Belt and braces: whatever went wrong, keep trying until the dashboard has loaded once.
   private final Runnable watchdog = new Runnable() {
     @Override public void run() {
-      if (!loadedOnce && url != null) { Log.w(TAG, "watchdog: never loaded, reloading"); web.loadUrl(url); }
+      if (!loadedOnce && url != null) { KioskLog.add("W", "watchdog: never loaded, reloading"); web.loadUrl(url); }
       handler.postDelayed(this, WATCHDOG_MS);
     }
   };
@@ -104,6 +104,7 @@ public class MainActivity extends Activity {
   @Override
   protected void onCreate(Bundle state) {
     super.onCreate(state);
+    KioskLog.start(this); // the log kept across power-offs (KioskLog.java)
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
     web = new WebView(this);
@@ -138,14 +139,14 @@ public class MainActivity extends Activity {
           loadedOnce = true;
           status.setVisibility(View.GONE);
           handler.removeCallbacks(retry);
-          Log.i(TAG, "loaded " + view.getTitle());
+          KioskLog.add("I", "loaded " + view.getTitle());
         }
       }
 
       @Override
       public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
         if (request.isForMainFrame()) {
-          Log.w(TAG, "load error " + error.getErrorCode() + " " + error.getDescription());
+          KioskLog.add("W", "load error " + error.getErrorCode() + " " + error.getDescription());
           if (!loadedOnce) status.setText("Waiting for the network…");
           scheduleRetry();
         }
@@ -154,7 +155,7 @@ public class MainActivity extends Activity {
       @Override
       public void onReceivedSslError(WebView view, SslErrorHandler sslHandler, SslError error) {
         // Never bypass certificate checks; just try again (the clock is probably still syncing).
-        Log.w(TAG, "ssl error " + error.getPrimaryError() + " (device time " + new java.util.Date() + ")");
+        KioskLog.add("W", "ssl error " + error.getPrimaryError() + " (device time " + new java.util.Date() + ")");
         sslHandler.cancel();
         if (clockWrong()) { if (!loadedOnce) status.setText("Setting the clock…"); fixClock(); }
         scheduleRetry();
@@ -270,7 +271,7 @@ public class MainActivity extends Activity {
     if (url == null) return false;
     String host = Uri.parse(url).getHost();
     if (host != null && host.equalsIgnoreCase(to.getHost())) return false;
-    Log.w(TAG, "refused a top-level page outside the dashboard: " + to.getHost());
+    KioskLog.add("W", "refused a top-level page outside the dashboard: " + to.getHost());
     return true;
   }
 
@@ -308,11 +309,17 @@ public class MainActivity extends Activity {
      */
     @JavascriptInterface
     public void restartApp() {
-      Log.i(TAG, "restart asked for by the page");
+      KioskLog.add("I", "restart asked for by the page");
       Intent again = new Intent(MainActivity.this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
       PendingIntent pi = PendingIntent.getActivity(MainActivity.this, 1, again, PendingIntent.FLAG_CANCEL_CURRENT);
       ((AlarmManager) getSystemService(ALARM_SERVICE)).set(AlarmManager.ELAPSED_REALTIME, SystemClock.elapsedRealtime() + 3000, pi);
       runOnUiThread(() -> { finishAffinity(); android.os.Process.killProcess(android.os.Process.myPid()); });
+    }
+
+    /** This start's report for the page, once (KioskLog.java): {"pending":true} until it's ready. */
+    @JavascriptInterface
+    public String getStartReport() {
+      return KioskLog.takeReport();
     }
 
     @JavascriptInterface
@@ -340,7 +347,7 @@ public class MainActivity extends Activity {
           upload("https://" + home.getAuthority() + "/api/frame/screenshot", auth, capture());
         } catch (Exception e) {
           why = e.getMessage() != null ? e.getMessage() : e.toString();
-          Log.w(TAG, "screenshot: " + why);
+          KioskLog.add("W", "screenshot: " + why);
         }
         final String js = "window.frameShotDone && window.frameShotDone(" + (why == null) + ", " + org.json.JSONObject.quote(why == null ? "" : why) + ")";
         runOnUiThread(() -> web.evaluateJavascript(js, null));
@@ -381,7 +388,7 @@ public class MainActivity extends Activity {
       try (java.io.OutputStream out = c.getOutputStream()) { out.write(jpeg); }
       int code = c.getResponseCode();
       if (code / 100 != 2) throw new Exception("upload answered " + code);
-      Log.i(TAG, "screenshot: uploaded " + jpeg.length + " bytes");
+      KioskLog.add("I", "screenshot: uploaded " + jpeg.length + " bytes");
     } finally {
       c.disconnect();
     }
@@ -420,24 +427,31 @@ public class MainActivity extends Activity {
             date = c.getDate();
             c.disconnect();
           } catch (Exception e) {
-            Log.w(TAG, "clock: no date from " + u + ": " + e);
+            KioskLog.add("W", "clock: no date from " + u + ": " + e);
           }
           if (date > 0) break;
         }
-        if (date <= 0) return;
-        if (onlyIfOff && Math.abs(date - System.currentTimeMillis()) < CLOCK_SLACK_MS) { Log.i(TAG, "clock: right after boot, within a minute"); return; }
+        // Just after a power-up there's often no network yet (or no root): try again until there is.
+        if (date <= 0) { if (onlyIfOff) retryBootClock(); return; }
+        if (onlyIfOff && Math.abs(date - System.currentTimeMillis()) < CLOCK_SLACK_MS) { KioskLog.add("I", "clock: right after boot, within a minute"); return; }
         java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("MMddHHmmyyyy.ss", java.util.Locale.US);
         f.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
         Process p = Runtime.getRuntime().exec(new String[] {"su", "-c", "date -u " + f.format(new java.util.Date(date))});
         int rc = p.waitFor();
-        Log.i(TAG, "clock: set from Date header, su exit " + rc + ", now " + new java.util.Date());
+        KioskLog.add("I", "clock: set from Date header, su exit " + rc + ", now " + new java.util.Date());
+        if (rc != 0 && onlyIfOff) retryBootClock();
         if (!clockWrong()) handler.post(() -> { handler.removeCallbacks(retry); if ((onlyIfOff || !loadedOnce) && url != null) web.loadUrl(url); });
       } catch (Exception e) {
-        Log.w(TAG, "clock: couldn't set it: " + e);
+        KioskLog.add("W", "clock: couldn't set it: " + e);
       } finally {
         settingClock = false;
       }
     }).start();
+  }
+
+  /** The power-up clock check again in a little over the 20 s fixClock allows, while still just after power-up. */
+  private void retryBootClock() {
+    if (SystemClock.elapsedRealtime() < BOOT_CHECK_MS) handler.postDelayed(() -> fixClock(true), 21000);
   }
 
   private void scheduleRetry() {
@@ -479,7 +493,7 @@ public class MainActivity extends Activity {
   }
 
   private void cancelEscape(String why) {
-    if (escapeArmed) Log.i(TAG, "escape hold " + why + " before 2 s");
+    if (escapeArmed) KioskLog.add("I", "escape hold " + why + " before 2 s");
     escapeArmed = false;
     handler.removeCallbacks(escape);
   }
@@ -502,6 +516,7 @@ public class MainActivity extends Activity {
 
   @Override
   protected void onDestroy() {
+    KioskLog.add("I", "stopping");
     handler.removeCallbacksAndMessages(null);
     web.destroy();
     super.onDestroy();

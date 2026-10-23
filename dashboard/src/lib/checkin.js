@@ -6,7 +6,7 @@
 import { api } from './api.js';
 import { ui } from './state.svelte.js';
 import { night } from './night.svelte.js';
-import { ha } from './ha.svelte.js';
+import { ha, callService } from './ha.svelte.js';
 import { log, take, putBack, onError } from './log.svelte.js';
 
 // Settings worth keeping: choices made on the frame, not caches, history of what was said, running
@@ -99,6 +99,32 @@ function restartAtNight() {
   if (m && m.upMin >= RESTART_AFTER) restartApp('nightly');
 }
 
+// What the kiosk saw before this start (1.13+, kiosk/src/…/KioskLog.java), once per app start, not
+// per page load: the start itself (Android's boot count; a gap is a boot that never reached the kiosk),
+// the previous run's last lines from the kiosk's own log, and the previous boot's last Android errors.
+// Both logs are otherwise lost at every power-up.
+let reportTries = 0;
+function reportKioskStart() {
+  if (!kiosk() || typeof window.FrameKiosk.getStartReport !== 'function') return;
+  let r;
+  try { r = JSON.parse(window.FrameKiosk.getStartReport()); } catch { return; }
+  if (r.pending) { if (reportTries++ < 12) setTimeout(reportKioskStart, 5000); return; }
+  if (r.boot === undefined) return; // already sent for this app start
+  log('kiosk.start', { boot: r.boot, restart: r.sameBoot, missedBoots: r.missedBoots, sinceBootS: r.sinceBootS, zygoteS: r.zygoteS, bootanimS: r.bootanimS }, r.missedBoots > 0 ? 'warn' : 'info');
+  for (const line of r.previousRun || []) log('kiosk.before', { line });
+  // Not warnings: every power-off leaves some (services stopping); they matter after a hang.
+  for (const line of r.previousBoot || []) log('android.before', { line });
+}
+
+// Home Assistant's "frame went quiet" timer: restarted every 5 minutes while the dashboard runs on the
+// frame, it runs out after QUIET of silence, and a Home Assistant automation notifies a phone (and
+// again when it's back). A timer, not a check-in on the Worker: Home Assistant can't see those.
+const QUIET_TIMER = 'timer.kitchen_frame_quiet';
+const QUIET = '00:20:00';
+function stillHere() {
+  if (kiosk() && !ui.demo && ha.status === 'connected') callService('timer', 'start', { duration: QUIET }, { entity_id: QUIET_TIMER }).catch(() => {});
+}
+
 // An error sends what's pending within a minute, and at most every 5 minutes.
 let lastErrorSend = 0, errorTimer = null;
 onError(() => {
@@ -130,7 +156,10 @@ export function reportDemo() {
 export function startCheckIn() {
   reportDemo();
   log('app.load', { version: version(), release: release(), reason: loadReason(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] });
+  reportKioskStart();
   restore().then(() => setTimeout(checkIn, 20000)); // give Home Assistant a moment to connect first
   setInterval(checkIn, 10 * 60 * 1000);
   setInterval(restartAtNight, 5 * 60 * 1000);
+  setTimeout(stillHere, 30000); // once Home Assistant has connected
+  setInterval(stillHere, 5 * 60 * 1000);
 }
