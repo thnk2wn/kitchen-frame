@@ -7,10 +7,11 @@
   import EventMap from './EventMap.svelte';
   import { ui, clock, calendar, calendarNames, eventNotes, eventLinks } from '../lib/state.svelte.js';
   import { calVars, timeRange, time, dayKey, addDays, isNow, isPast, formatDate } from '../lib/format.js';
-  import { reminderFor, remindsFor } from '../lib/reminders.svelte.js';
+  import { reminderFor, remindsFor, reminderTimes } from '../lib/reminders.svelte.js';
   import { say } from '../lib/announce.svelte.js';
   import { quietAt } from '../lib/night.svelte.js';
   import { speaker } from '../lib/announce.svelte.js';
+  import { drivable, driveOf, loadDrive, leaveIn } from '../lib/drive.svelte.js';
 
   let e = $derived.by(() => {
     const want = ui.event, events = calendar.data && calendar.data.events;
@@ -40,14 +41,22 @@
   // Settings → Announcements → Event reminders: when this one will be said out loud.
   let reminder = $derived(e && Date.parse(e.start) > clock.now.getTime() ? reminderFor(e) : null);
   // "15 and 5 min before", "10 min before and as it starts".
-  const whenSaid = (all) => {
+  // Counted from leaving: "30 min before leaving", "when it's time to leave".
+  const whenSaid = (all, leaving = false) => {
     const mins = all.filter((m) => m > 0), start = all.includes(0);
-    return [mins.length ? mins.join(' and ') + ' min before' : '', start ? 'as it starts' : ''].filter(Boolean).join(' and ');
+    return [mins.length ? mins.join(' and ') + ' min before' + (leaving ? ' leaving' : '') : '', start ? (leaving ? 'when it’s time to leave' : 'as it starts') : ''].filter(Boolean).join(' and ');
   };
   // Reminders due in quiet hours aren't said (lib/reminders.svelte.js): "6:00 AM", for each one.
-  let quietTimes = $derived(reminder ? reminder.all.map((m) => new Date(Date.parse(e.start) - m * 60000)).filter(quietAt) : []);
+  let quietTimes = $derived(reminder ? reminderTimes(e, reminder).map((t) => new Date(t)).filter(quietAt) : []);
+  // The lead time counts from when to leave once the drive is known (lib/reminders.svelte.js).
+  let fromLeaving = $derived(!!reminder && !reminder.own && !!drive);
   let allQuiet = $derived(!!reminder && quietTimes.length === reminder.all.length);
   let mapped = $state(false);
+  // The drive there with traffic, for an event still to come on a CALENDAR_DRIVE calendar.
+  $effect(() => { if (e && drivable(e)) loadDrive(e); });
+  let drive = $derived(e && Date.parse(e.start) > clock.now.getTime() ? driveOf(e) : null);
+  // Within the hour: "Leave in 20 min"; further off, the time to leave.
+  let leaveText = $derived(drive ? (drive.leave.getTime() - clock.now.getTime() < 3600000 ? leaveIn(drive.leave, clock.now) : 'leave by ' + time(drive.leave)) : '');
   let rowsHeight = $state(0); // the map matches the details beside it
 
   const plainDate = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
@@ -90,11 +99,14 @@
         {#if e.location}
           <div class="row"><span class="ic"><Icon name="mapPin" size={24} /></span><div class="day">{e.location}</div></div>
         {/if}
+        {#if drive}
+          <div class="row"><span class="ic"><Icon name="car" size={24} /></span><div class="sub num">{drive.minutes} min drive{drive.minutes > drive.usual + 4 ? ' with traffic' : ''} · {leaveText}</div></div>
+        {/if}
         {#if e.quiet && remindsFor(e.cal) && say.on && !e.allDay}
           <div class="row"><span class="ic"><Icon name="volumeOff" size={24} /></span><div class="sub">Not announced (#quiet)</div></div>
         {/if}
         {#if reminder}
-          <div class="row"><span class="ic"><Icon name={allQuiet ? 'volumeOff' : 'volume'} size={24} /></span><div class="sub">{#if allQuiet}Not announced: {quietTimes.map((d) => time(d)).join(' and ')} {quietTimes.length > 1 ? 'are' : 'is'} in quiet hours{:else}Announced {whenSaid(reminder.all)}{reminder.own ? (reminder.all.length > 1 ? ' (its own reminders)' : ' (its own reminder)') : ''}{speaker() ? ' on ' + speaker().label : ''}{quietTimes.length ? ' (not at ' + quietTimes.map((d) => time(d)).join(' or ') + ': quiet hours)' : ''}{/if}</div></div>
+          <div class="row"><span class="ic"><Icon name={allQuiet ? 'volumeOff' : 'volume'} size={24} /></span><div class="sub">{#if allQuiet}Not announced: {quietTimes.map((d) => time(d)).join(' and ')} {quietTimes.length > 1 ? 'are' : 'is'} in quiet hours{:else}Announced {whenSaid(reminder.all, fromLeaving)}{reminder.own ? (reminder.all.length > 1 ? ' (its own reminders)' : ' (its own reminder)') : ''}{speaker() ? ' on ' + speaker().label : ''}{quietTimes.length ? ' (not at ' + quietTimes.map((d) => time(d)).join(' or ') + ': quiet hours)' : ''}{/if}</div></div>
         {/if}
         {#if notes}
           <div class="row notes"><span class="ic"><Icon name="notes" size={24} /></span><p>{notes}</p></div>

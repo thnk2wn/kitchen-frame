@@ -31,14 +31,11 @@ Thoughts to try in a branch and measure on the frame, not plans:
 
 ## Calendar and events
 
-- **Commute time** on an event's details: "25 min with traffic · leave by 7:55". Google's Routes API
-  is free within 5,000 traffic-aware requests a month (needs a billing account; cap requests per day
-  to guarantee $0). Apple's Maps Server API is free within 25,000 calls a day but needs a paid
-  developer membership. OSRM is free with no key but has no traffic.
 - **Full-screen map:** tap the map preview for a larger one, with + and – buttons (no pinch on the
-  frame).
-- **PIN for private calendars:** let a calendar's details open after a PIN, so work events can be
-  read without being open to anyone in the kitchen.
+  frame): a bigger Google Static Maps picture per zoom level, each counting against the Worker's
+  daily allowance.
+- **The radar's street map from Google** too (Map Tiles API, 100,000 free tiles a month), so every
+  map looks the same; it's OpenStreetMap's for now.
 - **Calendars chosen on the frame:** the Mac bridge can see every calendar the Mac has (accounts and
   subscriptions), so Settings could list them to pick and colour, instead of `CALENDAR_URLS`.
 - **Countdowns:** "12 days to the beach" for chosen events, on Home or the clock screen.
@@ -74,9 +71,9 @@ Thoughts to try in a branch and measure on the frame, not plans:
 ## Announcements
 
 Built: Settings → Announcements (speaker, volume, alert volume, agent messages, event reminders
-by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. Later:
+by calendar, red and orange Home Assistant alerts) and `script.frame_announce`; reminders for an
+event with a drive count back from when to leave and say the drive (docs/announcements.md). Later:
 
-- **Leave-by reminders** from travel time (with the commute idea under Calendar and events).
 - **The washer reminder** moved onto the shared announce script, so all speech shares one volume routine.
 - **Snooze a reminder from the frame:** dismissing "Washer done" could pause the spoken reminders until
   morning, or "remind me in 2 hours", rather than nothing; an hour's snooze was judged not worth it
@@ -86,15 +83,10 @@ by calendar, red and orange Home Assistant alerts) and `script.frame_announce`. 
 
 Since 2026-10-19 one part of the screen that fails shows a placeholder instead of taking the page
 down (`components/Safe.svelte`), and the frame reloads itself if the page stops updating or keeps
-erroring (`lib/watchdog.js`). Next:
+erroring (`lib/watchdog.js`). Since 2026-10-22 the kiosk app restarts itself at 3 AM (a reload
+doesn't give back the app's memory), and Home Assistant tells a phone when the frame goes quiet
+(docs/frame.md). Next:
 
-- **A reload in the night, if the numbers say so:** since 2026-10-20 each check-in carries the kiosk's
-  memory (kiosk 1.8): the status page's Memory row shows the day's range, and
-  `scripts/frame-metrics.sh 7` shows a week per hour from Workers Analytics Engine. If the app's
-  memory climbs steadily between reloads, reload the page around 3 AM (nightly or weekly) from the
-  dashboard's own clock; if it stays flat, skip it.
-- **Tell someone when the frame goes quiet:** a Home Assistant notification to a phone when the frame
-  hasn't checked in for 15 minutes (the Ops tab's badge only shows when the app is open).
 - **A faster smoke test:** `SMOKE_PARALLEL=4` runs four screens at a time (about 24 s instead of 70),
   but about one run in four had live API calls fail on Home and Calendar (`api.failed`, which call not
   yet logged). Find which call, and why, before making it the default.

@@ -57,6 +57,7 @@ All optional, comma-separated, in the same order as `CALENDAR_URLS`:
 | --- | --- |
 | `CALENDAR_NAMES` | Names in the frame's **Calendars** list, when a feed's own name isn't useful (Exchange calls everything "Calendar"). |
 | `CALENDAR_DETAILS` | `yes` for calendars whose events open with their details when tapped, `pin:<name>` for ones that open only after that person's own PIN; others (unset or `no`) don't. See [Event details](#event-details). |
+| `CALENDAR_DRIVE` | `yes` for calendars whose events show the drive there, with traffic: your own and the family's, not a team's schedule or a remote job's meetings. Needs `GOOGLE_MAPS_KEY`. See [Drive times](#drive-times). |
 | `CALENDAR_REFRESH` | Hours between fetches of that feed (blank: every 10 minutes). For a feed that rarely changes, such as a season's game schedule, or a site that refuses a cloud server asking often. |
 | `CALENDAR_COLORS` | Each calendar's colour, to match your phone say: `red`, `orange`, `yellow`, `green`, `teal`, `blue`, `indigo`, `purple`, `pink`, `brown`, `gray`, or `#rrggbb`. Unset ones rotate through red, blue, green, purple, orange, teal. Named colours have light and dark versions that follow the frame's theme. |
 
@@ -99,11 +100,54 @@ the screen, not from whoever holds the frame's key. A feed published without its
   link is "Video call". Tapping one shows its QR code where the map was, to open on a phone.
 - A weekly event's notes are stored once, not per week.
 - **A map** of the location shows beside the details when the place can be found: an address, or a
-  named place like a stadium. The Worker looks it up with OpenStreetMap's Nominatim the first time
-  that event is opened, searching near home first (`WEATHER_LAT`/`WEATHER_LON`) so "Aquatic center"
-  finds the local one, and caches the answer in KV. Map tiles come from OpenStreetMap through the
-  Worker's cache. Video calls and links are never looked up. This sends the location text (only) to
-  OpenStreetMap's servers, and only for calendars set to open.
+  named place like a stadium. The Worker looks it up the first time that event is opened, searching
+  near home first (`WEATHER_LAT`/`WEATHER_LON`) so "Aquatic center" finds the local one, and caches
+  the answer in KV. Video calls and links are never looked up. Only calendars set to open are
+  looked up, and only the location text is sent.
+  - **With `GOOGLE_MAPS_KEY`** (Google Maps Platform, below), the place is looked up with Google's
+    Geocoding API (kept 30 days, as long as Google's terms allow) and the map is Google's Static
+    Maps picture, fetched by the Worker so the key never reaches the frame.
+  - **Without it**, or when Google refuses or its allowance is used up, OpenStreetMap's Nominatim
+    finds the place and the map is OSM's tiles through the Worker's cache.
+
+### Drive times
+
+On calendars set to `yes` in `CALENDAR_DRIVE` (and able to open), an event with a place shows
+the drive there from home, with traffic, as Google's Routes API expects it when leaving shortly
+before the start:
+
+- **Its details** have a row like "14 min drive · leave by 6:16 AM" ("with traffic" when that's
+  more than a few minutes over the usual; "Leave in 20 min" within the hour).
+- **Home** shows the drive beside each such event's time, today and in the days below ("6:30 –
+  8:00 AM · 🚗 13 min"); the next one today, from two hours before it starts, says "Leave in 20 min
+  · 13 min drive" under it instead.
+
+Drives are asked again every 12 hours, and every 10 minutes in the two hours before an event. The
+Worker keeps each answer that long in Cloudflare's cache, shared by every screen and reload.
+
+Home is `HOME_LAT`/`HOME_LON`, or the weather location when they're unset (often rounded, so a
+minute or two out). A trip that's usually over two hours (an away game, a holiday) shows nothing,
+and so does an event more than a week off or already started. Each ask counts against the Worker's
+daily allowance of Routes calls (below).
+
+### Google Maps Platform
+
+1. In the Google Cloud console, make a project and link billing. A new account starts on a free
+   trial that never charges the card until it's upgraded.
+2. Enable **Maps Static API**, **Geocoding API** and **Routes API**.
+3. Make an API key, and under API restrictions allow only those three. Leave application
+   restrictions at None: the key is used only by the Worker, whose address isn't fixed.
+4. `npx wrangler secret put GOOGLE_MAPS_KEY` in `dashboard/`.
+5. Under Billing → Budgets & alerts, add a budget with email alerts (say $1, alerting at 1%), with
+   the savings boxes cleared so trial credit doesn't hide a charge.
+
+Google bills past a monthly free allowance per API (10,000 calls for Static Maps and Geocoding,
+5,000 for Routes with traffic), and has **no spending cap for Maps**: the budget's spend-cap option
+doesn't cover it, and its daily quotas may not be lowerable on your account. So the Worker keeps its
+own (`GOOGLE_CAPS` in `worker/maps.js`): a daily and monthly count per API in the message room, set
+so a month at the daily cap stays under the free allowance. Past it, maps fall back to OSM until
+the next day (UTC).
+
 - Without `CALENDAR_DETAILS`, nothing opens and no notes are kept, as before.
 
 Calendars you'd want behind a PIN (a work calendar, say) are best left at `no` for now; a frame in

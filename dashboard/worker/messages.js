@@ -24,6 +24,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 // The Worker's stub for the room. Every request goes through one instance, so the list is consistent.
 import { devicesRoute } from './devices.js';
 import { storeRoute } from './store.js';
+import { countGoogle } from './maps.js';
 
 export const room = (env) => env.MESSAGES.get(env.MESSAGES.idFromName('frame'));
 
@@ -51,6 +52,12 @@ export class MessageRoom {
     // Devices and their keys (devices.js): stored here, with everything else about the frame.
     if (path.startsWith('/devices/')) return devicesRoute(this.ctx.storage, path, req);
     // What's written all day (the frame's check-ins, fitness): a small store here instead of KV (store.js).
+    // Calls to Google's map APIs today and this month (maps.js spend()): 429 once at the cap.
+    if (path === '/google/spend') {
+      const { api } = await req.json().catch(() => ({}));
+      const r = await countGoogle(this.ctx.storage, api);
+      return json(r, r.ok ? 200 : 429);
+    }
     if (path.startsWith('/store/')) return json(await storeRoute(this.ctx.storage, path.slice(7), await req.json().catch(() => ({}))));
     if (path === '/home') {
       const home = (await this.ctx.storage.get('home')) || {};

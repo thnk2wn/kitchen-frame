@@ -38,10 +38,25 @@
   import { clock, calendar, weather, lists, mealItems, rotationRules, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
   import { mealRows } from '../lib/meals.js';
+  import { drivable, driveOf, loadDrive, leaveIn, SOON_MS } from '../lib/drive.svelte.js';
 
   let events = $derived(calendar.data ? calendar.data.events : []);
   // Finished events drop off Home; the Calendar tab still shows them.
   let today = $derived(eventsOn(events, clock.now).filter((e) => e.allDay || Date.parse(e.end) > clock.now.getTime()));
+  // Events still to come with a drive (lib/drive.svelte.js), today and in the days below, show it
+  // beside their time; the next one today, from two hours before, says when to leave instead.
+  // loadDrive skips any asked lately.
+  $effect(() => {
+    const now = clock.now.getTime();
+    for (const e of [...today, ...upcomingFirst.flatMap((d) => d.events)]) if (drivable(e) && Date.parse(e.start) > now) loadDrive(e, now);
+  });
+  const driveMins = (e) => { const d = Date.parse(e.start) > clock.now.getTime() && driveOf(e); return d ? d.minutes : 0; };
+  let nextDrive = $derived(today.find((e) => drivable(e) && Date.parse(e.start) > clock.now.getTime() && Date.parse(e.start) - clock.now.getTime() <= SOON_MS));
+  $effect(() => { if (nextDrive) loadDrive(nextDrive, clock.now.getTime()); });
+  let leaveFor = $derived.by(() => {
+    const d = nextDrive && driveOf(nextDrive);
+    return d ? { uid: nextDrive.uid + nextDrive.start, text: leaveIn(d.leave, clock.now) + ' · ' + d.minutes + ' min drive' } : null;
+  });
   // Upcoming: the next 7 days from tomorrow, not just to Sunday, so a weekend still shows Monday on
   // (the feed is already sorted). The card lists as many as fit.
   let upcoming = $derived.by(() => {
@@ -192,7 +207,8 @@
         <p class="empty">Couldn’t load the calendar.</p>
       {:else}
         {#each today as e (e.uid + e.start)}
-          <EventRow event={e} now={clock.now} />
+          <EventRow event={e} now={clock.now} leave={leaveFor && leaveFor.uid === e.uid + e.start ? leaveFor.text : ''}
+            drive={leaveFor && leaveFor.uid === e.uid + e.start ? 0 : driveMins(e)} />
         {:else}
           {#if !dutiesAt('last').length}<p class="empty">{calendar.data ? 'No more events today' : 'Loading…'}</p>{/if}
         {/each}
@@ -215,7 +231,7 @@
           {/each}
         {/if}
         {#each d.events as e (e.uid + e.start)}
-          <EventRow event={e} now={clock.now} place={false} />
+          <EventRow event={e} now={clock.now} place={false} drive={driveMins(e)} />
         {/each}
       {:else}
         <p class="empty">{calendar.data ? 'Nothing else this week' : ''}</p>

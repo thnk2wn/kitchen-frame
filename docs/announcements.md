@@ -35,6 +35,12 @@ will be announced. The frame does the timing, so nothing is said while it's off;
 by up to 10 minutes (a reload) is still said if the event hasn't started. **Own reminders** decides
 whether an event's own reminders win over the lead time.
 
+An event with a drive time ([calendar.md](calendar.md#drive-times): a place, on a `CALENDAR_DRIVE`
+calendar) is announced the lead time before it's time to **leave**, not before it starts, and the
+drive is said too: "In 43 minutes: Gym, at Riverside Fitness. 13 minute drive, so leave in 30
+minutes." Its own reminders keep their times (they may already be set for leaving) and say the
+drive as well. `#quiet` events are never said, drive or not.
+
 ## Home alerts
 
 A red notice (a leak, the freezer; see [notices.md](notices.md)) is said when it appears, "Alert:

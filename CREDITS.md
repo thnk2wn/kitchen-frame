@@ -30,7 +30,10 @@ description of that work.
   [Openverse](https://openverse.org): "Front Entry" by Paul Pakozdi, "Spring Lake" by satguru,
   "Home Garage with Epoxy Coatings" by Nolan V. and "The beginnings of a Garden for the Buddha" by Wonderlane.
 - Demo mode's Music row: public Spotify playlists, by their makers and Spotify.
-- Maps: tiles and place lookups from [OpenStreetMap](https://www.openstreetmap.org/copyright)
+- Maps with `GOOGLE_MAPS_KEY`: event maps, place lookups and drive times from
+  [Google Maps Platform](https://cloud.google.com/maps-platform/terms) (Static Maps, Geocoding,
+  Routes), fetched by the Worker; the map pictures carry Google's own credit.
+- Maps otherwise (and the radar's street map): tiles and place lookups from [OpenStreetMap](https://www.openstreetmap.org/copyright)
   (© OpenStreetMap contributors, ODbL) through its tile servers and
   [Nominatim](https://operations.osmfoundation.org/policies/nominatim/), within their usage
   policies (an identifying User-Agent, light use, results cached by the Worker).

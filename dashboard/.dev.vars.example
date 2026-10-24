@@ -25,6 +25,9 @@ DASHBOARD_KEY=""
 # CALENDAR_COLORS="blue, yellow, green"
 # yes for calendars whose events open with their details and notes when tapped.
 # CALENDAR_DETAILS="yes, yes, no"
+# yes for calendars whose events show the drive there with traffic (needs GOOGLE_MAPS_KEY, and the
+# calendar opening in CALENDAR_DETAILS); no for a team's schedule nobody drives to.
+# CALENDAR_DRIVE="yes, yes, no"
 # Names for the Calendars show/hide list.
 # CALENDAR_NAMES="Personal, Family, Work"
 # IANA zone for event times that carry no zone at all (rare). Defaults to the feed's own.
@@ -59,6 +62,14 @@ TODOIST_TOKEN=""
 # BRIDGE_TOKEN=""
 # The camera relay's address(es) with its token, space-separated (bridge/camera-relay/).
 # CAMERA_RELAY="http://<mac>:1985/<token>/?cameras=<name>,<name>"
+
+# ---- Maps --------------------------------------------------------
+# Optional: Google Maps Platform, for events' maps (docs/calendar.md has the setup). Without it, maps
+# come from OpenStreetMap. A Worker secret: npx wrangler secret put GOOGLE_MAPS_KEY
+# GOOGLE_MAPS_KEY=""
+# Optional: where drives to events start (rounded to 4 places is plenty). Defaults to WEATHER_LAT/LON.
+# HOME_LAT="40.7128"
+# HOME_LON="-74.0060"
 
 # ---- Music and videos --------------------------------------------
 # Optional (docs/music.md).

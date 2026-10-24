@@ -391,7 +391,7 @@ Inspired by [Wes Bos](https://github.com/wesbos/photo-frame-dashboard)
 ([video](https://youtu.be/ZLycoUMltNI)) and forked from
 [Hunter Yeagley's kitchen-frame](https://github.com/huntsyea/kitchen-frame). Weather data by
 [Open-Meteo](https://open-meteo.com) and the [National Weather Service](https://www.weather.gov),
-recipes from [TheMealDB](https://www.themealdb.com), maps from [OpenStreetMap](https://www.openstreetmap.org/copyright),
+recipes from [TheMealDB](https://www.themealdb.com), maps from [Google Maps Platform](https://cloud.google.com/maps-platform/terms) and [OpenStreetMap](https://www.openstreetmap.org/copyright),
 icons from [Lucide](https://lucide.dev). Full credits in [CREDITS.md](CREDITS.md).
 
 Released under the [MIT License](LICENSE).

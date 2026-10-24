@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mappable, geocode, lookups } from './maps.js';
+import { mappable, geocode, lookups, countGoogle, staticMap, drive, GOOGLE_CAPS } from './maps.js';
 
 function kv() {
   const m = new Map(), puts = [];
@@ -52,4 +52,93 @@ test('geocode: the address alone when the whole is not found; an old miss is loo
   await env.CALENDAR.put('geo:' + place.toLowerCase(), JSON.stringify({ none: true })); // saved by the old version
   assert.deepEqual(await geocode(env, place, async () => {}), { lat: 39.80, lon: -89.64 });
   assert.equal(asked.at(-1), '120 Main St, Springfield, IL 62701');
+});
+
+test('geocode with a Google key: Google first, kept 30 days; OSM when Google says no', async () => {
+  const asked = [];
+  globalThis.fetch = async (u) => {
+    u = new URL(u); asked.push(u.host);
+    if (u.host === 'maps.googleapis.com') {
+      const a = u.searchParams.get('address');
+      if (a.includes('Denied')) return Response.json({ status: 'REQUEST_DENIED' }, { status: 200 });
+      return Response.json({ status: 'OK', results: [{ geometry: { location: { lat: 39.81, lng: -89.65 } } }] });
+    }
+    return Response.json([{ lat: '39.70', lon: '-89.60' }]);
+  };
+  const env = { ...home, GOOGLE_MAPS_KEY: 'k', CALENDAR: kv() };
+  assert.deepEqual(await geocode(env, '401 Main St, Springfield'), { lat: 39.81, lon: -89.65 });
+  assert.deepEqual(asked, ['maps.googleapis.com']);
+  assert.equal(env.CALENDAR.puts[0][2].expirationTtl, 30 * 86400);
+  asked.length = 0;
+  assert.deepEqual(await geocode(env, 'Denied Arena', async () => {}), { lat: 39.70, lon: -89.60 });
+  assert.deepEqual(asked, ['maps.googleapis.com', 'nominatim.openstreetmap.org']);
+});
+
+test('geocode with a Google key: a bare name found far from home is not taken', async () => {
+  globalThis.fetch = async (u) => (new URL(u).host === 'maps.googleapis.com'
+    ? Response.json({ status: 'OK', results: [{ geometry: { location: { lat: 51.5, lng: -0.1 } } }] })
+    : Response.json([]));
+  assert.equal(await geocode({ ...home, GOOGLE_MAPS_KEY: 'k', CALENDAR: kv() }, 'Aquatic center'), null);
+});
+
+test('countGoogle: stops at the day cap, starts again the next day', async () => {
+  const m = new Map(), storage = { get: async (k) => m.get(k), put: async (k, v) => { m.set(k, v); } };
+  const day1 = new Date('2026-10-24T12:00:00Z'), day2 = new Date('2026-10-25T12:00:00Z');
+  for (let i = 0; i < GOOGLE_CAPS.routes.day; i++) assert.equal((await countGoogle(storage, 'routes', day1)).ok, true);
+  assert.equal((await countGoogle(storage, 'routes', day1)).ok, false);
+  assert.equal((await countGoogle(storage, 'static', day1)).ok, true); // each API its own
+  assert.equal((await countGoogle(storage, 'routes', day2)).ok, true);
+  assert.equal((await countGoogle(storage, 'nope', day2)).ok, false);
+});
+
+test('countGoogle: stops at the month cap however the days fall', async () => {
+  const m = new Map([['google-calls', { day: '2026-10-01', month: '2026-10', d: {}, m: { geocode: GOOGLE_CAPS.geocode.month } }]]);
+  const storage = { get: async (k) => m.get(k), put: async (k, v) => { m.set(k, v); } };
+  assert.equal((await countGoogle(storage, 'geocode', new Date('2026-10-24T12:00:00Z'))).ok, false);
+  assert.equal((await countGoogle(storage, 'geocode', new Date('2026-11-01T12:00:00Z'))).ok, true);
+});
+
+test('staticMap: checks its numbers, needs a key, and passes the picture through', async () => {
+  const p = (q) => new URLSearchParams(q);
+  assert.equal((await staticMap({ GOOGLE_MAPS_KEY: 'k' }, p('lat=1&lon=2&w=9999&h=200&z=15'))).status, 400);
+  assert.equal((await staticMap({}, p('lat=1&lon=2&w=340&h=280&z=15'))).status, 404);
+  let sent;
+  globalThis.fetch = async (u) => { sent = new URL(u); return new Response('png', { headers: { 'Content-Type': 'image/png' } }); };
+  const res = await staticMap({ GOOGLE_MAPS_KEY: 'k' }, p('lat=39.8&lon=-89.64&w=340&h=280&z=15'));
+  assert.equal(res.status, 200);
+  assert.equal(sent.searchParams.get('size'), '340x280');
+  assert.equal(sent.searchParams.get('markers'), 'color:red|39.80000,-89.64000');
+  assert.match(res.headers.get('Cache-Control'), /^private/);
+});
+
+test('drive: from home with traffic, only for a start in the coming week', async () => {
+  let sent;
+  globalThis.fetch = async (u, o) => {
+    if (String(u).startsWith('https://routes.googleapis.com')) { sent = JSON.parse(o.body); return Response.json({ routes: [{ duration: '1260s', staticDuration: '900s' }] }); }
+    return Response.json({ status: 'OK', results: [{ geometry: { location: { lat: 39.81, lng: -89.65 } } }] });
+  };
+  const env = { ...home, HOME_LAT: '39.7712', HOME_LON: '-89.6011', GOOGLE_MAPS_KEY: 'k', CALENDAR: kv() };
+  const now = Date.parse('2026-10-24T12:00:00Z');
+  assert.deepEqual(await drive(env, '401 Main St, Springfield', '2026-10-24T14:00:00Z', now), { minutes: 21, usual: 15 });
+  assert.equal(sent.routingPreference, 'TRAFFIC_AWARE');
+  assert.equal(sent.departureTime, '2026-10-24T13:30:00.000Z');
+  assert.deepEqual(sent.origin.location.latLng, { latitude: 39.7712, longitude: -89.6011 });
+  assert.equal(await drive(env, '401 Main St, Springfield', '2026-10-24T11:00:00Z', now), null); // already started
+  assert.equal(await drive(env, '401 Main St, Springfield', '2026-11-05T11:00:00Z', now), null); // too far ahead
+  assert.equal(await drive({ ...env, GOOGLE_MAPS_KEY: '' }, '401 Main St, Springfield', '2026-10-24T14:00:00Z', now), null);
+});
+
+test('drive: one Routes call shared by every screen asking within its time bucket', async () => {
+  const store = new Map();
+  globalThis.caches = { default: { match: async (r) => store.get(r.url)?.clone(), put: async (r, res) => { store.set(r.url, res); } } };
+  let routes = 0;
+  globalThis.fetch = async (u) => {
+    if (String(u).startsWith('https://routes.googleapis.com')) { routes++; return Response.json({ routes: [{ duration: '780s', staticDuration: '780s' }] }); }
+    return Response.json({ status: 'OK', results: [{ geometry: { location: { lat: 39.81, lng: -89.65 } } }] });
+  };
+  const env = { ...home, GOOGLE_MAPS_KEY: 'k', CALENDAR: kv() };
+  const now = Date.parse('2026-10-24T12:00:00Z');
+  for (let i = 0; i < 3; i++) assert.deepEqual(await drive(env, '401 Main St, Springfield', '2026-10-26T10:30:00Z', now + i * 60000), { minutes: 13, usual: 13 });
+  assert.equal(routes, 1);
+  delete globalThis.caches;
 });

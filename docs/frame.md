@@ -153,6 +153,14 @@ the frame, Settings → About → Recent events; in Cloudflare (Worker → Obser
 `source = "frame"`. Settings are backed up with each check-in: after a reset the frame takes them
 back, and the last 10 versions are kept (`GET /api/frame/settings?history`).
 
+**When the frame goes quiet**, Home Assistant can tell a phone. While it's connected, the dashboard
+restarts a 20-minute timer helper, `timer.kitchen_frame_quiet` (`dashboard/src/lib/checkin.js`), 30
+seconds after it loads and every 5 minutes after. An automation on that timer finishing sends a
+notification ("Kitchen frame went quiet"), and another when it starts again ("back"). Make the timer
+(Settings → Devices & services → Helpers → Timer) and the automation in Home Assistant; without the
+timer the dashboard's calls just fail quietly. A frame unplugged, stuck at boot, or off Wi-Fi all
+look the same: no restart for 20 minutes.
+
 Settings → About shows the version: `v1.0.0` on a tag, `v1.0.0+3 (a1b2c3d)` three commits past it
 (`git describe` at build time), with the bundle hash and build time.
 

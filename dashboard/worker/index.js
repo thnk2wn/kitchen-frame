@@ -41,6 +41,8 @@
 //   GET  /api/rotations              who's up early, whose bedtime (ROTATIONS; src/lib/rotations.js)
 //   GET  /api/geo?q=                 an event location's coordinates, for its map (see maps.js)
 //   GET  /api/tiles/:z/:x/:y         OpenStreetMap tiles, cached
+//   GET  /api/staticmap?lat&lon&w&h&z Google's map picture of a place (maps.js), when GOOGLE_MAPS_KEY is set
+//   GET  /api/drive?q=&at=          { drive: { minutes, usual } | null }: from home to an event's place
 //   GET  /api/spotify/playlists      every Spotify playlist, and when each was last played (spotify.js)
 //   GET  /api/spotify/now            what's playing from (a playlist, album, ...) and its cover
 //   GET  /api/spotify/queue          the next few songs (Up next)
@@ -107,7 +109,7 @@ const DEMO_KEY = 'frame:demo'; // { on, at }: the frame's demo mode (POST /api/f
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage, moveToPaprika } from './recipes.js';
-import { geocode, tile } from './maps.js';
+import { geocode, staticMap, drive, tile } from './maps.js';
 import { spotifyConfigured, getPlaylists, getNow, getQueue } from './spotify.js';
 import { level, BRIDGE_LISTS, fromReminders, remindersName, bridge } from './bridge.js';
 
@@ -330,6 +332,11 @@ async function handle(req, env, ctx) {
         // newly findable place shows at once.
         try { const place = await geocode(env, url.searchParams.get('q')); return json({ place }, 200, place ? 'private, max-age=86400' : 'no-store'); }
         catch (err) { return json({ place: null, error: String(err.message || err) }); } // not cached; tried again next open
+      }
+      if (url.pathname === '/api/staticmap') return staticMap(env, url.searchParams);
+      if (url.pathname === '/api/drive') {
+        try { const d = await drive(env, url.searchParams.get('q'), url.searchParams.get('at')); return json({ drive: d }, 200, d ? 'private, max-age=600' : 'no-store'); }
+        catch (err) { return json({ drive: null, error: String(err.message || err) }); }
       }
       const t = /^\/api\/tiles\/(\d+)\/(\d+)\/(\d+)$/.exec(url.pathname);
       if (t) return tile(+t[1], +t[2], +t[3], ctx);
@@ -561,7 +568,7 @@ async function updateCalendar(env, previous) {
   const feeds = (await env.CALENDAR.get(FEEDS_KEY, 'json')) || {};
   const before = JSON.stringify(feeds);
   const data = await refresh(env, previous, feeds);
-  const pick = (d) => JSON.stringify([d.events, d.errors, d.names, d.colors, d.details, d.notes, d.links, d.pins]);
+  const pick = (d) => JSON.stringify([d.events, d.errors, d.names, d.colors, d.details, d.notes, d.links, d.pins, d.drive]);
   const same = previous && pick(previous) === pick(data);
   if (!same || Date.now() - Date.parse(previous.updated) > HEARTBEAT_MS) await env.CALENDAR.put(KEY, JSON.stringify(data));
   // Each feed's fetch record changes only when a feed is fetched on a slow schedule or fails, so
@@ -613,6 +620,9 @@ async function refresh(env, previous, feeds = {}) {
   const names = [];
   // CALENDAR_DETAILS (optional, same order): which calendars' events open with their notes.
   const details = env.CALENDAR_DETAILS ? urls.map((_, i) => detailsOf(env, i).open) : null;
+  // CALENDAR_DRIVE (optional, same order): calendars whose events show the drive there (maps.js
+  // drive()); yes for your own, no for a team's schedule nobody drives to. Needs GOOGLE_MAPS_KEY.
+  const drive = env.CALENDAR_DRIVE && env.GOOGLE_MAPS_KEY ? urls.map((_, i) => /^(yes|y|true|on)$/i.test((String(env.CALENDAR_DRIVE).split(',')[i] || '').trim())) : null;
   // Whose PIN opens each calendar's events, for those set to pin:<name>.
   const pins = env.CALENDAR_DETAILS ? urls.map((_, i) => detailsOf(env, i).pin) : [];
   const every = String(env.CALENDAR_REFRESH || '').split(',').map((x) => (Number(x) > 0 ? Number(x) * 3600000 : 0));
@@ -679,7 +689,7 @@ async function refresh(env, previous, feeds = {}) {
   const notes = splitNotes(events), links = splitLinks(events);
   return { updated: new Date(now).toISOString(), calendars: urls.length, names: urls.map((_, i) => custom[i] || names[i] || null),
     colors: colors ? urls.map((_, i) => colors[i] || null) : undefined, details: details || undefined,
-    pins: pins.some(Boolean) ? pins : undefined,
+    pins: pins.some(Boolean) ? pins : undefined, drive: drive && drive.some(Boolean) ? drive : undefined,
     notes: Object.keys(notes).length ? notes : undefined, links: Object.keys(links).length ? links : undefined, errors, events };
 }
 
@@ -688,7 +698,7 @@ async function refresh(env, previous, feeds = {}) {
 // response to a request that had the key. That keeps the key out of URLs, and so out of request
 // logs and caches. (A key in the URL, ?key=, how they used to do it, is no longer accepted.)
 const AUTH_COOKIE = 'frame_auth';
-const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/share/media/') || p.startsWith('/api/youtube/thumb/') || p.startsWith('/api/tiles/') || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
+const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/share/media/') || p.startsWith('/api/youtube/thumb/') || p.startsWith('/api/tiles/') || p === '/api/staticmap' || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
 // Constant-time comparison, so a key or cookie can't be guessed a character at a time.
 function same(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
