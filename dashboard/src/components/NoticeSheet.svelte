@@ -42,7 +42,7 @@
   {#if n.ended}
     <button class="item past" onclick={() => (open = open === n.id + n.created ? null : n.id + n.created)}>
       {@render stamp(n)}
-      <span class="ic {n.tone}"><Icon name={iconOf(n.tone)} size={18} /></span>
+      <span class="ic {n.tone}"><Icon name={iconOf(n)} size={18} /></span>
       <div class="txt">
         <div class="title"><Txt text={n.title || 'Notice'} /></div>
         {#if open === n.id + n.created && n.message && n.message !== n.title}<div class="msg"><Txt text={n.message} /></div>{/if}
@@ -52,7 +52,7 @@
   {:else}
     <div class="item">
       {@render stamp(n)}
-      <span class="ic {n.tone}"><Icon name={iconOf(n.tone)} size={22} /></span>
+      <span class="ic {n.tone}"><Icon name={iconOf(n)} size={22} /></span>
       <div class="txt">
         <div class="title"><Txt text={n.title || 'Notice'} /></div>
         {#if n.message && n.message !== n.title}<div class="msg"><Txt text={n.message} /></div>{/if}

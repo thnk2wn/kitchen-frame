@@ -137,7 +137,7 @@
       {/if}
       {#if notices().length}
         {@const n = notices()[0]}
-        <div class="notice tone-{n.tone}"><Icon name={iconOf(n.tone)} size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span>{#if startedAt(n, clock.now)}<small class="at">{startedAt(n, clock.now)}</small>{/if}</div>
+        <div class="notice tone-{n.tone}"><Icon name={iconOf(n)} size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span>{#if startedAt(n, clock.now)}<small class="at">{startedAt(n, clock.now)}</small>{/if}</div>
       {/if}
       {#if next}
         <div class="next"><span><Txt text={next.title} /></span><span class="num">{time(new Date(next.start))}</span></div>

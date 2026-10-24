@@ -62,8 +62,16 @@ onHAConnect(() => {
   }).catch((e) => console.error('notices', e));
 });
 
-// The icon for a tone: a bell for info, a warning triangle for warnings and alerts.
-export const iconOf = (tone) => (tone === 'info' ? 'bell' : 'alert');
+// The icon for a notice: what it's about, from a word in its id (frame_info_laundry_washer_running is a
+// washing machine), so "Washer running" and "Dishwasher ETA" don't look alike; the colour says how
+// urgent. Otherwise a bell for info, a warning triangle for warnings and alerts. First match wins:
+// dishwasher before washer.
+const ICON_BY_ID = [
+  [/dishwasher/, 'utensils'], [/washer/, 'washer'], [/dryer/, 'shirt'], [/leak|water/, 'droplets'],
+  [/freezer|fridge/, 'snow'], [/thermostat/, 'thermometer'], [/battery/, 'battery'], [/fuel|tire/, 'car'],
+  [/filter/, 'fan'], [/doorbell/, 'bell'], [/front_door|person/, 'person'], [/garage/, 'house'],
+];
+export const iconOf = (n) => (ICON_BY_ID.find(([re]) => re.test(n.id || '')) || [])[1] || (n.tone === 'info' ? 'bell' : 'alert');
 
 function toneOf(id) {
   return id.startsWith(PREFIX + 'alert') ? 'alert' : id.startsWith(PREFIX + 'info') ? 'info' : 'warn';

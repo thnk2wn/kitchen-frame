@@ -15,7 +15,7 @@
   <div class="notices">
     {#each shown as n (n.id)}
       <button class="notice {n.tone}" onclick={() => (ui.noticesOpen = true)}>
-        <Icon name={iconOf(n.tone)} size={20} /><span><Txt text={n.title || n.message} /></span>{#if startedAt(n, clock.now)}<small class="at num">{startedAt(n, clock.now)}</small>{/if}
+        <Icon name={iconOf(n)} size={20} /><span><Txt text={n.title || n.message} /></span>{#if startedAt(n, clock.now)}<small class="at num">{startedAt(n, clock.now)}</small>{/if}
       </button>
     {/each}
     {#if list.length > shown.length}
