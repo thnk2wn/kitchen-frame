@@ -37,6 +37,7 @@ const PHONE = [
   ['POST', '/api/frame/checkin'], ['POST', '/api/frame/command'],
   ['GET', '/api/frame/guest'], ['POST', '/api/frame/guest'], ['GET', '/api/frame/home'],
   ['GET', '/api/frame/screenshot'], ['POST', '/api/frame/screenshot/request'], ['GET', '/api/frame/status'],
+  ['GET', '/api/frame/timers'], // the frame's timers, for its Timers tab
   ['GET', '/api/ops/summary'], ['POST', '/api/share/media'], ['POST', '/api/share/play'],
   ['POST', '/api/devices/pin'], // its owner's PIN, for the frame (its own record only)
 ];

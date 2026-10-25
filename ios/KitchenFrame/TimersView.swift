@@ -14,6 +14,8 @@ struct TimersView: View {
     @State private var name = "" // none: "10 min", as on the frame
     @State private var busy: String?
     @State private var problem: String?
+    /// Why the frame's list couldn't be read, so a stale list never passes for the frame's.
+    @State private var unread: String?
     /// On the frame's home network (API.atHome): timers, like Remote, work only there. Nil until known.
     @State private var home: Bool?
 
@@ -29,6 +31,7 @@ struct TimersView: View {
                         .font(.callout)
                 }
                 if let problem { Text(problem).font(.callout).foregroundStyle(.red) }
+                if let unread { Text("Couldn’t read the frame’s timers: " + unread).font(.callout).foregroundStyle(.red) }
 
                 Section("On the frame") {
                     if sorted.isEmpty { Text("No timers running").foregroundStyle(.secondary) }
@@ -143,8 +146,14 @@ struct TimersView: View {
     }
 
     private func load() async {
-        guard busy == nil, let t = try? await api.timers() else { return }
-        timers = t.timers
-        at = t.at
+        guard busy == nil else { return }
+        do {
+            let t = try await api.timers()
+            timers = t.timers
+            at = t.at
+            unread = nil
+        } catch {
+            unread = error.localizedDescription
+        }
     }
 }
