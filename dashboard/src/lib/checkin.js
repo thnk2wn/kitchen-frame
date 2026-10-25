@@ -7,6 +7,7 @@ import { api } from './api.js';
 import { ui } from './state.svelte.js';
 import { night } from './night.svelte.js';
 import { ha, callService } from './ha.svelte.js';
+import { timers } from './timers.svelte.js';
 import { log, take, putBack, onError } from './log.svelte.js';
 
 // Settings worth keeping: choices made on the frame, not caches, history of what was said, running
@@ -50,6 +51,7 @@ export async function checkIn() {
       version: version(), release: release(), webview: (/Chrome\/([\d.]+)/.exec(navigator.userAgent) || [])[1] || '',
       kiosk: window.FrameKiosk.getVersion ? window.FrameKiosk.getVersion() : '', memory: memory(),
       loadedAt, screen: ui.idle ? (night.active ? 'night' : 'clock') : 'awake', tab: ui.tab, ha: ha.status,
+      timers: timers.list.map(({ id, label, end, total, done }) => ({ id, label, end, total, done })), // for the phone's Remote
       ...(changed ? { settings: now } : {}), ...(events.length ? { events } : {}),
     }) });
     if (changed) localStorage.setItem(SENT, json);

@@ -27,7 +27,8 @@
 //   POST /api/frame/restart          asks it to restart the kiosk app (1.12+; an older one reloads)
 //   POST /api/share/media            a photo or video from the phone app, shown on the frame (shared-media.js)
 //   GET  /api/share/media/:id        that photo or video
-//   POST /api/frame/command          { command: show|slideshow|wake|close|playgroup, tab?, group? } (the phone app)
+//   POST /api/frame/command          { command: show|slideshow|wake|close|playgroup|timer, tab?, group?,
+//                                      action?, label?, seconds?, id? } (the phone app; timer: start|cancel|add)
 //   /api/frame/screenshot...         the frame's screen, for the phone app (screenshot.js)
 //   GET  /api/frame/home             { home }: is the caller on the frame's network (home.js); ?why adds
 //                                    { you, frame }: the networks it compared
@@ -429,9 +430,9 @@ async function handle(req, env, ctx) {
       if (url.pathname === '/api/frame/command' && req.method === 'POST') {
         const away = await homeOnly(env, req); // only from home (home.js)
         if (away) return away;
-        const { command, tab, group } = await req.json().catch(() => ({}));
-        if (!['show', 'slideshow', 'wake', 'close', 'playgroup'].includes(command)) return json({ error: 'unknown command' }, 400);
-        return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command, tab, group }) });
+        const { command, tab, group, action, label, seconds, id } = await req.json().catch(() => ({}));
+        if (!['show', 'slideshow', 'wake', 'close', 'playgroup', 'timer'].includes(command)) return json({ error: 'unknown command' }, 400);
+        return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command, tab, group, action, label, seconds, id }) });
       }
       if (url.pathname === '/api/frame/reload' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'reload' }) });
       if (url.pathname === '/api/frame/restart' && req.method === 'POST') return room(env).fetch('https://room/command', { method: 'POST', body: JSON.stringify({ command: 'restart' }) });

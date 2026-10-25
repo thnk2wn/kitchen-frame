@@ -431,6 +431,16 @@ test('frame: the kiosk checks in and backs up its settings; secrets and odd keys
   assert.equal((await (await call('/api/frame/settings')).json()).settings['frame-theme'], 'dark');
 });
 
+test('frame: the check-in keeps its timers, cut down, for the phone app', async () => {
+  const store = new Map();
+  const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };
+  const fenv = { ...env, CALENDAR: kv };
+  const call = (method, body) => worker.fetch(new Request('https://frame.test/api/frame/status', { method, headers: { Authorization: 'Bearer k' }, body: body && JSON.stringify(body) }), fenv, {});
+  await call('POST', { version: 'a', timers: [{ id: 'k1', label: 'Pasta', end: 1700000000000.4, total: 600, done: false, extra: 'x' }, { id: 'k2', label: 'x'.repeat(80), end: 'soon', total: 60 }] });
+  const st = await (await call('GET')).json();
+  assert.deepEqual(st.timers, [{ id: 'k1', label: 'Pasta', end: 1700000000000, total: 600, done: false }]);
+});
+
 test('frame: events from the check-in are logged and the last ones kept with the status', async () => {
   const store = new Map();
   const kv = { get: async (k) => (store.has(k) ? JSON.parse(store.get(k)) : null), put: async (k, v) => store.set(k, v) };

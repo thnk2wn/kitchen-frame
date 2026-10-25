@@ -83,11 +83,12 @@ export function removeTimer(id) {
   save();
 }
 
-// From Alexa (worker/alexa.js, through the Worker's message connection): start a timer and show it
-// full screen, from across the kitchen; cancel one, or add time to one (durations.js pickTimer).
-export function fromVoice({ action, label, seconds }) {
+// From Alexa (worker/alexa.js) or the phone app's Remote, through the Worker's message connection:
+// start a timer and show it full screen, from across the kitchen; cancel one, or add time to one (the
+// phone's by id, Alexa's by name: durations.js pickTimer).
+export function fromVoice({ action, label, seconds, id }) {
   if (action === 'start') { startTimer(label, seconds); timers.big = true; return; }
-  const t = pickTimer(timers.list, label);
+  const t = (id && timers.list.find((x) => x.id === id)) || pickTimer(timers.list, label);
   if (!t) return;
   if (action === 'cancel') removeTimer(t.id);
   if (action === 'add') addTime(t.id, seconds || 60);

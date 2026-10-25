@@ -11,6 +11,11 @@ A companion app for the frame:
   what the frame is displaying. **Screenshot** shows the frame's screen as it is right now, full screen
   (pinch to zoom, share): the frame's kiosk app (1.7+) captures it and the Worker keeps it 10 minutes
   (`dashboard/worker/screenshot.js`); the frame says "Screenshot sent to a phone" afterwards.
+- **Timers** (on Remote): the frame's timers counting down, with +1 and cancel, and a name and a time
+  to start one there, full screen. **Siri** too, with no setup: "Hey Siri, set a 10 minute Kitchen
+  Frame timer", "start a pasta timer on Kitchen Frame" (Siri asks how long), "cancel the Kitchen Frame
+  timer", "add a minute to the Kitchen Frame timer" (`FrameTimers.swift`). Apple's phrases take one
+  detail each, so a length and a name together aren't one phrase. Like Remote, home Wi-Fi only.
 - **Guest mode** (Settings) hides personal things on the frame (Fitness) while guests are over.
 - **Apple Health:** Settings → Apple Health sends its owner's Activity rings, steps and recent workouts
   to the frame's [Fitness](../docs/fitness.md) tab, when the app opens and when Health has new data;
@@ -54,7 +59,7 @@ turned on again. Unpair from the app's Settings.
 
 | Part | Where |
 | --- | --- |
-| Remote | `POST /api/frame/command` (`show` with a `tab`, `slideshow`, `wake`, `close`), then `POST /api/frame/checkin` and `GET /api/frame/status` for what it shows |
+| Remote | `POST /api/frame/command` (`show` with a `tab`, `slideshow`, `wake`, `close`, `timer` with an `action`), then `POST /api/frame/checkin` and `GET /api/frame/status` for what it shows |
 | Screenshot | `POST /api/frame/screenshot/request`, then `GET /api/frame/screenshot?since=` until the frame's JPEG is there |
 | Ops | `GET /api/ops/summary` (`dashboard/worker/ops.js`), what needs attention as `dashboard/ops/page.html` decides it; `KitchenFrame/OpsView.swift` |
 | Pairing | `kitchenframe://pair?url=…&code=…`, a one-time code from the frame's Settings (`dashboard/src/components/Settings.svelte`), traded for this phone's own key (`POST /api/devices/claim`, `dashboard/worker/devices.js`); kept by `KitchenFrame/Pairing.swift` |

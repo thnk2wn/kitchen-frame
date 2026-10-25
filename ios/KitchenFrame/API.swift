@@ -101,6 +101,19 @@ struct API: Sendable {
         var tab: String?
         var screen: String?
         var receivedAt: String?
+        /// The frame's timers at its last check-in (dashboard/src/lib/timers.svelte.js).
+        var timers: [FrameTimer]?
+    }
+
+    /// A timer on the frame: when it ends (ms since 1970), its whole length in seconds, and whether it's
+    /// ringing.
+    struct FrameTimer: Decodable, Sendable, Identifiable {
+        var id: String
+        var label: String
+        var end: Double
+        var total: Int
+        var done: Bool
+        var endsAt: Date { Date(timeIntervalSince1970: end / 1000) }
     }
 
     /// Everything the status page shows (dashboard/worker/ops.js), as JSON.
@@ -142,8 +155,26 @@ struct API: Sendable {
 
     /// show (with a tab), slideshow, wake or close: the same commands Alexa sends.
     func command(_ command: String, tab: String? = nil) async throws {
-        struct Command: Encodable { var command: String; var tab: String? }
-        let data = try await send("api/frame/command", method: "POST", body: try json(Command(command: command, tab: tab)), contentType: "application/json")
+        try await sendCommand(Command(command: command, tab: tab))
+    }
+
+    /// A timer on the frame, as Alexa starts them: start one (shown full screen there), or cancel or add
+    /// to one, by its id, or with none the one ringing or ending next.
+    func timer(_ action: String, label: String? = nil, seconds: Int? = nil, id: String? = nil) async throws {
+        try await sendCommand(Command(command: "timer", action: action, label: label, seconds: seconds, id: id))
+    }
+
+    private struct Command: Encodable {
+        var command: String
+        var tab: String?
+        var action: String?
+        var label: String?
+        var seconds: Int?
+        var id: String?
+    }
+
+    private func sendCommand(_ c: Command) async throws {
+        let data = try await send("api/frame/command", method: "POST", body: try json(c), contentType: "application/json")
         struct Sent: Decodable { var sent: Int? }
         if let sent = try? JSONDecoder().decode(Sent.self, from: data), sent.sent == 0 {
             throw Failure(message: "The frame isn’t connected right now.")

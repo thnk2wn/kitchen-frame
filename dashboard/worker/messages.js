@@ -143,7 +143,7 @@ export class MessageRoom {
             : command === 'recipe' ? { id: String(id || '').slice(0, 100), title: String(title || '').slice(0, 200) }
               : command === 'refresh' ? { what: String(what || '').slice(0, 20) }
                 : command === 'media' ? { id, kind, title: String(title || '').slice(0, 120) }
-                  : command === 'timer' ? { action, label: String(label || '').slice(0, 40), seconds: Math.max(0, Math.min(86400, Math.round(Number(seconds) || 0))) } : {};
+                  : command === 'timer' ? { action, label: String(label || '').slice(0, 40), seconds: Math.max(0, Math.min(86400, Math.round(Number(seconds) || 0))), ...(id ? { id: String(id).slice(0, 20) } : {}) } : {};
       const msg = JSON.stringify({ command, ...extra });
       let sent = 0;
       for (const ws of this.ctx.getWebSockets()) { try { ws.send(msg); sent++; } catch {} }
