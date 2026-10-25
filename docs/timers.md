@@ -17,7 +17,7 @@ last timer is dismissed or cancelled.
 
 **On Recipes**, running timers are a row along the bottom instead of the chip: a card each, with
 its picture, name, digits readable from the stove, progress, +1 min and cancel, and a button for
-full screen. The recipe above shrinks to make room. Timers started while Recipes is open (from a
+full screen; the timer button in the top bar starts more. The recipe above shrinks to make room. Timers started while Recipes is open (from a
 recipe's steps, the top bar, Alexa or the phone) join the row rather than going full screen.
 
 **By voice**, with the [Alexa skill](alexa.md): "Alexa, ask Kitchen Frame to start a 10 minute pasta

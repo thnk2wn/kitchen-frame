@@ -4,7 +4,7 @@
   // On Recipes the timers are a row along the bottom instead (TimerDock.svelte).
   // A timer started from a recipe's steps stays in the chip, so the recipe stays readable.
   import Icon from './Icon.svelte';
-  import { timers, startTimer, renameTimer, timerNames, remaining, clockOf, timerPicture } from '../lib/timers.svelte.js';
+  import { timers, startTimer, renameTimer, timerNames, remaining, clockOf, timerPicture, MAX_TIMERS } from '../lib/timers.svelte.js';
 
   // docked: the timers show as a row along the bottom (TimerDock.svelte, on Recipes), so no chip here.
   let { docked = false } = $props();
@@ -44,8 +44,9 @@
     </div>
   {/if}
   <div class="wrapchip">
-    <!-- With a timer running, starting another is in the full screen, so the top bar stays narrow. -->
-    {#if !next}
+    <!-- With a timer running, starting another is in the full screen, so the top bar stays narrow; on
+         Recipes, with no chip, it stays here (up to three). -->
+    {#if !next || (docked && running.length < MAX_TIMERS)}
       <button class="gear" onclick={toggle} aria-label="Start a timer" aria-expanded={open}><Icon name="timer" size={25} /></button>
     {/if}
     {#if open && naming}
