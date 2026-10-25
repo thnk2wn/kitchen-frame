@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createSign } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readCert, certUrlOk, tabOf, handleAlexa, todaySpeech } from './alexa.js';
+import { readCert, certUrlOk, tabOf, handleAlexa, todaySpeech, isoSeconds } from './alexa.js';
 
 // Throwaway certificates made with openssl for each run (nothing key-like is kept in the repo).
 let dir, amazon, other, key;
@@ -50,9 +50,10 @@ test('alexa words: tabs', () => {
 
 // A request as Amazon sends it: signed with the test certificate's key, served from a stubbed fetch.
 const CERT_URL = 'https://s3.amazonaws.com/echo.api/test-cert.pem';
-function signed(request, { skill = 'amzn1.ask.skill.test', user = 'amzn1.ask.account.me', pem, at = new Date() } = {}) {
+function signed(request, { skill = 'amzn1.ask.skill.test', user = 'amzn1.ask.account.me', pem, at = new Date(), attributes } = {}) {
   const body = JSON.stringify({
     version: '1.0',
+    ...(attributes ? { session: { attributes } } : {}),
     context: { System: { application: { applicationId: skill }, user: { userId: user }, device: { deviceId: 'dev1' }, apiEndpoint: 'https://api.amazonalexa.com', apiAccessToken: 't' } },
     request: { timestamp: at.toISOString(), ...request },
   });
@@ -191,6 +192,46 @@ test('alexa: "show" with the screen missing asks which, and "go home" shows Home
   assert.equal(r.response.shouldEndSession, false);
   assert.equal((await ask('AMAZON.NavigateHomeIntent')).response.outputSpeech.text, 'Okay.');
   assert.deepEqual(sent, [['show', { tab: 'home' }]]);
+});
+
+test('alexa durations: ISO 8601 as seconds', () => {
+  assert.equal(isoSeconds('PT10M'), 600);
+  assert.equal(isoSeconds('PT1H30M'), 5400);
+  assert.equal(isoSeconds('PT45S'), 45);
+  assert.equal(isoSeconds('PT1.5M'), 90);
+  assert.equal(isoSeconds('P1D'), 0);
+  assert.equal(isoSeconds(''), 0);
+});
+
+test('alexa timers: start one on the frame, ask how long when unsaid, cancel and add', async () => {
+  stub(amazon);
+  const sent = [];
+  const deps = { command: async (name, data) => { sent.push([name, data]); return 1; }, calendar: async () => ({}), videoGroups: () => [], meals: async () => ({}), rotations: () => [] };
+  const ask = async (name, slots, attributes) => (await handleAlexa(signed({ type: 'IntentRequest', intent: { name, slots } }, { attributes }).req, env, deps)).json();
+  let r = await ask('StartTimerIntent', { duration: { value: 'PT10M' }, name: { value: 'pasta' } });
+  assert.equal(r.response.outputSpeech.text, 'Pasta timer, 10 minutes, on the frame.');
+  r = await ask('StartTimerIntent', { duration: { value: 'PT5M' }, name: {} });
+  assert.equal(r.response.outputSpeech.text, 'Timer, 5 minutes, on the frame.');
+  // No time: Alexa asks, and the name said comes back with the answer.
+  r = await ask('StartTimerIntent', { name: { value: 'bread' } });
+  assert.equal(r.response.outputSpeech.text, 'For how long?');
+  assert.equal(r.response.shouldEndSession, false);
+  assert.deepEqual(r.sessionAttributes, { timerName: 'bread' });
+  r = await ask('StartTimerIntent', { duration: { value: 'PT1H' } }, r.sessionAttributes);
+  assert.equal(r.response.outputSpeech.text, 'Bread timer, 1 hour, on the frame.');
+  assert.match((await ask('StartTimerIntent', { duration: { value: 'PT25H' } })).response.outputSpeech.text, /up to 24 hours/);
+  assert.equal((await ask('CancelTimerIntent', { name: { value: 'pasta' } })).response.outputSpeech.text, 'Okay, cancelled.');
+  assert.equal((await ask('AddTimeIntent', {})).response.outputSpeech.text, 'Added 1 minute.');
+  assert.deepEqual(sent, [
+    ['timer', { action: 'start', label: 'Pasta', seconds: 600 }],
+    ['timer', { action: 'start', label: '5 min', seconds: 300 }],
+    ['timer', { action: 'start', label: 'Bread', seconds: 3600 }],
+    ['timer', { action: 'cancel', label: 'pasta' }],
+    ['timer', { action: 'add', label: '', seconds: 60 }],
+  ]);
+  // The frame not connected: Alexa says so.
+  deps.command = async () => 0;
+  assert.match((await ask('StartTimerIntent', { duration: { value: 'PT3M' } })).response.outputSpeech.text, /isn't connected/);
 });
 
 import { skillEntry, heardEntry } from './alexa-log.js';

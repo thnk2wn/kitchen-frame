@@ -37,9 +37,12 @@
       </button>
       {#if focus}
         <div class="menu sheet list">
-          {#if running.length < MAX}
-            <button class="newt" onclick={() => { focus = false; open = true; naming = null; }}><Icon name="plus" size={18} />New timer</button>
-          {/if}
+          <div class="tops">
+            {#if running.length < MAX}
+              <button class="newt" onclick={() => { focus = false; open = true; naming = null; }}><Icon name="plus" size={18} />New timer</button>
+            {/if}
+            <button class="big" onclick={() => { focus = false; timers.big = true; }} aria-label="Full screen"><Icon name="maximize" size={20} /></button>
+          </div>
           {#each running as t (t.id)}
             <div class="trow">
               <span class="tname">{t.label}</span><span class="tleft num">{clockOf(remaining(t))}</span>
@@ -87,6 +90,8 @@
   .chip.soon { background: var(--red); }
   .chip .more { margin-left: 2px; padding: 1px 7px; border-radius: 10px; background: rgba(255, 255, 255, .3); font-size: 14px; }
   .list { min-width: 300px; }
+  .tops { display: flex; }
+  .tops .big { margin-left: auto; width: 46px; padding: 0; display: grid; place-items: center; }
   .newt { display: flex; align-items: center; gap: 8px; color: var(--orange-text); }
   .trow { display: flex; align-items: center; gap: 8px; padding: 2px 4px 2px 10px; }
   .tname { flex: 1; min-width: 0; font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

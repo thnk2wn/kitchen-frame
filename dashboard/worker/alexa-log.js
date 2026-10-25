@@ -36,7 +36,7 @@ export function skillEntry(r, response, sent, refused) {
   return {
     source: 'skill', type: s(req.type, 60), intent: s(intent.name, 60), slots: Object.keys(slots).length ? slots : undefined,
     said: s(out.outputSpeech && out.outputSpeech.text), directives: (out.directives || []).map((d) => d.type).join(', ') || undefined,
-    sent: sent.length ? sent.map(([c, d]) => c + (d && (d.tab || d.group || d.what) ? ' ' + (d.tab || d.group || d.what) : '')).join(', ') : undefined,
+    sent: sent.length ? sent.map(([c, d]) => c + (d && (d.tab || d.group || d.what || d.action) ? ' ' + (d.tab || d.group || d.what || d.action) : '')).join(', ') : undefined,
     refused: s(refused, 120),
   };
 }

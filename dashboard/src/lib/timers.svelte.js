@@ -9,7 +9,8 @@ const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]');
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(timers.list)); } catch {} };
 
 // list: [{ id, label, end, total, done }] (end in ms). now ticks once a second only while any run.
-export const timers = $state({ list: load(), now: Date.now() });
+// big: the full-screen view (TimerFull.svelte) is up, from its button or a timer started by voice.
+export const timers = $state({ list: load(), now: Date.now(), big: false });
 // Where timer alerts are announced: a notify entity id, or 'off'. Default: an Echo-style
 // "… Announce" entity with "kitchen" in its name, once Home Assistant has listed them.
 export const timerSpeaker = $state({ id: localStorage.getItem('frame-timer-speaker') });
@@ -75,7 +76,18 @@ export function addTime(id, seconds) {
 }
 export function removeTimer(id) {
   timers.list = timers.list.filter((t) => t.id !== id);
+  if (!timers.list.length) timers.big = false;
   save();
+}
+
+// From Alexa (worker/alexa.js, through the Worker's message connection): start a timer and show it
+// full screen, from across the kitchen; cancel one, or add time to one (durations.js pickTimer).
+export function fromVoice({ action, label, seconds }) {
+  if (action === 'start') { startTimer(label, seconds); timers.big = true; return; }
+  const t = pickTimer(timers.list, label);
+  if (!t) return;
+  if (action === 'cancel') removeTimer(t.id);
+  if (action === 'add') addTime(t.id, seconds || 60);
 }
 export const remaining = (t) => Math.max(0, Math.ceil((t.end - timers.now) / 1000));
 export const ringing = () => timers.list.filter((t) => t.done);
@@ -122,4 +134,4 @@ tick();
 }
 
 export { clockOf, splitDurations, spokenLength, unnamed } from './durations.js';
-import { doneSentence } from './durations.js';
+import { doneSentence, pickTimer } from './durations.js';

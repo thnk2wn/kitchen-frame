@@ -140,6 +140,81 @@
           ]
         },
         {
+          "name": "StartTimerIntent",
+          "slots": [
+            {
+              "name": "duration",
+              "type": "AMAZON.DURATION"
+            },
+            {
+              "name": "name",
+              "type": "TIMER_NAME"
+            }
+          ],
+          "samples": [
+            "start a timer",
+            "set a timer",
+            "start a {name} timer",
+            "set a {name} timer",
+            "start a {duration} timer",
+            "set a {duration} timer",
+            "start a timer for {duration}",
+            "set a timer for {duration}",
+            "start a {duration} {name} timer",
+            "set a {duration} {name} timer",
+            "start a {name} timer for {duration}",
+            "set a {name} timer for {duration}",
+            "start the {name} timer for {duration}",
+            "{name} timer for {duration}",
+            "timer for {duration}",
+            "a {duration} timer",
+            "for {duration}",
+            "{duration}"
+          ]
+        },
+        {
+          "name": "CancelTimerIntent",
+          "slots": [
+            {
+              "name": "name",
+              "type": "TIMER_NAME"
+            }
+          ],
+          "samples": [
+            "cancel the timer",
+            "cancel my timer",
+            "cancel timer",
+            "stop the timer",
+            "stop the {name} timer",
+            "cancel the {name} timer",
+            "turn off the timer",
+            "turn off the {name} timer",
+            "dismiss the timer"
+          ]
+        },
+        {
+          "name": "AddTimeIntent",
+          "slots": [
+            {
+              "name": "duration",
+              "type": "AMAZON.DURATION"
+            },
+            {
+              "name": "name",
+              "type": "TIMER_NAME"
+            }
+          ],
+          "samples": [
+            "add a minute",
+            "add a minute to the timer",
+            "add a minute to the {name} timer",
+            "add {duration}",
+            "add {duration} to the timer",
+            "add {duration} to the {name} timer",
+            "give the {name} timer {duration} more"
+          ]
+        },
+        {
           "name": "PlayVideosIntent",
           "slots": [
             {
@@ -454,6 +529,83 @@
             {
               "name": {
                 "value": "trucks",
+                "synonyms": []
+              }
+            }
+          ]
+        },
+        {
+          "name": "TIMER_NAME",
+          "values": [
+            {
+              "name": {
+                "value": "pasta",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "bread",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "veggies",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "oven",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "protein",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "rice",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "eggs",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "cookies",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "pizza",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "chicken",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "potatoes",
+                "synonyms": []
+              }
+            },
+            {
+              "name": {
+                "value": "laundry",
                 "synonyms": []
               }
             }

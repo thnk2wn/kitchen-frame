@@ -340,14 +340,16 @@ function connectMessages() {
         Object.assign(nowVideo, { list: [{ id: d.id, title: d.title || '' }], index: 0, shared: true });
         log('youtube.shared', { video: d.id });
       }
-      // From Alexa (worker/alexa.js): show a tab, start the slideshow, wake, play a Videos group.
-      if (['show', 'wake', 'playgroup', 'recipe', 'meals', 'close'].includes(d.command)) {
+      // From Alexa (worker/alexa.js): show a tab, start the slideshow, wake, play a Videos group, timers.
+      if (['show', 'wake', 'playgroup', 'recipe', 'meals', 'close', 'timer'].includes(d.command)) {
         lastTouch = Date.now(); // as if someone had tapped: the clock screen stays away a while
         if (ui.idle) exitIdle();
       }
       if (d.command === 'show') showTab(d.tab);
       if (d.command === 'slideshow') startSlideshow();
       if (d.command === 'playgroup') playGroup(d.group);
+      // "Start a 10 minute pasta timer", "cancel the timer", "add a minute".
+      if (d.command === 'timer') import('./timers.svelte.js').then((m) => m.fromVoice(d));
       // "What's for dinner": tonight's recipe, or Recipes → Meals when there are several.
       if (d.command === 'recipe' && d.id) { ui.settingsOpen = false; ui.openRecipe = { id: d.id, title: d.title || '' }; ui.tab = 'recipes'; }
       if (d.command === 'meals') { ui.settingsOpen = false; ui.openMeals = true; ui.tab = 'recipes'; }
@@ -369,7 +371,7 @@ function connectMessages() {
         log('share.media', { kind: d.kind });
       }
       if (d.command === 'close') { sharedMedia.item = null; ui.noticesOpen = false; ui.settingsOpen = false; ui.event = null; ui.task = null; ui.weatherDay = null; }
-      if (['show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close'].includes(d.command)) log('alexa.command', { command: d.command, tab: d.tab, group: d.group });
+      if (['show', 'slideshow', 'wake', 'playgroup', 'recipe', 'meals', 'close', 'timer'].includes(d.command)) log('alexa.command', { command: d.command, tab: d.tab, group: d.group, action: d.action });
       if (d.messages) showMessages(d.messages);
     } catch {}
   };

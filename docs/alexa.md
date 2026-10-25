@@ -25,6 +25,8 @@ same and give the same advice. (Use two words for the name; Amazon discourages o
 | --- | --- |
 | add eggs to groceries · put eggs on the shopping list · add milk | Adds to Groceries (also when no list is named), in Todoist or Reminders as the list is set up ([lists](lists.md)), and shows Groceries on the frame |
 | add call the dentist to my tasks · remind us to call the dentist | Adds to Tasks and shows it |
+| start a 10 minute pasta timer · set a timer for 1 hour · start a timer | Starts a timer on the frame and shows it full screen ([timers](timers.md)); without a time, Alexa asks how long |
+| cancel the timer · cancel the pasta timer · add a minute · add 5 minutes to the bread timer | Cancels or adds to a timer on the frame: the one named, else the one ringing or ending next |
 | show the calendar · go to recipes · switch to videos · show the house | The frame switches to that tab (or Media's music, TV or videos view), waking from the slideshow |
 | show notifications · show notices | Opens the notices sheet over whatever is showing |
 | hide notifications · close that | Closes whatever sheet is open (notices, an event, a task, the weather, Settings) |

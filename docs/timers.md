@@ -8,10 +8,20 @@ top bar on every screen shows one chip, the timer that ends next, with "+N" for 
 to see them all, add a minute or cancel). Timers survive a reload, and the clock screen never comes
 on while one is running.
 
+**Full screen**, to read from across the kitchen: the button beside New timer in the chip's menu,
+and by itself for a timer started through Alexa. One timer fills the screen; two or three share it in
+columns, ending soonest first, each with +1 min and Cancel, and New timer below. A timer that ends
+turns red in its place, with +1 min and Dismiss. It goes back to the chip with its button, or when the
+last timer is dismissed or cancelled.
+
+**By voice**, with the [Alexa skill](alexa.md): "Alexa, ask Kitchen Frame to start a 10 minute pasta
+timer" (without a time, Alexa asks how long), "…to cancel the timer", "…to add a minute". The timer
+runs on the frame, full screen, not on the Echo. With Alexa+ on, "timer" may go to Alexa's own timers
+instead.
+
 When a timer ends: the frame chimes (Web Audio, no sound files), a full-screen alert offers +1 min
 or Dismiss, and, with Home Assistant, a speaker announces it through a `notify` entity, such as an
 Echo's "Announce" from the Alexa Devices integration (Settings → Announcements → Timer alerts; by
-default the one with "kitchen" in its name). The frame has no microphone, so voice timers stay with
-your smart speakers. The kiosk app (1.4+) lets the page play sound without a tap first.
+default the one with "kitchen" in its name). The kiosk app (1.4+) lets the page play sound without a tap first.
 
 `?timer=Pasta:7` in the address starts one, for screenshots.

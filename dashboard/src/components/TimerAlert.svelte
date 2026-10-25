@@ -1,11 +1,12 @@
 <script>
   // Full screen when a timer ends, over everything (the clock screen included), until dismissed.
+  // Not while the timers are full screen (TimerFull.svelte), where the timer turns red in place.
   import Icon from './Icon.svelte';
-  import { ringing, removeTimer, addTime, unnamed, spokenLength } from '../lib/timers.svelte.js';
+  import { timers, ringing, removeTimer, addTime, unnamed, spokenLength } from '../lib/timers.svelte.js';
   let list = $derived(ringing());
 </script>
 
-{#if list.length}
+{#if list.length && !timers.big}
   <div class="alert" role="alertdialog" aria-label="Timer done">
     <div class="card sheet">
       <span class="ic"><Icon name="timer" size={44} /></span>

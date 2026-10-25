@@ -13,6 +13,7 @@ import { rotationLines, DEMO_ROTATIONS } from '../src/lib/rotations.js';
 import { demoCalendar, demoMeals } from '../src/lib/demo.js';
 import { parseNames } from './demo-media.js';
 import { skillEntry } from './alexa-log.js';
+import { saidLength } from '../src/lib/durations.js';
 import { fitnessFacts, fitnessSpeech } from './fitness-speech.js';
 import { demoFitness } from '../src/lib/fitness.js';
 import { playPodcast, audioEvent, resume, pause, playDirective, echoNow } from './podcast-audio.js';
@@ -101,6 +102,14 @@ const slot = (intent, name) => {
 const TABS = { home: 'home', calendar: 'calendar', lists: 'groceries', groceries: 'groceries', tasks: 'todo', 'to do': 'todo', recipes: 'recipes', media: 'music', music: 'music', tv: 'tv', videos: 'videos', podcasts: 'podcasts', house: 'house', notices: 'notices', fitness: 'fitness', rings: 'fitness', 'activity rings': 'fitness' };
 // (Media's views go as music, tv and videos; the frame opens Media on that view. notices opens the
 // notices sheet over whatever is showing.)
+// Alexa's AMAZON.DURATION ("PT10M", "PT1H30M", "PT45S"; "P1D" and longer are too long) as seconds.
+export function isoSeconds(v) {
+  const m = /^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$/.exec(String(v || ''));
+  return m ? Math.round((Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0)) : 0;
+}
+// A timer's name as the frame shows it ("pasta" -> "Pasta"); none: "10 min", like its own presets.
+const timerLabel = (name, sec) => (name ? name[0].toUpperCase() + name.slice(1) : sec % 60 ? 'Timer' : sec / 60 + ' min');
+
 export const tabOf = (word) => TABS[String(word || '').toLowerCase().trim()] || null;
 
 async function add(env, list, item) {
@@ -220,6 +229,22 @@ async function answer(req, env, { command, calendar, videoGroups, meals, rotatio
         if (!tab) return Response.json(say('I can show home, calendar, groceries, tasks, recipes, music, videos, podcasts, fitness, the house or notices.'));
         return Response.json(say((await sent('show', { tab })) ? 'Okay.' : offline));
       }
+      // Timers run on the frame (lib/timers.svelte.js), which shows a voice-started one full screen.
+      // Without a time Alexa asks, keeping any name said for the answer.
+      case 'StartTimerIntent': {
+        const name = slot(intent, 'name').trim() || (r.session && r.session.attributes && r.session.attributes.timerName) || '';
+        const sec = isoSeconds(slot(intent, 'duration'));
+        if (!sec) return Response.json({ ...say('For how long?', false), sessionAttributes: { timerName: name } });
+        if (sec > 24 * 3600) return Response.json(say('Timers can be up to 24 hours.'));
+        const label = timerLabel(name, sec);
+        if (!(await sent('timer', { action: 'start', label, seconds: sec }))) return Response.json(say(offline));
+        return Response.json(say((name ? label + ' timer, ' : 'Timer, ') + saidLength(sec) + ', on the frame.'));
+      }
+      case 'CancelTimerIntent': return Response.json(say((await sent('timer', { action: 'cancel', label: slot(intent, 'name').trim() })) ? 'Okay, cancelled.' : offline));
+      case 'AddTimeIntent': {
+        const sec = Math.min(isoSeconds(slot(intent, 'duration')) || 60, 3600);
+        return Response.json(say((await sent('timer', { action: 'add', label: slot(intent, 'name').trim(), seconds: sec })) ? 'Added ' + saidLength(sec) + '.' : offline));
+      }
       case 'CloseIntent': return Response.json(say((await sent('close')) ? 'Okay.' : offline));
       case 'SlideshowIntent': return Response.json(say((await sent('slideshow')) ? 'Okay.' : offline));
       case 'WakeIntent': return Response.json(say((await sent('wake')) ? 'Okay.' : offline));
@@ -271,7 +296,7 @@ async function answer(req, env, { command, calendar, videoGroups, meals, rotatio
       case 'GuestOnIntent': await setGuest(true); return Response.json(say('Guest mode is on. Personal things, like Fitness, are hidden until you turn it off.'));
       // Off only from the frame (behind its PIN) or the phone app: anyone can talk to an Echo.
       case 'GuestOffIntent': return Response.json(say('To turn off guest mode, use the frame\'s Settings or the Kitchen Frame app.'));
-      case 'AMAZON.HelpIntent': return Response.json(say('You can say: add milk to groceries, add call the dentist to tasks, show the calendar, start the slideshow, wake up, play videos, what\'s for dinner, the rundown, or how\'s my fitness.', false));
+      case 'AMAZON.HelpIntent': return Response.json(say('You can say: add milk to groceries, add call the dentist to tasks, start a 10 minute timer, show the calendar, start the slideshow, wake up, play videos, what\'s for dinner, the rundown, or how\'s my fitness.', false));
       case 'PlayPodcastIntent': return Response.json(await playPodcast(env, slot(intent, 'show'), (await podcasts().catch(() => ({}))).shows || []));
       case 'AMAZON.PauseIntent': return Response.json(pause());
       case 'AMAZON.ResumeIntent': return Response.json(await resume(env, audio));

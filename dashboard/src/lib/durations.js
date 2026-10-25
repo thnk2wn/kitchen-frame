@@ -37,3 +37,20 @@ export function doneSentence(label, sec) {
   const name = unnamed(label) ? '' : ' ' + (/^[A-Z][a-z]+$/.test(label) ? label.toLowerCase() : label);
   return 'Your ' + spokenLength(sec) + name + ' timer is done.';
 }
+
+// A length as a sentence says it: "10 minutes", "1 hour and 30 minutes", "1 minute and 30 seconds".
+export function saidLength(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const n = (v, unit) => v + ' ' + unit + (v === 1 ? '' : 's');
+  const parts = [h && n(h, 'hour'), m && n(m, 'minute'), !h && s && n(s, 'second')].filter(Boolean);
+  return parts.join(' and ') || n(0, 'second');
+}
+
+// The timer a spoken "cancel the timer" or "add a minute" means: the one named, if any is, else any;
+// of those, one that's ringing, else the one ending next.
+export function pickTimer(list, label) {
+  const want = String(label || '').toLowerCase().trim();
+  const named = want ? list.filter((t) => t.label.toLowerCase() === want) : [];
+  const pool = named.length ? named : list;
+  return pool.find((t) => t.done) || pool.filter((t) => !t.done).sort((a, b) => a.end - b.end)[0] || null;
+}

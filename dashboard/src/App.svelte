@@ -19,6 +19,7 @@
   import Message from './components/Message.svelte';
   import Timers from './components/Timers.svelte';
   import TimerAlert from './components/TimerAlert.svelte';
+  import TimerFull from './components/TimerFull.svelte';
   import WeatherSheet from './components/WeatherSheet.svelte';
   import EventSheet from './components/EventSheet.svelte';
   import TaskSheet from './components/TaskSheet.svelte';
@@ -180,6 +181,7 @@
   <Safe name="Undo" quiet><UndoToast /></Safe>
   <Safe name="Screenshot note" quiet><ShotNote /></Safe>
   <Safe name="Notices" quiet><NoticeSheet /></Safe>
+  <Safe name="Timers full screen" quiet><TimerFull /></Safe>
   <Safe name="Timer alert" quiet><TimerAlert /></Safe>
   <Safe name="PIN" quiet><PinPad /></Safe>
   <Safe name="Doorbell" quiet><DoorbellAlert /></Safe>
