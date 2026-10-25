@@ -63,14 +63,6 @@ Thoughts to try in a branch and measure on the frame, not plans:
 - **Progress back to the phone:** where an episode stops on the frame or an Echo stays here; the
   iPhone's Podcasts app doesn't hear of it (Apple has no way in).
 
-## Announcements
-
-Built: Settings → Announcements (speaker, volume, alert volume, agent messages, event reminders
-by calendar, red and orange Home Assistant alerts) and `script.frame_announce`; reminders for an
-event with a drive count back from when to leave and say the drive (docs/announcements.md).
-Other automations can speak through `script.frame_announce` too, so all speech shares one volume
-routine.
-
 ## Deploys and keeping the frame up
 
 Since 2026-10-19 one part of the screen that fails shows a placeholder instead of taking the page
