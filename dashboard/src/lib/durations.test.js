@@ -39,3 +39,18 @@ test('a spoken timer: the one named, else a ringing one, else the one ending nex
   assert.equal(pickTimer(list.slice(0, 2), '').id, 'b');
   assert.equal(pickTimer([], 'x'), null);
 });
+
+import { timerPicture } from './durations.js';
+import { ICONS } from './icons.js';
+test('timer pictures: food names get one, other names none, and every picture is an icon', () => {
+  assert.equal(timerPicture('Pasta'), 'pot');
+  assert.equal(timerPicture('Veggies'), 'carrot'); // not an egg
+  assert.equal(timerPicture('Boiled eggs'), 'pot');
+  assert.equal(timerPicture('Eggs'), 'egg');
+  assert.equal(timerPicture('Oven'), 'microwave');
+  assert.equal(timerPicture('Chicken soup'), 'drumstick');
+  assert.equal(timerPicture('Protein'), 'drumstick');
+  assert.equal(timerPicture('10 min'), null);
+  assert.equal(timerPicture('Homework'), null);
+  for (const n of ['pot', 'croissant', 'egg', 'pizza', 'cookie', 'cake', 'drumstick', 'beef', 'ham', 'fish', 'shrimp', 'carrot', 'leafyGreen', 'soup', 'microwave', 'coffee', 'popcorn', 'sandwich', 'washer']) assert.ok(ICONS[n], n);
+});

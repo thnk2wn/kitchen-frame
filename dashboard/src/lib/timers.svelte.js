@@ -133,5 +133,5 @@ tick();
   }
 }
 
-export { clockOf, splitDurations, spokenLength, unnamed } from './durations.js';
+export { clockOf, splitDurations, spokenLength, unnamed, timerPicture } from './durations.js';
 import { doneSentence, pickTimer } from './durations.js';

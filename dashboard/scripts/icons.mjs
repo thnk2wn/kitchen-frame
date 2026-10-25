@@ -16,6 +16,11 @@ const ICONS = {
   tv: 'tv', rewind: 'rewind', fastForward: 'fast-forward', chevronUp: 'chevron-up', chevronDown: 'chevron-down', home: 'house', power: 'power', podcast: 'podcast',
   dumbbell: 'dumbbell', footprints: 'footprints', bike: 'bike', person: 'person-standing', waves: 'waves', activity: 'activity', flame: 'flame',
   link: 'link', qrCode: 'qr-code', weight: 'weight',
+  washer: 'washing-machine', shirt: 'shirt', battery: 'battery-low', car: 'car', maximize: 'maximize', minimize: 'minimize',
+  // Pictures for timers named after food (lib/durations.js timerPicture).
+  pot: 'cooking-pot', croissant: 'croissant', carrot: 'carrot', leafyGreen: 'leafy-green', egg: 'egg', pizza: 'pizza',
+  cookie: 'cookie', cake: 'cake-slice', drumstick: 'drumstick', beef: 'beef', ham: 'ham', fish: 'fish', shrimp: 'shrimp',
+  soup: 'soup', microwave: 'microwave', coffee: 'coffee', popcorn: 'popcorn', sandwich: 'sandwich',
 };
 const inner = (name) => readFileSync(new URL(`../node_modules/lucide-static/icons/${name}.svg`, import.meta.url), 'utf8')
   .replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').replace(/\s*\n\s*/g, '').trim();

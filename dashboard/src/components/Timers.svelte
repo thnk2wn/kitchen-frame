@@ -3,7 +3,7 @@
   // (TimerFull.svelte), and a button to start one (presets or custom), which then shows it full screen.
   // A timer started from a recipe's steps stays in the chip, so the recipe stays readable.
   import Icon from './Icon.svelte';
-  import { timers, startTimer, renameTimer, timerNames, remaining, clockOf } from '../lib/timers.svelte.js';
+  import { timers, startTimer, renameTimer, timerNames, remaining, clockOf, timerPicture } from '../lib/timers.svelte.js';
 
   const PRESETS = [1, 3, 5, 10, 15, 20, 30, 45, 60];
   // Time first, like "set a 5 minute pasta timer": a time starts at once, then the menu offers
@@ -35,7 +35,7 @@
   {#if next}
     <div class="wrapchip">
       <button class="chip num" class:soon={remaining(next) <= 60} onclick={() => { open = false; naming = null; timers.big = true; }}>
-        <Icon name="timer" size={18} /><span class="lbl">{next.label}</span>{clockOf(remaining(next))}{#if running.length > 1}<span class="more">+{running.length - 1}</span>{/if}
+        <Icon name={timerPicture(next.label) || 'timer'} size={18} /><span class="lbl">{next.label}</span>{clockOf(remaining(next))}{#if running.length > 1}<span class="more">+{running.length - 1}</span>{/if}
       </button>
     </div>
   {/if}

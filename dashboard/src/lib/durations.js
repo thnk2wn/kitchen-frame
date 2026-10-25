@@ -54,3 +54,32 @@ export function pickTimer(list, label) {
   const pool = named.length ? named : list;
   return pool.find((t) => t.done) || pool.filter((t) => !t.done).sort((a, b) => a.end - b.end)[0] || null;
 }
+
+// A picture for a timer named after food (an icon name, lib/icons.js), shown faintly behind it full
+// screen and in the chip; null for other names. The first match wins, so "chicken soup" is chicken.
+const PICTURES = [
+  [/pasta|spaghetti|noodle|macaroni|boil|rice|potato|quinoa/, 'pot'],
+  [/bread|dough|roll|croissant|bagel|biscuit|toast/, 'croissant'],
+  [/\beggs?\b/, 'egg'],
+  [/pizza/, 'pizza'],
+  [/cookie|brownie/, 'cookie'],
+  [/cake|muffin|pie\b/, 'cake'],
+  [/chicken|turkey|wing|drumstick|protein/, 'drumstick'],
+  [/beef|steak|burger|meat|roast|pork|rib/, 'beef'],
+  [/ham\b|bacon/, 'ham'],
+  [/fish|salmon|tuna|cod\b|tilapia/, 'fish'],
+  [/shrimp|prawn/, 'shrimp'],
+  [/veg|broccoli|carrot|bean|asparagus|corn\b/, 'carrot'],
+  [/salad|greens|spinach|kale/, 'leafyGreen'],
+  [/soup|stew|chili|sauce/, 'soup'],
+  [/oven|bake|preheat|microwave/, 'microwave'],
+  [/coffee|tea\b|espresso/, 'coffee'],
+  [/popcorn/, 'popcorn'],
+  [/sandwich|panini|grilled cheese/, 'sandwich'],
+  [/laundry|wash|dryer/, 'washer'],
+];
+export function timerPicture(label) {
+  const l = String(label || '').toLowerCase();
+  const hit = PICTURES.find(([re]) => re.test(l));
+  return hit ? hit[1] : null;
+}

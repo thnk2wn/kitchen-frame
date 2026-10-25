@@ -5,7 +5,7 @@
   // red in its place, with +1 min and Dismiss, instead of the alert card. It closes when the last
   // timer is dismissed or cancelled, or with its button. Only the digits' text changes each second.
   import Icon from './Icon.svelte';
-  import { timers, startTimer, renameTimer, timerNames, addTime, removeTimer, remaining, clockOf, MAX_TIMERS } from '../lib/timers.svelte.js';
+  import { timers, startTimer, renameTimer, timerNames, addTime, removeTimer, remaining, clockOf, timerPicture, MAX_TIMERS } from '../lib/timers.svelte.js';
 
   const PRESETS = [1, 3, 5, 10, 15, 20, 30, 45, 60];
   let list = $derived([...timers.list].sort((a, b) => (b.done - a.done) || a.end - b.end));
@@ -32,6 +32,8 @@
     <div class="cols" style="--digits: {size}px">
       {#each list as t (t.id)}
         <div class="col" class:ring={t.done}>
+          <!-- A food name's picture, faint in the corner (lib/durations.js timerPicture). -->
+          {#if timerPicture(t.label)}<span class="pic" aria-hidden="true"><Icon name={timerPicture(t.label)} size={Math.min(220, Math.round(size * 1.1))} /></span>{/if}
           <span class="name">{t.label}</span>
           {#if t.done}
             <span class="digits up">Time’s up</span>
@@ -70,6 +72,9 @@
   .cols { flex: 1; display: flex; gap: 16px; padding: 84px 24px 8px; min-height: 0; }
   .col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; border-radius: 28px; background: var(--sheet); padding: 20px; }
   .col.ring { background: var(--pal-red-tint); }
+  .col { position: relative; overflow: hidden; }
+  .col > :not(.pic) { position: relative; }
+  .pic { position: absolute; right: 3%; bottom: 3%; opacity: .07; transform: rotate(-12deg); color: var(--label); }
   .name { max-width: 100%; font-size: 34px; font-weight: 700; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .digits { font-size: var(--digits); line-height: 1; font-weight: 700; letter-spacing: -.03em; color: var(--orange-text); white-space: nowrap; }
   .digits.soon, .digits.up { color: var(--red-text); }
