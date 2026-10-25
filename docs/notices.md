@@ -42,9 +42,9 @@ fill in (Settings → Automations & Scenes → Blueprints → Import Blueprint, 
   "Upstairs set to Auto, 70–75°". Changes made in HA (the frame, the HA app, automations) and
   schedule switches on the hour or half hour don't count, and clear an earlier notice.
 
-Other notices this household runs as plain automations: washer running and done, dryer done, the
-doorbell, a person at the front door, low batteries and filters, a water leak (red), and leak
-sensors going offline.
+Anything else can be a plain automation that creates the notification: an appliance finished, the
+doorbell, low batteries, a water leak (red). One that also speaks can use `script.frame_announce`
+([announcements.md](announcements.md)), so it shares the frame's announcement volume routine.
 
 ## History
 

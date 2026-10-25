@@ -67,12 +67,9 @@ Thoughts to try in a branch and measure on the frame, not plans:
 
 Built: Settings → Announcements (speaker, volume, alert volume, agent messages, event reminders
 by calendar, red and orange Home Assistant alerts) and `script.frame_announce`; reminders for an
-event with a drive count back from when to leave and say the drive (docs/announcements.md). Later:
-
-- **The washer reminder** moved onto the shared announce script, so all speech shares one volume routine.
-- **Snooze a reminder from the frame:** dismissing "Washer done" could pause the spoken reminders until
-  morning, or "remind me in 2 hours", rather than nothing; an hour's snooze was judged not worth it
-  against a 30-minute repeat.
+event with a drive count back from when to leave and say the drive (docs/announcements.md).
+Other automations can speak through `script.frame_announce` too, so all speech shares one volume
+routine.
 
 ## Deploys and keeping the frame up
 

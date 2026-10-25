@@ -5,8 +5,9 @@
 # It says a message on a speaker: an Echo's Announce when the speaker has one (Alexa Devices),
 # otherwise text-to-speech. With a volume, it sets that volume first and puts the speaker's own
 # volume back once the message has had time to finish (Alexa returns before speaking ends, so the
-# wait is estimated from the length). Queued, so two messages never talk over each other.
-# Other automations can call it too, e.g. a washer-done reminder.
+# wait is estimated from the length). A speaker that reports no volume (a Google speaker that's
+# off) gets restore_volume afterwards, when given. Queued, so two messages never talk over each
+# other. Other automations can call it too, so all speech shares one volume routine.
 alias: Frame announce
 description: Says a message on a speaker, at an announcement volume, then restores the speaker's volume.
 mode: queued
@@ -34,13 +35,23 @@ fields:
         max: 1
         step: 0.05
         mode: slider
+  restore_volume:
+    name: Volume afterwards
+    description: Where to leave the volume when the speaker doesn't report its own (a Google speaker that's off); otherwise its own volume is put back.
+    selector:
+      number:
+        min: 0
+        max: 1
+        step: 0.05
+        mode: slider
 sequence:
   - variables:
       announce_entity: "{{ device_entities(device_id(speaker)) | select('match', 'notify\\..*_announce$') | first | default('', true) }}"
       engine: "{% set all = states.tts | map(attribute='entity_id') | list %}{{ 'tts.piper' if 'tts.piper' in all else (all | first | default('', true)) }}"
       before: "{{ state_attr(speaker, 'volume_level') }}"
-      set_volume: "{{ volume is defined and volume | string not in ['', 'None'] and before is not none and volume | float(-1) >= 0 }}"
+      set_volume: "{{ volume is defined and volume | string not in ['', 'None'] and volume | float(-1) >= 0 }}"
       wait_secs: "{{ (4 + (message | wordcount) * 0.45) | round(0) | int }}"
+      restore_to: "{{ before if before is not none else (restore_volume if restore_volume is defined and restore_volume | string not in ['', 'None'] else none) }}"
   - if:
       - condition: template
         value_template: "{{ set_volume }}"
@@ -76,9 +87,12 @@ sequence:
     then:
       - delay:
           seconds: "{{ wait_secs }}"
+      # Nothing to put back when the speaker reported no volume and no restore_volume was given.
+      - condition: template
+        value_template: "{{ restore_to is not none }}"
       - action: media_player.volume_set
         target:
           entity_id: "{{ speaker }}"
         data:
-          volume_level: "{{ before | float }}"
+          volume_level: "{{ restore_to | float }}"
         continue_on_error: true
