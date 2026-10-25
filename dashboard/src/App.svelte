@@ -132,7 +132,7 @@
          player (clock.now re-checks the 30-minute hold after pausing every minute). -->
     {#if mini}<div class="np-slot"><NowPlaying player={playing} /></div>{/if}
     <div class="edge right">
-      <Timers full={ui.tab !== 'recipes'} />
+      <Timers />
       <!-- The bell, on every tab: a badge counts what's new since the notices were last opened, in
            the most urgent one's colour. -->
       <button class="gear bell" onclick={() => (ui.noticesOpen = true)} aria-label={fresh.length ? fresh.length + ' new notices' : 'Notices'}>

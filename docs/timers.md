@@ -7,7 +7,7 @@ times in the steps are buttons that start a timer named after the recipe. Up to 
 row along the bottom of every screen (below). Timers survive a reload, and the clock screen never comes
 on while one is running.
 
-**Full screen**, to read from across the kitchen: a timer started from the top bar or through Alexa
+**Full screen**, to read from across the kitchen: a timer started through Alexa or the phone
 opens it (on Recipes, the row below), and the row's button opens it again. One timer fills the screen; two or three share it in
 columns, ending soonest first, each with +1 min and Cancel, and New timer below (a time, then a name). A timer that ends
 turns red in its place, with +1 min and Dismiss. A timer named for food (Pasta, Bread, Chicken, Oven
@@ -18,8 +18,8 @@ last timer is dismissed or cancelled.
 **The row**: while timers run, they're a row along the bottom of every tab (not the clock screen):
 a card each, with its picture, name, digits readable from the stove, progress, +1 min and cancel,
 and a button for full screen. The tab above shrinks to make room. The timer button in the top bar
-starts more, up to three. On Recipes, timers started there (from a recipe's steps, the top bar,
-Alexa or the phone) join the row rather than going full screen, so the recipe stays in view.
+starts more, up to three, and they join the row. On Recipes, timers from Alexa or the phone join
+the row too, rather than going full screen, so the recipe stays in view.
 
 **By voice**, with the [Alexa skill](alexa.md): "Alexa, ask Kitchen Frame to start a 10 minute pasta
 timer" (without a time, Alexa asks how long), "…to cancel the timer", "…to add a minute". The timer

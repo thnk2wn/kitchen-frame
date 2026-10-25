@@ -1,12 +1,8 @@
 <script>
-  // Top bar: a button to start a timer (presets or custom), which then shows it full screen, or on
-  // Recipes joins the row of running timers along the bottom (TimerDock.svelte), so the recipe stays
-  // in view. Hidden once three run.
+  // Top bar: a button to start a timer (presets or custom), which joins the row of running timers
+  // along the bottom (TimerDock.svelte), whose button opens them full screen. Hidden once three run.
   import Icon from './Icon.svelte';
   import { timers, startTimer, renameTimer, timerNames, MAX_TIMERS } from '../lib/timers.svelte.js';
-
-  // full: a timer started here opens full screen (not on Recipes).
-  let { full = true } = $props();
 
   const PRESETS = [1, 3, 5, 10, 15, 20, 30, 45, 60];
   // Time first, like "set a 5 minute pasta timer": a time starts at once, then the menu offers
@@ -18,11 +14,10 @@
   let running = $derived(timers.list.filter((t) => !t.done).length);
 
   function start(min) { naming = startTimer(min + ' min', min * 60); }
-  // Named or not, the timer just started goes full screen (on Recipes, the row along the bottom).
-  function done() { naming = null; open = false; if (full) timers.big = true; }
+  function done() { naming = null; open = false; }
   function nameIt(n) { renameTimer(naming, n); done(); }
   function toggle() { open = !open; naming = null; }
-  // A tap anywhere outside closes the start menu (a timer already started still goes full screen).
+  // A tap anywhere outside closes the start menu (a timer already started keeps running, unnamed).
   let root = $state();
   $effect(() => {
     if (!open) return;
