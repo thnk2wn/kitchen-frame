@@ -11,7 +11,8 @@ on while one is running.
 opens it, and tapping the chip opens it again. One timer fills the screen; two or three share it in
 columns, ending soonest first, each with +1 min and Cancel, and New timer below (a time, then a name). A timer that ends
 turns red in its place, with +1 min and Dismiss. A timer named for food (Pasta, Bread, Chicken, Oven
-and so on) has a faint picture of it in its corner, and in the chip. It goes back to the chip with its button, or when the
+and so on) has a faint picture of it in its corner, and in the chip. With Home Assistant, the bottom row picks the speaker that says when a timer is done (or
+Frame only), the same choice as in Settings. It goes back to the chip with its button, or when the
 last timer is dismissed or cancelled. A timer started from a recipe's steps stays in the chip, so the
 recipe stays readable.
 

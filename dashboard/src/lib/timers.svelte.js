@@ -15,6 +15,9 @@ export const timers = $state({ list: load(), now: Date.now(), big: false });
 // "… Announce" entity with "kitchen" in its name, once Home Assistant has listed them.
 export const timerSpeaker = $state({ id: localStorage.getItem('frame-timer-speaker') });
 export function setTimerSpeaker(id) { timerSpeaker.id = id; try { localStorage.setItem('frame-timer-speaker', id); } catch {} }
+// Speakers that can announce timers: Echo-style "… Announce" notify entities, the kitchen's first.
+export const timerSpeakers = () => ha.notify.filter((n) => /_announce$/.test(n.entity_id))
+  .sort((a, b) => (/kitchen/i.test(b.entity_id) - /kitchen/i.test(a.entity_id)) || a.name.localeCompare(b.name)).slice(0, 3);
 export function timerSpeakerId() {
   if (timerSpeaker.id) return timerSpeaker.id === 'off' ? null : timerSpeaker.id;
   const pick = ha.notify.find((n) => /kitchen/i.test(n.entity_id) && /_announce$/.test(n.entity_id));

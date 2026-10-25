@@ -73,7 +73,7 @@
     location.reload();
   }
   // Timer alerts: "Announce" notify entities (Echos through Alexa Devices), kitchen ones first, up to 3.
-  import { timerSpeakerId, setTimerSpeaker } from '../lib/timers.svelte.js';
+  import { timerSpeakerId, setTimerSpeaker, timerSpeakers } from '../lib/timers.svelte.js';
   import { bell, ring } from '../lib/doorbell.svelte.js';
   import { presence, presenceArea, ignored, setIgnored } from '../lib/presence.svelte.js';
   import { roomLight, darkLux } from '../lib/roomlight.svelte.js';
@@ -145,8 +145,7 @@
   const lastUsed = (d) => d.lastUsed ? 'used ' + formatDate(new Date(d.lastUsed), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'not used yet';
   let showLog = $state(false);
   const logLine = (e) => Object.entries(e).filter(([k]) => !['t', 'event', 'level'].includes(k)).map(([k, v]) => k + ': ' + v).join(' · ');
-  let announcers = $derived(ha.notify.filter((n) => /_announce$/.test(n.entity_id))
-    .sort((a, b) => (/kitchen/i.test(b.entity_id) - /kitchen/i.test(a.entity_id)) || a.name.localeCompare(b.name)).slice(0, 3));
+  let announcers = $derived(timerSpeakers());
 </script>
 
 <!-- Tap outside the sheet to close; the sheet itself swallows the tap. -->

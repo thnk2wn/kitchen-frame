@@ -5,12 +5,16 @@
   // red in its place, with +1 min and Dismiss, instead of the alert card. It closes when the last
   // timer is dismissed or cancelled, or with its button. Only the digits' text changes each second.
   import Icon from './Icon.svelte';
-  import { timers, startTimer, renameTimer, timerNames, addTime, removeTimer, remaining, clockOf, timerPicture, MAX_TIMERS } from '../lib/timers.svelte.js';
+  import { haConfigured } from '../lib/ha.svelte.js';
+  import { timers, startTimer, renameTimer, timerNames, addTime, removeTimer, remaining, clockOf, timerPicture, MAX_TIMERS, timerSpeakers, timerSpeakerId, setTimerSpeaker } from '../lib/timers.svelte.js';
 
   const PRESETS = [1, 3, 5, 10, 15, 20, 30, 45, 60];
   let list = $derived([...timers.list].sort((a, b) => (b.done - a.done) || a.end - b.end));
   let running = $derived(timers.list.filter((t) => !t.done).length);
   const NAMES = timerNames();
+  // Where a timer that ends is also said (Settings → Announcements → Timer alerts), picked here too.
+  let speakers = $derived(haConfigured() ? timerSpeakers() : []);
+  let speaker = $derived(timerSpeakerId() || 'off');
   let adding = $state(false);
   let naming = $state(null); // the timer just started here, while its names are offered (as in the top bar)
   // Digits as big as a column allows: each character is about 0.6 of the font size wide, and a
@@ -52,15 +56,22 @@
         </div>
       {/each}
     </div>
-    <div class="foot">
+    <div class="foot" class:split={speakers.length && !adding && !naming}>
       {#if naming}
         {#each NAMES as n (n)}<button class="preset named" onclick={() => { renameTimer(naming, n); naming = null; }}>{n}</button>{/each}
         <button class="preset" onclick={() => (naming = null)}>No name</button>
       {:else if adding}
         {#each PRESETS as m (m)}<button class="preset" onclick={() => { naming = startTimer(m + ' min', m * 60); adding = false; }}>{m < 60 ? m + ' min' : '1 hr'}</button>{/each}
         <button class="preset" onclick={() => (adding = false)} aria-label="Never mind"><Icon name="close" size={22} /></button>
-      {:else if running < MAX_TIMERS}
-        <button class="new" onclick={() => (adding = true)}><Icon name="plus" size={22} />New timer</button>
+      {:else}
+        {#if speakers.length}
+          <div class="say" role="group" aria-label="Say timers on">
+            <Icon name="speaker" size={22} />
+            {#each speakers as n (n.entity_id)}<button class:on={speaker === n.entity_id} onclick={() => setTimerSpeaker(n.entity_id)}>{n.name.replace(/\s*announce$/i, '')}</button>{/each}
+            <button class:on={speaker === 'off'} onclick={() => setTimerSpeaker('off')}>Frame only</button>
+          </div>
+        {/if}
+        {#if running < MAX_TIMERS}<button class="new" onclick={() => (adding = true)}><Icon name="plus" size={22} />New timer</button>{/if}
       {/if}
     </div>
     <button class="small" onclick={() => (timers.big = false)} aria-label="Smaller"><Icon name="minimize" size={28} /></button>
@@ -82,7 +93,7 @@
   .track { width: 80%; height: 10px; border-radius: 5px; background: var(--track); overflow: hidden; }
   .bar { display: block; height: 100%; background: var(--orange); transform-origin: left; transition: transform 1s linear; }
   .row { display: flex; gap: 14px; margin-top: 6px; }
-  .row button { height: 60px; min-width: 140px; padding: 0 22px; border-radius: 30px; font-size: 22px; font-weight: 700; background: var(--fill); }
+  .row button { height: 60px; min-width: 140px; padding: 0 22px; text-align: center; border-radius: 30px; font-size: 22px; font-weight: 700; background: var(--fill); }
   .row .done { background: var(--orange); color: #fff; }
   .row .stop { color: var(--red-text); }
   .foot { display: flex; justify-content: center; align-items: center; gap: 8px; height: 92px; padding: 0 24px 16px; }
@@ -90,6 +101,12 @@
   .new { display: flex; align-items: center; gap: 8px; color: var(--orange-text); }
   .preset { padding: 0 16px; display: grid; place-items: center; }
   .preset.named { background: var(--orange); color: #fff; }
+  /* With the speaker picker at the left, New timer goes to the right. */
+  .foot.split { justify-content: space-between; }
+  .say { height: 60px; display: flex; align-items: center; gap: 4px; padding: 0 6px 0 16px; border-radius: 30px; background: var(--fill); color: var(--secondary); }
+  .say :global(svg) { margin-right: 4px; }
+  .say button { height: 48px; padding: 0 16px; border-radius: 24px; font-size: 18px; font-weight: 600; color: var(--label); }
+  .say button.on { background: var(--sheet); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
   .small { position: absolute; top: 16px; right: 16px; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); }
   button:active { opacity: .7; }
 </style>
