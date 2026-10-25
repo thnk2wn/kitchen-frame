@@ -42,6 +42,8 @@
 //   GET  /api/geo?q=                 an event location's coordinates, for its map (see maps.js)
 //   GET  /api/tiles/:z/:x/:y         OpenStreetMap tiles, cached
 //   GET  /api/staticmap?lat&lon&w&h&z Google's map picture of a place (maps.js), when GOOGLE_MAPS_KEY is set
+//   GET  /api/gtiles/:z/:x/:y        Google's street map tiles (maps.js), for the radar and the full map
+//   GET  /api/gtiles/credit?z&n&s&e&w Google's map data credit for a view
 //   GET  /api/drive?q=&at=          { drive: { minutes, usual } | null }: from home to an event's place
 //   GET  /api/spotify/playlists      every Spotify playlist, and when each was last played (spotify.js)
 //   GET  /api/spotify/now            what's playing from (a playlist, album, ...) and its cover
@@ -109,7 +111,7 @@ const DEMO_KEY = 'frame:demo'; // { on, at }: the frame's demo mode (POST /api/f
 export { MessageRoom } from './messages.js'; // Durable Object class (wrangler.jsonc)
 export { ListBridge } from './bridge.js';      // Durable Object class: Apple Reminders through a Mac
 import { explore, listSaved, saveRecipe, deleteRecipe, recipeImage, moveToPaprika } from './recipes.js';
-import { geocode, staticMap, drive, tile } from './maps.js';
+import { geocode, staticMap, drive, googleTile, mapCredit, tile } from './maps.js';
 import { spotifyConfigured, getPlaylists, getNow, getQueue } from './spotify.js';
 import { level, BRIDGE_LISTS, fromReminders, remindersName, bridge } from './bridge.js';
 
@@ -337,6 +339,15 @@ async function handle(req, env, ctx) {
       if (url.pathname === '/api/drive') {
         try { const d = await drive(env, url.searchParams.get('q'), url.searchParams.get('at')); return json({ drive: d }, 200, d ? 'private, max-age=600' : 'no-store'); }
         catch (err) { return json({ drive: null, error: String(err.message || err) }); }
+      }
+      if (url.pathname === '/api/gtiles/credit') {
+        try { return json(await mapCredit(env, url.searchParams, ctx), 200, 'private, max-age=86400'); }
+        catch (err) { return json({ credit: 'Google', error: String(err.message || err) }); }
+      }
+      const g = /^\/api\/gtiles\/(\d+)\/(\d+)\/(\d+)$/.exec(url.pathname);
+      if (g) {
+        try { return await googleTile(env, +g[1], +g[2], +g[3], ctx); }
+        catch (err) { return new Response(String(err.message || err), { status: 502 }); }
       }
       const t = /^\/api\/tiles\/(\d+)\/(\d+)\/(\d+)$/.exec(url.pathname);
       if (t) return tile(+t[1], +t[2], +t[3], ctx);
@@ -698,7 +709,7 @@ async function refresh(env, previous, feeds = {}) {
 // response to a request that had the key. That keeps the key out of URLs, and so out of request
 // logs and caches. (A key in the URL, ?key=, how they used to do it, is no longer accepted.)
 const AUTH_COOKIE = 'frame_auth';
-const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/share/media/') || p.startsWith('/api/youtube/thumb/') || p.startsWith('/api/tiles/') || p === '/api/staticmap' || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
+const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/share/media/') || p.startsWith('/api/youtube/thumb/') || p.startsWith('/api/tiles/') || p.startsWith('/api/gtiles/') || p === '/api/staticmap' || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
 // Constant-time comparison, so a key or cookie can't be guessed a character at a time.
 function same(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;

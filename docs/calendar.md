@@ -109,6 +109,9 @@ the screen, not from whoever holds the frame's key. A feed published without its
     Maps picture, fetched by the Worker so the key never reaches the frame.
   - **Without it**, or when Google refuses or its allowance is used up, OpenStreetMap's Nominatim
     finds the place and the map is OSM's tiles through the Worker's cache.
+  - **Tap the map** for a full-screen one: drag to move about, + and – to go closer or further
+    (the frame has no pinch), and the pin button to come back to the place. It's Google's street
+    map tiles (Map Tiles API) with a key, OSM's without, the same tiles as the radar's street map.
 
 ### Drive times
 
@@ -134,19 +137,21 @@ daily allowance of Routes calls (below).
 
 1. In the Google Cloud console, make a project and link billing. A new account starts on a free
    trial that never charges the card until it's upgraded.
-2. Enable **Maps Static API**, **Geocoding API** and **Routes API**.
-3. Make an API key, and under API restrictions allow only those three. Leave application
+2. Enable **Maps Static API**, **Geocoding API**, **Routes API** and **Map Tiles API**.
+3. Make an API key, and under API restrictions allow only those four. Leave application
    restrictions at None: the key is used only by the Worker, whose address isn't fixed.
 4. `npx wrangler secret put GOOGLE_MAPS_KEY` in `dashboard/`.
 5. Under Billing → Budgets & alerts, add a budget with email alerts (say $1, alerting at 1%), with
    the savings boxes cleared so trial credit doesn't hide a charge.
 
 Google bills past a monthly free allowance per API (10,000 calls for Static Maps and Geocoding,
-5,000 for Routes with traffic), and has **no spending cap for Maps**: the budget's spend-cap option
+5,000 for Routes with traffic, 100,000 map tiles), and has **no spending cap for Maps**: the budget's spend-cap option
 doesn't cover it, and its daily quotas may not be lowerable on your account. So the Worker keeps its
 own (`GOOGLE_CAPS` in `worker/maps.js`): a daily and monthly count per API in the message room, set
 so a month at the daily cap stays under the free allowance. Past it, maps fall back to OSM until
-the next day (UTC).
+the next day (UTC). Google marks its map tiles private, so Cloudflare doesn't keep them and each
+screen's browser keeps them a day: opening the radar is about 18 tiles the first time in a day, and
+the full-screen map about 24 per zoom level, against a daily cap of 3,000.
 
 - Without `CALENDAR_DETAILS`, nothing opens and no notes are kept, as before.
 

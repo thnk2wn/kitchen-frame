@@ -9,17 +9,22 @@
 //     with traffic (Google's Routes API). Home is HOME_LAT/HOME_LON, or WEATHER_LAT/LON when unset
 //     (rounded, so a minute or two out). Kept briefly in Cloudflare's cache and shared by every screen
 //     and reload: 12 hours while the event is more than 2 hours off, then 10 minutes (DRIVE_KEEP).
+//   googleTile(): Google's street map tiles (Map Tiles API) for the radar and the full-screen map,
+//     through the Worker for the key. Kept only as long as Google's own Cache-Control allows (its
+//     terms): in Cloudflare's cache when public, otherwise only by the frame's browser.
+//   mapCredit(): the map data credit Google asks to be shown under its tiles, for a view.
 //   tile(): map tiles passed through from tile.openstreetmap.org and kept in Cloudflare's cache, so
-//     the frame's slow Wi-Fi and OSM's servers each see a place's tiles once.
+//     the frame's slow Wi-Fi and OSM's servers each see a place's tiles once. The fallback when
+//     Google's tiles aren't there.
 // OSM's usage policies: an identifying User-Agent, light use, results cached.
 //
 // Google bills past a free allowance each month and has no spending cap for Maps (its daily quotas
 // can't be lowered on every account), so the Worker keeps its own: GOOGLE_CAPS, counted in the
 // message room (messages.js /google/spend). Each day's cap times 31 stays under the month's free
-// calls (10,000 Static Maps and Geocoding; 5,000 Routes with traffic).
+// calls (10,000 Static Maps and Geocoding; 5,000 Routes with traffic; 100,000 map tiles).
 const UA = 'kitchen-frame/1.0 (+https://github.com/thnk2wn/kitchen-frame)';
 const DAY = 86400;
-export const GOOGLE_CAPS = { static: { day: 300, month: 9000 }, geocode: { day: 300, month: 9000 }, routes: { day: 150, month: 4500 } };
+export const GOOGLE_CAPS = { static: { day: 300, month: 9000 }, geocode: { day: 300, month: 9000 }, routes: { day: 150, month: 4500 }, tiles: { day: 3000, month: 90000 } };
 const GOOGLE = 'https://maps.googleapis.com/maps/api/';
 
 // Not places: video calls and links. Checked before anything is sent to Nominatim.
@@ -178,6 +183,85 @@ export async function drive(env, q, at, now = Date.now()) {
   const mins = (d) => Math.max(1, Math.round(parseFloat(d) / 60));
   const out = { minutes: mins(r.duration), usual: mins(r.staticDuration || r.duration) };
   if (cache) await cache.put(cacheKey, new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + keep } }));
+  return out;
+}
+
+const TILES = 'https://tile.googleapis.com/v1/';
+
+// The tiles' session (Google's: about two weeks), made once and kept in KV until a day before it ends.
+async function tileSession(env, fresh = false) {
+  if (!fresh) {
+    const hit = await env.CALENDAR.get('gtiles:session', 'json');
+    if (hit && hit.session) return hit.session;
+  }
+  if (!(await spend(env, 'tiles'))) return null;
+  const r = await fetch(TILES + 'createSession?key=' + encodeURIComponent(env.GOOGLE_MAPS_KEY), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mapType: 'roadmap', language: 'en-US', region: 'US' }),
+  });
+  const d = r.ok ? await r.json() : null;
+  if (!d || !d.session) throw new Error('tile session HTTP ' + r.status);
+  const left = Number(d.expiry) - Date.now() / 1000 - DAY;
+  await env.CALENDAR.put('gtiles:session', JSON.stringify({ session: d.session }), { expirationTtl: Math.max(60, Math.min(left, 13 * DAY)) | 0 });
+  return d.session;
+}
+
+// Google's answer's own caching, as Cloudflare's cache and the browser should keep it: { edge, browser }
+// in seconds, edge 0 when it's private or not to be stored.
+export function tileKeep(cc) {
+  cc = String(cc || '').toLowerCase();
+  const m = /(?:^|,)\s*max-age=(\d+)/.exec(cc), age = m ? Math.min(+m[1], 30 * DAY) : 0;
+  if (/no-store/.test(cc)) return { edge: 0, browser: 0 };
+  return { edge: /private|no-cache/.test(cc) ? 0 : age, browser: /no-cache/.test(cc) ? 0 : age };
+}
+
+export async function googleTile(env, z, x, y, ctx) {
+  const max = 2 ** z;
+  if (!(z >= 3 && z <= 20 && x >= 0 && x < max && y >= 0 && y < max)) return new Response('bad tile', { status: 400 });
+  if (!env.GOOGLE_MAPS_KEY) return new Response('no key', { status: 404 });
+  const cache = caches.default, cacheKey = new Request(`https://gtile.cache/${z}/${x}/${y}`);
+  let res = await cache.match(cacheKey), kept = res ? 'hit' : 'miss';
+  if (!res) {
+    let session = await tileSession(env);
+    if (!session || !(await spend(env, 'tiles'))) return new Response('over the day\'s allowance', { status: 429 });
+    const get = (s) => fetch(`${TILES}2dtiles/${z}/${x}/${y}?session=${encodeURIComponent(s)}&key=${encodeURIComponent(env.GOOGLE_MAPS_KEY)}`);
+    let up = await get(session);
+    // A session Google has ended early: a new one, once.
+    if (up.status === 400 || up.status === 401 || up.status === 403) {
+      session = await tileSession(env, true);
+      if (!session) return new Response('over the day\'s allowance', { status: 429 });
+      up = await get(session);
+    }
+    const type = up.headers.get('Content-Type') || '';
+    if (!up.ok || !/^image\//.test(type)) return new Response('tile HTTP ' + up.status, { status: 502 });
+    const keep = tileKeep(up.headers.get('Cache-Control'));
+    res = new Response(up.body, { headers: { 'Content-Type': type, 'Cache-Control': 'public, max-age=' + keep.edge, 'X-Browser-Keep': String(keep.browser) } });
+    if (keep.edge > 0) ctx.waitUntil(cache.put(cacheKey, res.clone()));
+    else kept = 'not kept';
+  }
+  // X-Edge: whether Cloudflare had it (hit), fetched it to keep (miss), or may not keep it (not kept).
+  return new Response(res.body, { headers: { 'Content-Type': res.headers.get('Content-Type'), 'Cache-Control': 'private, max-age=' + (res.headers.get('X-Browser-Keep') || 0), 'X-Edge': kept } });
+}
+
+// Google's map data credit ("Map data ©2026 Google") for the view a screen shows: north, south, east,
+// west and the zoom. Rounded outwards to a tenth of a degree and kept a day, so panning about one
+// place asks once.
+export async function mapCredit(env, p, ctx) {
+  const z = Math.round(Number(p.get('z'))), edge = (k, f) => f(Number(p.get(k)) * 10) / 10;
+  const n = edge('n', Math.ceil), s = edge('s', Math.floor), e = edge('e', Math.ceil), w = edge('w', Math.floor);
+  if (!(z >= 3 && z <= 20 && n > -90 && n < 90 && s > -90 && s < 90 && n > s && Math.abs(e) <= 180 && Math.abs(w) <= 180)) return { credit: '' };
+  if (!env.GOOGLE_MAPS_KEY) return { credit: '' };
+  const cache = caches.default, cacheKey = new Request(`https://gtile.cache/credit/${z}/${n}/${s}/${e}/${w}`);
+  const hit = await cache.match(cacheKey);
+  if (hit) return hit.json();
+  const session = await tileSession(env);
+  if (!session || !(await spend(env, 'tiles'))) return { credit: 'Google' };
+  const u = new URL(TILES.replace('/v1/', '/tile/v1/') + 'viewport');
+  u.search = new URLSearchParams({ session, key: env.GOOGLE_MAPS_KEY, zoom: String(z), north: n, south: s, east: e, west: w });
+  const up = await fetch(u);
+  const d = up.ok ? await up.json() : null;
+  const out = { credit: (d && d.copyright) || 'Google' };
+  if (d) ctx.waitUntil(cache.put(cacheKey, new Response(JSON.stringify(out), { headers: { 'Cache-Control': 'public, max-age=' + DAY } })));
   return out;
 }
 

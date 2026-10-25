@@ -7,7 +7,10 @@
   // A small street map with a pin for an event's location: the Worker looks the place up once
   // (Google, or OpenStreetMap's Nominatim) and sends Google's map picture; OSM tiles when that fails
   // (no Google key, or its daily allowance used up). Nothing shows if the place
-  // can't be found (a video call, a room name), so the sheet just has no map.
+  // can't be found (a video call, a room name), so the sheet just has no map. Tapped, it opens the
+  // full-screen map (MapView).
+  import Icon from './Icon.svelte';
+  import MapView from './MapView.svelte';
   import { api, mediaUrl } from '../lib/api.js';
   import { ui } from '../lib/state.svelte.js';
 
@@ -40,6 +43,7 @@
 
   // Web Mercator: the pin's position in pixels at this zoom, and the tiles around it.
   let failed = $state(false);
+  let big = $state(false);
   let tiles = $derived.by(() => {
     if (!place || !failed) return [];
     const n = 2 ** zoom, lat = (place.lat * Math.PI) / 180;
@@ -57,7 +61,7 @@
 </script>
 
 {#if place}
-  <div class="map" style="width: {width}px; height: {height}px">
+  <button class="map" style="width: {width}px; height: {height}px" onclick={() => (big = true)} aria-label="Open a bigger map">
     {#if picture && !failed}
       <!-- Google's picture has its own pin and credit. -->
       <img class="google" src={picture} alt="" decoding="async" onerror={() => (failed = true)} />
@@ -68,13 +72,17 @@
       <span class="pin"></span>
       <span class="credit">© OpenStreetMap</span>
     {/if}
-  </div>
+    <span class="more"><Icon name="maximize" size={22} /></span>
+  </button>
+  {#if big}<MapView {place} title={location} onclose={() => (big = false)} />{/if}
 {/if}
 
 <style>
-  .map { position: relative; flex: none; overflow: hidden; border-radius: 18px; background: #e8e4dc; }
+  .map { position: relative; flex: none; display: block; padding: 0; overflow: hidden; border-radius: 18px; background: #e8e4dc; }
   img { position: absolute; left: 0; top: 0; width: 256px; height: 256px; }
   img.google { width: 100%; height: 100%; object-fit: cover; }
   .pin { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--red); border: 4px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+  /* Says the map opens bigger; top right, clear of Google's logo and credit along the bottom. */
+  .more { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: rgba(28, 28, 30, .7); color: #fff; }
   .credit { position: absolute; right: 0; bottom: 0; padding: 2px 8px; border-top-left-radius: 8px; background: rgba(255, 255, 255, .8); color: #333; font-size: 11px; }
 </style>

@@ -31,11 +31,6 @@ Thoughts to try in a branch and measure on the frame, not plans:
 
 ## Calendar and events
 
-- **Full-screen map:** tap the map preview for a larger one, with + and – buttons (no pinch on the
-  frame): a bigger Google Static Maps picture per zoom level, each counting against the Worker's
-  daily allowance.
-- **The radar's street map from Google** too (Map Tiles API, 100,000 free tiles a month), so every
-  map looks the same; it's OpenStreetMap's for now.
 - **Calendars chosen on the frame:** the Mac bridge can see every calendar the Mac has (accounts and
   subscriptions), so Settings could list them to pick and colour, instead of `CALENDAR_URLS`.
 - **Countdowns:** "12 days to the beach" for chosen events, on Home or the clock screen.

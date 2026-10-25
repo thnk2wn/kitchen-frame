@@ -24,8 +24,9 @@ frame never talks to the weather services itself.
 ## Radar
 
 **Radar**, first in the day row of that sheet, loops the last hour, now and the next two hours of
-rain around the same location, about the town and its neighbors (roughly 130 km across) over an
-OpenStreetMap street map. In the US the past and present frames are NWS radar and the forecast
+rain around the same location, about the town and its neighbors (roughly 130 km across) over a
+street map: Google's with `GOOGLE_MAPS_KEY` ([calendar.md](calendar.md#google-maps-platform)),
+OpenStreetMap's otherwise. In the US the past and present frames are NWS radar and the forecast
 frames are NOAA's HRRR model, both through the
 [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu); elsewhere it's
 [RainViewer](https://www.rainviewer.com)'s past two hours. All free, no key. Nothing loads until the

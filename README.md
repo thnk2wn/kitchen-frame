@@ -234,7 +234,7 @@ Outlook/Exchange, or a subscribed .ics link such as a team's schedule); name and
 hide any of them per frame; `#private` in an event keeps it off the frame, and `#quiet` shows it but
 never announces it. Choose which
 calendars open when an event is tapped (`CALENDAR_DETAILS`): those show the day and time, the
-location with a small map, and the event's notes; notes from other calendars are never stored.
+location with a small map (tap it for a full-screen one), and the event's notes; notes from other calendars are never stored.
 [docs/calendar.md](docs/calendar.md) has how to get each kind of link, every setting, privacy
 details, and how refreshing and failed feeds work.
 

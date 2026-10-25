@@ -64,8 +64,9 @@ TODOIST_TOKEN=""
 # CAMERA_RELAY="http://<mac>:1985/<token>/?cameras=<name>,<name>"
 
 # ---- Maps --------------------------------------------------------
-# Optional: Google Maps Platform, for events' maps (docs/calendar.md has the setup). Without it, maps
-# come from OpenStreetMap. A Worker secret: npx wrangler secret put GOOGLE_MAPS_KEY
+# Optional: Google Maps Platform, for events' maps and the radar's street map (docs/calendar.md has
+# the setup). Without it, maps come from OpenStreetMap. A Worker secret:
+# npx wrangler secret put GOOGLE_MAPS_KEY
 # GOOGLE_MAPS_KEY=""
 # Optional: where drives to events start (rounded to 4 places is plenty). Defaults to WEATHER_LAT/LON.
 # HOME_LAT="40.7128"

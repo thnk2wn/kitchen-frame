@@ -1,15 +1,16 @@
 <script>
   // Rain radar around home, in the weather sheet: the last hour, now and the next two hours, looping
   // (GET /api/radar; worker/radar.js: NWS radar and NOAA's HRRR forecast in the US, RainViewer's
-  // past two hours elsewhere). The street map is drawn once (OSM tiles through the Worker's cache),
-  // one zoom closer than the radar: each radar frame is drawn once at the Worker's zoom onto its own
+  // past two hours elsewhere). The street map is drawn once (Google's tiles, or OpenStreetMap's:
+  // lib/maptiles.js), one zoom closer than the radar: each radar frame is drawn once at the Worker's zoom onto its own
   // small canvas and shown at twice the size, light on the frame's slow Wi-Fi. In the US that's
   // about 130 km across: home and the towns around it. Canvases rather than tile images, so the
   // frame doesn't keep ~60 decoded PNGs. Drag along the timeline to pick a time.
   // Loads only while the sheet shows it; the loop stops when it closes.
   import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
-  import { api, mediaUrl } from '../lib/api.js';
+  import { api } from '../lib/api.js';
+  import { TILE, pixel, loadTile, mapCredit } from '../lib/maptiles.js';
   import { time } from '../lib/format.js';
   import { ui } from '../lib/state.svelte.js';
 
@@ -18,7 +19,7 @@
   const DEMO_CENTRE = { lat: 39.0997, lon: -94.5786 };
 
   let { width = 1070, height = 430 } = $props();
-  const TILE = 256, STEP_MS = 600, HOLD_MS = 1800;
+  const STEP_MS = 600, HOLD_MS = 1800;
 
   let canvas = $state();
   let frames = $state([]);   // [{ time, url, kind, img?: canvas }]
@@ -26,14 +27,10 @@
   let at = $state(-1);       // the frame shown
   let playing = $state(true);
   let error = $state('');
+  let credit = $state('© OpenStreetMap'); // the street map's
   let base = null;           // the street map, drawn once
   let home = null;           // { x, y } in canvas pixels
 
-  // Web Mercator: a point's pixel position at a zoom.
-  const pixel = (lat, lon, z) => {
-    const n = 2 ** z * TILE, r = (lat * Math.PI) / 180;
-    return { x: ((lon + 180) / 360) * n, y: ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n };
-  };
   const load = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
   const dark = () => document.documentElement.dataset.theme === 'dark'; // set by lib/state.svelte.js
 
@@ -67,14 +64,23 @@
       const b = base.getContext('2d');
       b.fillStyle = '#e8e4dc'; b.fillRect(0, 0, width, height);
       const n8 = 2 ** Z, jobs = [];
+      let google = false;
       for (let tx = Math.floor(left / TILE); tx * TILE < left + width; tx++) {
         for (let ty = Math.floor(top / TILE); ty * TILE < top + height; ty++) {
           if (ty < 0 || ty >= n8) continue;
-          jobs.push(load(mediaUrl(`/api/tiles/${Z}/${((tx % n8) + n8) % n8}/${ty}`)).then((i) => i && b.drawImage(i, Math.round(tx * TILE - left), Math.round(ty * TILE - top))));
+          jobs.push(loadTile(Z, ((tx % n8) + n8) % n8, ty).then((t) => {
+            if (!t) return;
+            b.drawImage(t.img, Math.round(tx * TILE - left), Math.round(ty * TILE - top));
+            if (t.google) google = true;
+          }));
         }
       }
       await Promise.all(jobs);
       if (!live) return;
+      if (google) {
+        credit = 'Google Maps';
+        mapCredit(Z, left, top, width, height).then((c) => { if (live) credit = 'Google Maps · ' + c; });
+      }
       if (dark()) { b.fillStyle = 'rgba(0, 0, 0, .45)'; b.fillRect(0, 0, width, height); }
 
       // Radar frames at zoom 7: half the size, drawn doubled.
@@ -139,7 +145,7 @@
       </span>
     </div>
   {/if}
-  <span class="credit">{source ? source + ' · ' : ''}© OpenStreetMap</span>
+  <span class="credit">{source ? source + ' · ' : ''}{credit}</span>
 </div>
 
 <style>

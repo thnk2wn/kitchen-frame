@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mappable, geocode, lookups, countGoogle, staticMap, drive, GOOGLE_CAPS } from './maps.js';
+import { mappable, geocode, lookups, countGoogle, staticMap, drive, googleTile, mapCredit, tileKeep, GOOGLE_CAPS } from './maps.js';
 
 function kv() {
   const m = new Map(), puts = [];
@@ -140,5 +140,59 @@ test('drive: one Routes call shared by every screen asking within its time bucke
   const now = Date.parse('2026-10-24T12:00:00Z');
   for (let i = 0; i < 3; i++) assert.deepEqual(await drive(env, '401 Main St, Springfield', '2026-10-26T10:30:00Z', now + i * 60000), { minutes: 13, usual: 13 });
   assert.equal(routes, 1);
+  delete globalThis.caches;
+});
+
+test('tileKeep: keeps a tile only as Google says', () => {
+  assert.deepEqual(tileKeep('public, max-age=86400'), { edge: 86400, browser: 86400 });
+  assert.deepEqual(tileKeep('private, max-age=3600'), { edge: 0, browser: 3600 });
+  assert.deepEqual(tileKeep('no-store'), { edge: 0, browser: 0 });
+  assert.deepEqual(tileKeep(null), { edge: 0, browser: 0 });
+});
+
+test('googleTile: one session kept, Cloudflare keeps public tiles, a dead session replaced once', async () => {
+  const store = new Map(), waits = [], calls = [];
+  globalThis.caches = { default: { match: async (r) => store.get(r.url)?.clone(), put: async (r, res) => { store.set(r.url, res); } } };
+  let sessions = 0, dead = false;
+  globalThis.fetch = async (u) => {
+    u = String(u); calls.push(u.split('?')[0]);
+    if (u.includes('createSession')) return Response.json({ session: 's' + ++sessions, expiry: String(Date.now() / 1000 + 14 * 86400) });
+    if (dead && u.includes('session=s1')) return new Response('expired', { status: 400 });
+    return new Response('png', { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
+  };
+  const env = { GOOGLE_MAPS_KEY: 'k', CALENDAR: kv() }, ctx = { waitUntil: (p) => waits.push(p) };
+  assert.equal((await googleTile({}, 10, 1, 1, ctx)).status, 404); // no key
+  assert.equal((await googleTile(env, 10, 2000, 1, ctx)).status, 400); // no such tile
+  const a = await googleTile(env, 10, 1, 1, ctx);
+  assert.equal(a.status, 200);
+  assert.match(a.headers.get('Cache-Control'), /^private, max-age=86400$/);
+  await Promise.all(waits);
+  await googleTile(env, 10, 1, 1, ctx); // from Cloudflare's cache
+  await googleTile(env, 10, 1, 2, ctx); // the same session
+  assert.deepEqual(calls.filter((c) => c.includes('createSession')).length, 1);
+  assert.equal(calls.filter((c) => c.includes('2dtiles')).length, 2);
+  assert.doesNotMatch(String([...store.keys()]), /key=/); // the key never in a cache key
+  dead = true;
+  assert.equal((await googleTile(env, 10, 1, 3, ctx)).status, 200);
+  assert.equal(sessions, 2);
+  delete globalThis.caches;
+});
+
+test('mapCredit: a close view still asks (its edges rounded outwards), and is kept', async () => {
+  const store = new Map(), waits = [], asked = [];
+  globalThis.caches = { default: { match: async (r) => store.get(r.url)?.clone(), put: async (r, res) => { store.set(r.url, res); } } };
+  globalThis.fetch = async (u) => {
+    u = String(u);
+    if (u.includes('createSession')) return Response.json({ session: 's1', expiry: String(Date.now() / 1000 + 14 * 86400) });
+    asked.push(new URL(u).searchParams);
+    return Response.json({ copyright: 'Map data ©2026 Google' });
+  };
+  const env = { GOOGLE_MAPS_KEY: 'k', CALENDAR: kv() }, ctx = { waitUntil: (p) => waits.push(p) };
+  const p = new URLSearchParams('z=17&n=39.8062&s=39.8000&e=-89.6400&w=-89.6510');
+  assert.deepEqual(await mapCredit(env, p, ctx), { credit: 'Map data ©2026 Google' });
+  assert.deepEqual([asked[0].get('north'), asked[0].get('south'), asked[0].get('east'), asked[0].get('west')], ['39.9', '39.8', '-89.6', '-89.7']);
+  await Promise.all(waits);
+  await mapCredit(env, p, ctx);
+  assert.equal(asked.length, 1);
   delete globalThis.caches;
 });
