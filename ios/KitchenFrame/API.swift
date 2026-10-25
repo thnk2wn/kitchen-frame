@@ -156,11 +156,30 @@ struct API: Sendable {
         try await sendCommand(Command(command: command, tab: tab))
     }
 
-    /// The frame's timers as it last sent them (it sends on every change), and when they arrived (ms).
-    struct FrameTimers: Decodable, Sendable { var timers: [FrameTimer]; var at: Double }
+    /// The frame's timers as it last sent them (it sends on every change), when they arrived (ms), and
+    /// the names and lengths used lately, newest first, kept by the Worker whoever started them.
+    struct FrameTimers: Decodable, Sendable { var timers: [FrameTimer]; var at: Double; var recents: [TimerRecent]? }
+
+    /// A name and length used lately, for one tap in the Timers tab (as the Clock app's Recents).
+    struct TimerRecent: Codable, Sendable, Identifiable, Equatable {
+        var label: String
+        var seconds: Int
+        var id: String { label + "|" + String(seconds) }
+        /// "Pasta"; a timer started with no name is called "10 min", which the length already says.
+        var named: Bool { label != "Timer" && label.range(of: #"^\d+ min$"#, options: .regularExpression) == nil }
+        var length: String {
+            let h = seconds / 3600, m = seconds % 3600 / 60, s = seconds % 60
+            return [h > 0 ? "\(h) hr" : nil, m > 0 ? "\(m) min" : nil, s > 0 && h == 0 ? "\(s) sec" : nil].compactMap { $0 }.joined(separator: " ")
+        }
+    }
 
     func timers() async throws -> FrameTimers {
         try JSONDecoder().decode(FrameTimers.self, from: try await send("api/frame/timers", timeout: 10))
+    }
+
+    /// Takes one off the Recents (swiped away).
+    func forgetRecent(_ r: TimerRecent) async throws {
+        _ = try await send("api/frame/timers/recents", method: "DELETE", body: try json(r), contentType: "application/json", timeout: 10)
     }
 
     /// A timer on the frame, as Alexa starts them: start one (shown full screen there), or cancel or add

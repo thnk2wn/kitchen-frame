@@ -435,13 +435,30 @@ test('frame timers: the frame sends them as they change, cut down, and the phone
   const r = fakeRoom();
   const tenv = { ...env, MESSAGES: r.ns };
   const call = (method, body) => worker.fetch(new Request('https://frame.test/api/frame/timers', { method, headers: { Authorization: 'Bearer k' }, body: body && JSON.stringify(body) }), tenv, {});
-  assert.deepEqual(await (await call('GET')).json(), { timers: [], at: 0 });
+  assert.deepEqual(await (await call('GET')).json(), { timers: [], at: 0, recents: [] });
   await call('POST', { timers: [{ id: 'k1', label: 'Pasta', end: 1700000000000.4, total: 600, done: false, extra: 'x' }, { id: 'k2', label: 'x'.repeat(80), end: 'soon', total: 60 }] });
   const got = await (await call('GET')).json();
   assert.deepEqual(got.timers, [{ id: 'k1', label: 'Pasta', end: 1700000000000, total: 600, done: false }]);
   assert.ok(got.at > 0);
   await call('POST', { timers: [] }); // all cancelled on the frame
   assert.deepEqual((await (await call('GET')).json()).timers, []);
+});
+
+test('frame timers: each new one goes first in the recents, once per name and length', async () => {
+  const r = fakeRoom();
+  const tenv = { ...env, MESSAGES: r.ns };
+  const call = (method, body, path = '/api/frame/timers') => worker.fetch(new Request('https://frame.test' + path, { method, headers: { Authorization: 'Bearer k' }, body: body && JSON.stringify(body) }), tenv, {});
+  const timer = (id, label, total, end = 1e12) => ({ id, label, end, total, done: false });
+  assert.deepEqual((await (await call('GET')).json()).recents, []);
+  await call('POST', { timers: [timer('a', 'Pasta', 600, 1e12 + 600000), timer('b', 'Brews', 600, 1e12)] }); // Brews started earlier
+  await call('POST', { timers: [timer('a', 'Pasta', 660, 1e12 + 660000)] }); // +1 min: the same timer, not a new recent
+  assert.deepEqual((await (await call('GET')).json()).recents, [{ label: 'Pasta', seconds: 600 }, { label: 'Brews', seconds: 600 }]);
+  await call('POST', { timers: [timer('c', 'Brews', 600)] }); // again: moves first, once
+  await call('POST', { timers: [timer('d', '3 min', 180)] });
+  assert.deepEqual((await (await call('GET')).json()).recents.map((x) => x.label), ['3 min', 'Brews', 'Pasta']);
+  await call('DELETE', { label: 'Brews', seconds: 600 }, '/api/frame/timers/recents');
+  assert.deepEqual((await (await call('GET')).json()).recents.map((x) => x.label), ['3 min', 'Pasta']);
+  assert.equal((await call('DELETE', {}, '/api/frame/timers/recents')).status, 400);
 });
 
 test('frame: events from the check-in are logged and the last ones kept with the status', async () => {

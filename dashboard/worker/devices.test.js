@@ -45,6 +45,7 @@ test('roles: each key opens only what its device uses', () => {
   assert.equal(allowed({ role: 'phone' }, 'POST', '/api/frame/status'), false); // can't check in as the frame
   assert.equal(allowed({ role: 'phone' }, 'GET', '/api/frame/timers'), true); // its Timers tab
   assert.equal(allowed({ role: 'phone' }, 'POST', '/api/frame/timers'), false); // only the frame sends them
+  assert.equal(allowed({ role: 'phone' }, 'DELETE', '/api/frame/timers/recents'), true); // swiping one of its Recents away
   assert.equal(allowed({ role: 'phone' }, 'GET', '/api/devices'), false);
   assert.equal(allowed({ role: 'phone' }, 'GET', '/api/fitness'), false); // can't read everyone's
   assert.equal(allowed({ role: 'ops' }, 'GET', '/api/ops/summary'), true);

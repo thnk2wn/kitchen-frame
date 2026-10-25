@@ -35,7 +35,9 @@
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   GET, POST, DELETE /api/fitness   Activity rings and workouts, sent by each person's phone (fitness.js)
 //   GET, POST /api/frame/guest       guest mode: nothing personal on the frame (guest.js)
-//   GET, POST /api/frame/timers      { timers, at }: the frame's timers, sent as they change, for the phone
+//   GET, POST /api/frame/timers      { timers, at, recents }: the frame's timers, sent as they change, for the phone,
+//                                    and the names and lengths used lately
+//   DELETE /api/frame/timers/recents { label, seconds }: forget one of the recents
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
@@ -451,6 +453,12 @@ async function handle(req, env, ctx) {
         return room(env).fetch('https://room/timers', { method: 'POST', body: JSON.stringify({ timers: cleanTimers(timers) || [] }) });
       }
       if (url.pathname === '/api/frame/timers' && req.method === 'GET') return room(env).fetch('https://room/timers');
+      // One of the recents swiped away on the phone.
+      if (url.pathname === '/api/frame/timers/recents' && req.method === 'DELETE') {
+        const { label, seconds } = await req.json().catch(() => ({}));
+        if (typeof label !== 'string' || !Number.isFinite(seconds)) return json({ error: 'label and seconds required' }, 400);
+        return room(env).fetch('https://room/timers', { method: 'DELETE', body: JSON.stringify({ label, seconds }) });
+      }
       if (url.pathname === '/api/frame/guest' && req.method === 'GET') return json(await guestMode(env));
       if (url.pathname === '/api/frame/guest' && req.method === 'POST') {
         const { on } = await req.json().catch(() => ({}));

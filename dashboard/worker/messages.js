@@ -17,6 +17,7 @@ const MAX_PENDING = 20;
 const LIMITS = { title: 120, body: 2000, from: 60 };
 // The frame's screenshot (screenshot.js) is deleted this long after it was taken; one ask per ASK_MS.
 const SHOT_KEEP_MS = 10 * 60000, SHOT_ASK_MS = 10000;
+const RECENTS = 6; // timer names and lengths kept for the phone's Recents
 
 const clean = (v, max) => (typeof v === 'string' ? v.replace(/\r\n?/g, '\n').trim().slice(0, max) : '');
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
@@ -121,11 +122,29 @@ export class MessageRoom {
       }
       return json({ on: !!((await this.ctx.storage.get('guest')) || {}).on });
     }
-    // The frame's timers, sent by the frame whenever they change, for the phone app's Remote: kept here
-    // (not KV, which can answer with the old list for a minute), with when they arrived.
+    // The frame's timers, sent by the frame whenever they change, for the phone app's Timers tab: kept
+    // here (not KV, which can answer with the old list for a minute), with when they arrived. Each new
+    // one (by id) goes first in the recents, a name and length once each, for one tap on the phone
+    // however the timer was started (the frame, Alexa, the phone, Siri).
     if (path === '/timers') {
-      if (req.method === 'POST') await this.ctx.storage.put('timers', { timers: (await req.json().catch(() => ({}))).timers || [], at: Date.now() });
-      return json((await this.ctx.storage.get('timers')) || { timers: [], at: 0 });
+      const recents = (await this.ctx.storage.get('timer-recents')) || { list: [], seen: [] };
+      if (req.method === 'POST') {
+        const timers = (await req.json().catch(() => ({}))).timers || [];
+        const fresh = timers.filter((t) => t.id && !recents.seen.includes(t.id)).sort((a, b) => (a.end - a.total * 1000) - (b.end - b.total * 1000));
+        for (const t of fresh) {
+          recents.list = [{ label: t.label, seconds: t.total }, ...recents.list.filter((r) => r.label !== t.label || r.seconds !== t.total)].slice(0, RECENTS);
+          recents.seen = [...recents.seen, t.id].slice(-30);
+        }
+        if (fresh.length) await this.ctx.storage.put('timer-recents', recents);
+        await this.ctx.storage.put('timers', { timers, at: Date.now() });
+      }
+      // Swiped away on the phone.
+      if (req.method === 'DELETE') {
+        const { label, seconds } = await req.json().catch(() => ({}));
+        recents.list = recents.list.filter((r) => r.label !== label || r.seconds !== seconds);
+        await this.ctx.storage.put('timer-recents', recents);
+      }
+      return json({ ...((await this.ctx.storage.get('timers')) || { timers: [], at: 0 }), recents: recents.list });
     }
     if (path === '/post') return this.post(req);
     // A command for the frame itself ("checkin": send your status and events now; "reload": load the

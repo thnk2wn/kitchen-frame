@@ -10,48 +10,6 @@ enum FrameTimers {
     static let names = ["Pasta", "Bread", "Veggies", "Oven", "Protein"]
     static let most = 3
 
-    // MARK: Recents
-
-    /// A name and length used lately, for one tap in the Timers tab (as the Clock app's Recents).
-    struct Recent: Codable, Identifiable, Equatable {
-        var label: String
-        var seconds: Int
-        var id: String { label + "|" + String(seconds) }
-        /// "Pasta"; a timer started with no name is called "10 min", which the length already says.
-        var named: Bool { label != "Timer" && label.range(of: #"^\d+ min$"#, options: .regularExpression) == nil }
-        var length: String {
-            let h = seconds / 3600, m = seconds % 3600 / 60, s = seconds % 60
-            return [h > 0 ? "\(h) hr" : nil, m > 0 ? "\(m) min" : nil, s > 0 && h == 0 ? "\(s) sec" : nil].compactMap { $0 }.joined(separator: " ")
-        }
-    }
-
-    private static let recentsKey = "timer-recents"
-    private static let seenKey = "timer-recents-seen" // frame timer ids already counted
-    private static let keep = 6
-
-    static func recents() -> [Recent] {
-        (UserDefaults.standard.data(forKey: recentsKey)).flatMap { try? JSONDecoder().decode([Recent].self, from: $0) } ?? []
-    }
-
-    /// Puts it first (once). With a frame timer's id, only the first time that timer is seen.
-    static func remember(label: String, seconds: Int, id: String? = nil) {
-        guard seconds > 0 else { return }
-        if let id {
-            var seen = UserDefaults.standard.stringArray(forKey: seenKey) ?? []
-            if seen.contains(id) { return }
-            seen = Array((seen + [id]).suffix(30))
-            UserDefaults.standard.set(seen, forKey: seenKey)
-        }
-        let r = Recent(label: label, seconds: seconds)
-        save([r] + recents().filter { $0 != r })
-    }
-
-    static func forget(_ r: Recent) { save(recents().filter { $0 != r }) }
-
-    private static func save(_ list: [Recent]) {
-        UserDefaults.standard.set(try? JSONEncoder().encode(Array(list.prefix(keep))), forKey: recentsKey)
-    }
-
     /// "10 minutes", "1 hour and 30 minutes": what Siri says back.
     static func said(minutes m: Int) -> String {
         let n = { (v: Int, unit: String) in "\(v) \(unit)\(v == 1 ? "" : "s")" }
@@ -144,7 +102,6 @@ struct StartFrameTimer: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let m = length.rawValue
         try await FrameTimers.run { try await $0.timer("start", label: name?.label ?? "\(m) min", seconds: m * 60) }
-        FrameTimers.remember(label: name?.label ?? "\(m) min", seconds: m * 60)
         return .result(dialog: "\((name.map { $0.label + " timer" } ?? "Timer")), \(FrameTimers.said(minutes: m)), on the frame.")
     }
 }

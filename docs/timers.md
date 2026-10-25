@@ -19,7 +19,7 @@ recipe stays readable.
 **By voice**, with the [Alexa skill](alexa.md): "Alexa, ask Kitchen Frame to start a 10 minute pasta
 timer" (without a time, Alexa asks how long), "…to cancel the timer", "…to add a minute". The timer
 runs on the frame, full screen, not on the Echo. With Alexa+ on, "timer" may go to Alexa's own timers
-instead. The [phone app](../ios/README.md) starts, adds to and cancels them too, from its Remote or
+instead. The [phone app](../ios/README.md) starts, adds to and cancels them too, from its Timers tab (with Recents, the names and lengths used lately, which the Worker keeps) or
 through Siri ("Hey Siri, Kitchen Frame 10 minute timer").
 
 When a timer ends: the frame chimes (Web Audio, no sound files), a full-screen alert offers +1 min

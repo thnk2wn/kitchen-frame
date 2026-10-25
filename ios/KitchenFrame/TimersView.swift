@@ -5,7 +5,7 @@ import SwiftUI
 /// there). The frame sends its list whenever it changes (POST /api/frame/timers); this reads it every
 /// few seconds while it shows, and right after a tap. Siri starts timers too (FrameTimers.swift).
 /// Recents, as in the Clock app: each name and length used lately, wherever it was started (here, Siri,
-/// the frame, Alexa), one tap to start again.
+/// the frame, Alexa), one tap to start again. The Worker keeps them, so they're there on any phone.
 struct TimersView: View {
     let api: API
 
@@ -18,7 +18,7 @@ struct TimersView: View {
     @State private var problem: String?
     /// Why the frame's list couldn't be read, so a stale list never passes for the frame's.
     @State private var unread: String?
-    @State private var recents = FrameTimers.recents()
+    @State private var recents: [API.TimerRecent] = []
     /// On the frame's home network (API.atHome): timers, like Remote, work only there. Nil until known.
     @State private var home: Bool?
 
@@ -60,8 +60,11 @@ struct TimersView: View {
                                 .tint(.primary)
                             }
                             .onDelete { gone in
-                                for i in gone { FrameTimers.forget(recents[i]) }
-                                recents = FrameTimers.recents()
+                                let rs = gone.map { recents[$0] }
+                                recents.remove(atOffsets: gone)
+                                Task {
+                                    do { for r in rs { try await api.forgetRecent(r) } } catch { problem = error.localizedDescription }
+                                }
                             }
                         }
                         .disabled(busy != nil || home == false)
@@ -142,8 +145,8 @@ struct TimersView: View {
         await send(busyId, "start", label: label, seconds: seconds) {
             let now = Date.now.timeIntervalSince1970 * 1000
             timers.append(.init(id: "new\(now)", label: label, end: now + Double(seconds) * 1000, total: seconds, done: false))
-            FrameTimers.remember(label: label, seconds: seconds)
-            recents = FrameTimers.recents()
+            let r = API.TimerRecent(label: label, seconds: seconds)
+            recents = [r] + recents.filter { $0 != r }
         }
     }
 
@@ -169,7 +172,7 @@ struct TimersView: View {
             busy = nil
             for _ in 0..<8 {
                 try? await Task.sleep(for: .milliseconds(500))
-                if let t = try? await api.timers(), t.at != before { timers = t.timers; at = t.at; break }
+                if let t = try? await api.timers(), t.at != before { show(t); break }
             }
         } catch {
             problem = error.localizedDescription
@@ -180,17 +183,16 @@ struct TimersView: View {
     private func load() async {
         guard busy == nil else { return }
         do {
-            let t = try await api.timers()
-            timers = t.timers
-            at = t.at
+            show(try await api.timers())
             unread = nil
-            // Started on the frame, by Alexa or by Siri: into Recents too, newest first.
-            for x in t.timers.sorted(by: { $0.end - Double($0.total) * 1000 < $1.end - Double($1.total) * 1000 }) {
-                FrameTimers.remember(label: x.label, seconds: x.total, id: x.id)
-            }
-            recents = FrameTimers.recents()
         } catch {
             unread = error.localizedDescription
         }
+    }
+
+    private func show(_ t: API.FrameTimers) {
+        timers = t.timers
+        at = t.at
+        if let r = t.recents { recents = r }
     }
 }
