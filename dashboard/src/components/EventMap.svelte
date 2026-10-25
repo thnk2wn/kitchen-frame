@@ -8,13 +8,13 @@
   // (Google, or OpenStreetMap's Nominatim) and sends Google's map picture; OSM tiles when that fails
   // (no Google key, or its daily allowance used up). Nothing shows if the place
   // can't be found (a video call, a room name), so the sheet just has no map. Tapped, it opens the
-  // full-screen map (MapView).
+  // full-screen map (MapView), with the drive there when there is one (route: lib/drive.svelte.js).
   import Icon from './Icon.svelte';
   import MapView from './MapView.svelte';
   import { api, mediaUrl } from '../lib/api.js';
   import { ui } from '../lib/state.svelte.js';
 
-  let { location, width = 340, height = 280, zoom = 15, found = $bindable(false) } = $props();
+  let { location, width = 340, height = 280, zoom = 15, route = '', found = $bindable(false) } = $props();
   const TILE = 256;
 
   let place = $state(null);
@@ -74,7 +74,7 @@
     {/if}
     <span class="more"><Icon name="maximize" size={22} /></span>
   </button>
-  {#if big}<MapView {place} title={location} onclose={() => (big = false)} />{/if}
+  {#if big}<MapView {place} {route} title={location} onclose={() => (big = false)} />{/if}
 {/if}
 
 <style>

@@ -12,7 +12,7 @@ export const SOON_MS = 2 * 3600000;
 // A trip that's usually longer than this is an away game or a holiday, not a drive to time.
 const MAX_USUAL = 120;
 
-// key -> { minutes, usual } or null (not found, or too far); only what's been asked for this run.
+// key -> { minutes, usual, line } or null (line: the route, Google's encoded polyline, for MapView) (not found, or too far); only what's been asked for this run.
 export const drives = $state({});
 const asked = new Map(); // key -> when
 
@@ -21,7 +21,7 @@ const keyOf = (e) => e.location + '|' + e.start;
 export const drivable = (e) => !!(e && e.location && e.location !== 'Video call' && !e.allDay && !ui.demo
   && calendar.raw && calendar.raw.drive && calendar.raw.drive[e.cal] && canOpen(e));
 
-// The drive for an event, once known: { minutes, usual, leave: Date } or null.
+// The drive for an event, once known: { minutes, usual, line, leave: Date } or null.
 export function driveOf(e) {
   const d = e && drives[keyOf(e)];
   return d ? { ...d, leave: new Date(Date.parse(e.start) - d.minutes * 60000) } : null;
@@ -38,7 +38,7 @@ export function loadDrive(e, now = Date.now()) {
     const d = r && r.drive;
     // No answer this time (an error, the allowance used up) keeps the last good one.
     if (!d && drives[key]) return;
-    drives[key] = d && d.usual <= MAX_USUAL ? { minutes: d.minutes, usual: d.usual } : null;
+    drives[key] = d && d.usual <= MAX_USUAL ? { minutes: d.minutes, usual: d.usual, line: d.line || '' } : null;
   }).catch(() => asked.delete(key));
 }
 

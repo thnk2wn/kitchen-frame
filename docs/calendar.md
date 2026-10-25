@@ -110,7 +110,9 @@ the screen, not from whoever holds the frame's key. A feed published without its
   - **Without it**, or when Google refuses or its allowance is used up, OpenStreetMap's Nominatim
     finds the place and the map is OSM's tiles through the Worker's cache.
   - **Tap the map** for a full-screen one: drag to move about, + and – to go closer or further
-    (the frame has no pinch), and the pin button to come back to the place. It's Google's street
+    (the frame has no pinch), and the pin button to come back to the place. With a drive time,
+    the route from home is drawn on it, and the car button shows the whole drive (the line comes
+    with the drive time, at no extra cost). It's Google's street
     map tiles (Map Tiles API) with a key, OSM's without, the same tiles as the radar's street map.
 
 ### Drive times

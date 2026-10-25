@@ -122,7 +122,7 @@
           <div class="code">{#if qr}{@html qr}{/if}</div>
           <div class="sub">Scan with your phone to open <b>{qrFor.label}</b></div>
         </div>
-      {:else if mapFor}{#key mapFor}<EventMap location={mapFor} height={Math.max(220, Math.min(rowsHeight, 420))} bind:found={mapped} />{/key}{/if}
+      {:else if mapFor}{#key mapFor}<EventMap location={mapFor} height={Math.max(220, Math.min(rowsHeight, 420))} route={drive ? drive.line : ''} bind:found={mapped} />{/key}{/if}
       </div>
     </div>
   </div>

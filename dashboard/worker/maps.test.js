@@ -128,6 +128,19 @@ test('drive: from home with traffic, only for a start in the coming week', async
   assert.equal(await drive({ ...env, GOOGLE_MAPS_KEY: '' }, '401 Main St, Springfield', '2026-10-24T14:00:00Z', now), null);
 });
 
+test('drive: the route comes back as Google\'s line in the same call', async () => {
+  let mask;
+  globalThis.fetch = async (u, o) => {
+    if (String(u).startsWith('https://routes.googleapis.com')) { mask = o.headers['X-Goog-FieldMask']; return Response.json({ routes: [{ duration: '780s', staticDuration: '780s', polyline: { encodedPolyline: '_p~iF~ps|U_ulLnnqC' } }] }); }
+    return Response.json({ status: 'OK', results: [{ geometry: { location: { lat: 39.81, lng: -89.65 } } }] });
+  };
+  const env = { ...home, GOOGLE_MAPS_KEY: 'k', CALENDAR: kv() };
+  const now = Date.parse('2026-10-24T12:00:00Z');
+  assert.deepEqual(await drive(env, '401 Main St, Springfield', '2026-10-24T14:00:00Z', now), { minutes: 13, usual: 13, line: '_p~iF~ps|U_ulLnnqC' });
+  assert.match(mask, /routes\.polyline\.encodedPolyline/);
+  assert.doesNotMatch(mask, /speedReading|travelAdvisory/); // traffic along the line is a dearer tier
+});
+
 test('drive: one Routes call shared by every screen asking within its time bucket', async () => {
   const store = new Map();
   globalThis.caches = { default: { match: async (r) => store.get(r.url)?.clone(), put: async (r, res) => { store.set(r.url, res); } } };

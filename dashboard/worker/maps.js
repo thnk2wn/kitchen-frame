@@ -9,6 +9,8 @@
 //     with traffic (Google's Routes API). Home is HOME_LAT/HOME_LON, or WEATHER_LAT/LON when unset
 //     (rounded, so a minute or two out). Kept briefly in Cloudflare's cache and shared by every screen
 //     and reload: 12 hours while the event is more than 2 hours off, then 10 minutes (DRIVE_KEEP).
+//     With the route as Google's encoded line, for the full-screen map: the same call and price (a
+//     plain line; traffic colours along it would be Google's dearest tier).
 //   googleTile(): Google's street map tiles (Map Tiles API) for the radar and the full-screen map,
 //     through the Worker for the key. Kept only as long as Google's own Cache-Control allows (its
 //     terms): in Cloudflare's cache when public, otherwise only by the frame's browser.
@@ -163,14 +165,14 @@ export async function drive(env, q, at, now = Date.now()) {
   // One answer per place, start and time bucket for every screen asking (Routes calls are capped).
   const keep = start - now > DRIVE_SOON * 1000 ? DRIVE_KEEP.far : DRIVE_KEEP.soon;
   const cache = typeof caches !== 'undefined' ? caches.default : null;
-  const cacheKey = new Request(`https://drive.cache/${place.lat},${place.lon}/${lat},${lon}/${start}/${keep}/${Math.floor(now / (keep * 1000))}`);
+  const cacheKey = new Request(`https://drive.cache/v2/${place.lat},${place.lon}/${lat},${lon}/${start}/${keep}/${Math.floor(now / (keep * 1000))}`);
   const hit = cache && (await cache.match(cacheKey));
   if (hit) return hit.json();
   if (!(await spend(env, 'routes'))) return null;
   const point = (p) => ({ location: { latLng: { latitude: p.lat, longitude: p.lon } } });
   const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': env.GOOGLE_MAPS_KEY, 'X-Goog-FieldMask': 'routes.duration,routes.staticDuration' },
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': env.GOOGLE_MAPS_KEY, 'X-Goog-FieldMask': 'routes.duration,routes.staticDuration,routes.polyline.encodedPolyline' },
     body: JSON.stringify({
       origin: point({ lat, lon }), destination: point(place), travelMode: 'DRIVE',
       routingPreference: 'TRAFFIC_AWARE', departureTime: new Date(Math.max(now + 60000, start - 30 * 60000)).toISOString(),
@@ -181,7 +183,8 @@ export async function drive(env, q, at, now = Date.now()) {
   const r = (body.routes || [])[0];
   if (!r) return null; // no road there (an island, another continent)
   const mins = (d) => Math.max(1, Math.round(parseFloat(d) / 60));
-  const out = { minutes: mins(r.duration), usual: mins(r.staticDuration || r.duration) };
+  const line = r.polyline && r.polyline.encodedPolyline;
+  const out = { minutes: mins(r.duration), usual: mins(r.staticDuration || r.duration), ...(line ? { line } : {}) };
   if (cache) await cache.put(cacheKey, new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=' + keep } }));
   return out;
 }

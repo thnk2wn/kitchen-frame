@@ -3,18 +3,38 @@
   // (OpenStreetMap's when Google's tiles aren't there, lib/maptiles.js), dragged with a finger, and
   // closer or further with + and – (the frame has no pinch). The tiles sit in one layer moved with a
   // transform, so a drag repaints nothing; tiles coming into view load as it moves. Each tile is
-  // counted against the Worker's daily allowance unless Google lets Cloudflare keep it.
+  // counted against the Worker's daily allowance (only each screen's browser may keep it).
+  // It opens close on the place, as the preview tapped showed it. With a route (the drive there,
+  // lib/drive.svelte.js) the line is drawn from home, and the car button shows the whole drive; the
+  // pin button comes back to the place.
+  import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
-  import { TILE, pixel, googleFirst, tileSrc, tileFailed, mapCredit } from '../lib/maptiles.js';
+  import { TILE, pixel, googleFirst, tileSrc, tileFailed, mapCredit, decodeLine } from '../lib/maptiles.js';
 
-  let { place, title = '', onclose } = $props();
+  let { place, route = '', title = '', onclose } = $props();
   const MIN_Z = 3, MAX_Z = 18, START_Z = 16;
 
   let w = $state(window.innerWidth), h = $state(window.innerHeight);
-  let z = $state(START_Z);
-  let centre = $state(pixel(place.lat, place.lon, START_Z)); // the view's middle, in pixels at z
+  // Read once: the map is opened afresh each time, so its props don't change while it's up.
+  const points = untrack(() => (route ? decodeLine(route) : []));
+
+  const placeView = () => ({ z: START_Z, centre: pixel(place.lat, place.lon, START_Z) });
+  // The closest zoom that shows the whole drive clear of the buttons, centred on it.
+  function routeView() {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const [la, lo] of [...points, [place.lat, place.lon]]) {
+      const p = pixel(la, lo, 0);
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }
+    let fit = MAX_Z;
+    while (fit > MIN_Z && ((maxX - minX) * 2 ** fit > w - 220 || (maxY - minY) * 2 ** fit > h - 200)) fit--;
+    return { z: fit, centre: { x: ((minX + maxX) / 2) * 2 ** fit, y: ((minY + maxY) / 2) * 2 ** fit } };
+  }
+  const first = placeView();
+  let z = $state(first.z);
+  let centre = $state(first.centre); // the view's middle, in pixels at z
   // The layer's own origin, reset with each zoom, so tiles' positions stay small numbers.
-  let origin = $state({ x: Math.floor(centre.x), y: Math.floor(centre.y) });
+  let origin = $state({ x: Math.floor(first.centre.x), y: Math.floor(first.centre.y) });
   const google = googleFirst();
   let osm = $state({}); // tiles shown from OSM after Google's failed
   let credit = $state(google ? 'Google Maps' : '© OpenStreetMap');
@@ -30,7 +50,11 @@
     }
     return out;
   });
-  let pin = $derived.by(() => { const p = pixel(place.lat, place.lon, z); return { x: p.x - origin.x, y: p.y - origin.y }; });
+  const at = (la, lo) => { const p = pixel(la, lo, z); return { x: Math.round(p.x - origin.x), y: Math.round(p.y - origin.y) }; };
+  let pin = $derived(at(place.lat, place.lon));
+  // The route in the layer's pixels, redrawn only on a zoom (a drag moves the whole layer).
+  let line = $derived(points.map(([la, lo]) => { const p = at(la, lo); return p.x + ',' + p.y; }).join(' '));
+  let start = $derived(points.length ? at(points[0][0], points[0][1]) : null);
   let shift = $derived({ x: Math.round(w / 2 - (centre.x - origin.x)), y: Math.round(h / 2 - (centre.y - origin.y)) });
 
   function failed(key) {
@@ -56,9 +80,9 @@
     z = nz;
     settle();
   }
-  function home() {
-    const p = pixel(place.lat, place.lon, z);
-    centre = p;
+  function show(v) {
+    if (v.z !== z) zoomTo(v.z);
+    centre = v.centre;
     settle();
   }
 
@@ -87,7 +111,14 @@
       {#each tiles as t (t.key)}
         <img src={t.src} alt="" decoding="async" draggable="false" style="transform: translate({t.x}px, {t.y}px)" onerror={() => failed(t.key)} />
       {/each}
-      <span class="pin" style="transform: translate({Math.round(pin.x)}px, {Math.round(pin.y)}px)"></span>
+      {#if line}
+        <svg class="route" width="1" height="1" aria-hidden="true">
+          <polyline class="under" points={line} />
+          <polyline points={line} />
+        </svg>
+      {/if}
+      {#if start}<span class="start" style="transform: translate({start.x}px, {start.y}px)"><Icon name="house" size={20} /></span>{/if}
+      <span class="pin" style="transform: translate({pin.x}px, {pin.y}px)"></span>
     </div>
   </div>
   <div class="top">
@@ -97,7 +128,8 @@
   <div class="zoom">
     <button class="round" onclick={() => zoomTo(z + 1)} disabled={z >= MAX_Z} aria-label="Closer"><Icon name="plus" size={28} /></button>
     <button class="round" onclick={() => zoomTo(z - 1)} disabled={z <= MIN_Z} aria-label="Further"><Icon name="minus" size={28} /></button>
-    <button class="round" onclick={home} aria-label="Back to the place"><Icon name="mapPin" size={26} /></button>
+    {#if points.length > 1}<button class="round" onclick={() => show(routeView())} aria-label="The whole drive"><Icon name="car" size={26} /></button>{/if}
+    <button class="round" onclick={() => show(placeView())} aria-label="Back to the place"><Icon name="mapPin" size={26} /></button>
   </div>
   <span class="credit">{credit}</span>
 </div>
@@ -108,6 +140,11 @@
   .layer { position: absolute; left: 0; top: 0; will-change: transform; }
   img { position: absolute; left: 0; top: 0; width: 256px; height: 256px; user-select: none; -webkit-user-drag: none; }
   .pin { position: absolute; left: -13px; top: -13px; width: 26px; height: 26px; border-radius: 50%; background: var(--red); border: 4px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
+  /* The route as Google Maps draws one: blue with a darker edge. */
+  .route { position: absolute; left: 0; top: 0; overflow: visible; }
+  .route polyline { fill: none; stroke: #4285f4; stroke-width: 6px; stroke-linecap: round; stroke-linejoin: round; }
+  .route polyline.under { stroke: #1a5fd0; stroke-width: 10px; }
+  .start { position: absolute; left: -18px; top: -18px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: #1a5fd0; border: 3px solid #fff; color: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .35); }
   .top { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; pointer-events: none; }
   .title { max-width: 900px; padding: 10px 20px; border-radius: 24px; background: rgba(28, 28, 30, .82); color: #fff; font-size: 21px; font-weight: 600; overflow-wrap: anywhere; }
   .round { pointer-events: auto; flex: none; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: rgba(28, 28, 30, .82); color: #fff; }

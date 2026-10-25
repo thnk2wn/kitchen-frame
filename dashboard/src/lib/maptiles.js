@@ -32,6 +32,19 @@ export function mapCredit(z, left, top, width, height) {
   return credits.get(q);
 }
 
+// Google's encoded polyline (a route) as [[lat, lon], ...].
+export function decodeLine(s) {
+  const out = [];
+  let i = 0, lat = 0, lon = 0;
+  const next = () => {
+    let r = 0, shift = 0, b;
+    do { b = s.charCodeAt(i++) - 63; r |= (b & 31) << shift; shift += 5; } while (b >= 32 && i < s.length);
+    return r & 1 ? ~(r >> 1) : r >> 1;
+  };
+  while (i < s.length) { lat += next(); lon += next(); out.push([lat / 1e5, lon / 1e5]); }
+  return out;
+}
+
 // A tile as an image: Google's, or OSM's in its place. { img, google } or null.
 const loadImg = (src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
 export async function loadTile(z, x, y) {
