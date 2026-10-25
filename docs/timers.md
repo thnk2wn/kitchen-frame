@@ -4,15 +4,15 @@ Start one from the timer button in the top bar: tap a time (it starts at once), 
 name. The names default to Pasta, Bread, Veggies, Oven and Protein; set your own per frame with
 `TIMER_NAMES` in `dashboard/.frame.vars` (or `?timer_names=` in a setup link). On a recipe page,
 times in the steps are buttons that start a timer named after the recipe. Up to three can run; the
-top bar on every screen shows one chip, the timer that ends next, with "+N" for the others (tap it
-to see them all, add a minute or cancel). Timers survive a reload, and the clock screen never comes
+top bar on every screen shows one chip, the timer that ends next, with "+N" for the others. Timers survive a reload, and the clock screen never comes
 on while one is running.
 
-**Full screen**, to read from across the kitchen: the button beside New timer in the chip's menu,
-and by itself for a timer started through Alexa. One timer fills the screen; two or three share it in
-columns, ending soonest first, each with +1 min and Cancel, and New timer below. A timer that ends
+**Full screen**, to read from across the kitchen: a timer started from the top bar or through Alexa
+opens it, and tapping the chip opens it again. One timer fills the screen; two or three share it in
+columns, ending soonest first, each with +1 min and Cancel, and New timer below (a time, then a name). A timer that ends
 turns red in its place, with +1 min and Dismiss. It goes back to the chip with its button, or when the
-last timer is dismissed or cancelled.
+last timer is dismissed or cancelled. A timer started from a recipe's steps stays in the chip, so the
+recipe stays readable.
 
 **By voice**, with the [Alexa skill](alexa.md): "Alexa, ask Kitchen Frame to start a 10 minute pasta
 timer" (without a time, Alexa asks how long), "…to cancel the timer", "…to add a minute". The timer

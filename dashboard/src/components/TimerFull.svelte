@@ -1,16 +1,18 @@
 <script>
-  // The timers full screen, to read from across the kitchen: opened from the timers' menu in the top
-  // bar, and by itself for a timer started through Alexa (lib/timers.svelte.js fromVoice). One timer
+  // The timers full screen, to read from across the kitchen: opened by the timer chip in the top bar,
+  // and by itself for a timer started from the top bar or through Alexa (lib/timers.svelte.js fromVoice). One timer
   // fills the screen; two or three share it in columns, ending soonest first. A timer that ends turns
   // red in its place, with +1 min and Dismiss, instead of the alert card. It closes when the last
   // timer is dismissed or cancelled, or with its button. Only the digits' text changes each second.
   import Icon from './Icon.svelte';
-  import { timers, startTimer, addTime, removeTimer, remaining, clockOf, MAX_TIMERS } from '../lib/timers.svelte.js';
+  import { timers, startTimer, renameTimer, timerNames, addTime, removeTimer, remaining, clockOf, MAX_TIMERS } from '../lib/timers.svelte.js';
 
   const PRESETS = [1, 3, 5, 10, 15, 20, 30, 45, 60];
   let list = $derived([...timers.list].sort((a, b) => (b.done - a.done) || a.end - b.end));
   let running = $derived(timers.list.filter((t) => !t.done).length);
+  const NAMES = timerNames();
   let adding = $state(false);
+  let naming = $state(null); // the timer just started here, while its names are offered (as in the top bar)
   // Digits as big as a column allows: each character is about 0.6 of the font size wide, and a
   // timer of an hour or more ("1:02:30") has more of them. Capped so one timer leaves room for its
   // name and buttons.
@@ -49,8 +51,11 @@
       {/each}
     </div>
     <div class="foot">
-      {#if adding}
-        {#each PRESETS as m (m)}<button class="preset" onclick={() => { startTimer(m + ' min', m * 60); adding = false; }}>{m < 60 ? m + ' min' : '1 hr'}</button>{/each}
+      {#if naming}
+        {#each NAMES as n (n)}<button class="preset named" onclick={() => { renameTimer(naming, n); naming = null; }}>{n}</button>{/each}
+        <button class="preset" onclick={() => (naming = null)}>No name</button>
+      {:else if adding}
+        {#each PRESETS as m (m)}<button class="preset" onclick={() => { naming = startTimer(m + ' min', m * 60); adding = false; }}>{m < 60 ? m + ' min' : '1 hr'}</button>{/each}
         <button class="preset" onclick={() => (adding = false)} aria-label="Never mind"><Icon name="close" size={22} /></button>
       {:else if running < MAX_TIMERS}
         <button class="new" onclick={() => (adding = true)}><Icon name="plus" size={22} />New timer</button>
@@ -79,6 +84,7 @@
   .new, .preset { height: 60px; padding: 0 22px; border-radius: 30px; font-size: 21px; font-weight: 700; background: var(--fill); }
   .new { display: flex; align-items: center; gap: 8px; color: var(--orange-text); }
   .preset { padding: 0 16px; display: grid; place-items: center; }
+  .preset.named { background: var(--orange); color: #fff; }
   .small { position: absolute; top: 16px; right: 16px; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); }
   button:active { opacity: .7; }
 </style>
