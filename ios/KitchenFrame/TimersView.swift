@@ -4,6 +4,8 @@ import SwiftUI
 /// and cancel; then hours and minutes on wheels and a name, to start one on the frame (full screen
 /// there). The frame sends its list whenever it changes (POST /api/frame/timers); this reads it every
 /// few seconds while it shows, and right after a tap. Siri starts timers too (FrameTimers.swift).
+/// Recents, as in the Clock app: each name and length used lately, wherever it was started (here, Siri,
+/// the frame, Alexa), one tap to start again.
 struct TimersView: View {
     let api: API
 
@@ -16,6 +18,7 @@ struct TimersView: View {
     @State private var problem: String?
     /// Why the frame's list couldn't be read, so a stale list never passes for the frame's.
     @State private var unread: String?
+    @State private var recents = FrameTimers.recents()
     /// On the frame's home network (API.atHome): timers, like Remote, work only there. Nil until known.
     @State private var home: Bool?
 
@@ -39,6 +42,30 @@ struct TimersView: View {
                 }
 
                 if sorted.filter({ !$0.done }).count < FrameTimers.most {
+                    if !recents.isEmpty {
+                        Section("Recents") {
+                            ForEach(recents) { r in
+                                Button { Task { await start(r.label, seconds: r.seconds, busyId: "recent" + r.id) } } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(r.length).font(.title3.monospacedDigit().weight(.semibold))
+                                            if r.named { Text(r.label).font(.subheadline).foregroundStyle(.secondary) }
+                                        }
+                                        Spacer()
+                                        if busy == "recent" + r.id { ProgressView() } else {
+                                            Image(systemName: "play.circle.fill").font(.title).foregroundStyle(.orange)
+                                        }
+                                    }
+                                }
+                                .tint(.primary)
+                            }
+                            .onDelete { gone in
+                                for i in gone { FrameTimers.forget(recents[i]) }
+                                recents = FrameTimers.recents()
+                            }
+                        }
+                        .disabled(busy != nil || home == false)
+                    }
                     Section("New timer") {
                         HStack(spacing: 0) {
                             Picker("Hours", selection: $hours) {
@@ -54,7 +81,7 @@ struct TimersView: View {
                             Text("None").tag("")
                             ForEach(FrameTimers.names, id: \.self) { Text($0).tag($0) }
                         }
-                        Button { Task { await start() } } label: {
+                        Button { Task { await startPicked() } } label: {
                             HStack {
                                 Spacer()
                                 if busy == "start" { ProgressView() } else { Text("Start on the frame").bold() }
@@ -105,13 +132,18 @@ struct TimersView: View {
         .disabled(busy != nil || home == false)
     }
 
-    private func start() async {
+    private func startPicked() async {
         let total = hours * 60 + minutes
-        let label = name.isEmpty ? "\(total) min" : name
-        await send("start", "start", label: label, seconds: total * 60) {
+        await start(name.isEmpty ? "\(total) min" : name, seconds: total * 60, busyId: "start")
+        name = ""
+    }
+
+    private func start(_ label: String, seconds: Int, busyId: String) async {
+        await send(busyId, "start", label: label, seconds: seconds) {
             let now = Date.now.timeIntervalSince1970 * 1000
-            timers.append(.init(id: "new\(now)", label: label, end: now + Double(total) * 60_000, total: total * 60, done: false))
-            name = ""
+            timers.append(.init(id: "new\(now)", label: label, end: now + Double(seconds) * 1000, total: seconds, done: false))
+            FrameTimers.remember(label: label, seconds: seconds)
+            recents = FrameTimers.recents()
         }
     }
 
@@ -152,6 +184,11 @@ struct TimersView: View {
             timers = t.timers
             at = t.at
             unread = nil
+            // Started on the frame, by Alexa or by Siri: into Recents too, newest first.
+            for x in t.timers.sorted(by: { $0.end - Double($0.total) * 1000 < $1.end - Double($1.total) * 1000 }) {
+                FrameTimers.remember(label: x.label, seconds: x.total, id: x.id)
+            }
+            recents = FrameTimers.recents()
         } catch {
             unread = error.localizedDescription
         }

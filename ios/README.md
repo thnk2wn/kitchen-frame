@@ -12,7 +12,9 @@ A companion app for the frame:
   (pinch to zoom, share): the frame's kiosk app (1.7+) captures it and the Worker keeps it 10 minutes
   (`dashboard/worker/screenshot.js`); the frame says "Screenshot sent to a phone" afterwards.
 - **Timers** tab: the frame's timers counting down, with +1 min and cancel, and hour and minute
-  wheels and a name to start one there, full screen. The frame sends its list whenever it changes
+  wheels and a name to start one there, full screen. **Recents**, as in the Clock app: the last few
+  names and lengths used (from the app, Siri, the frame or Alexa), one tap to start again, swipe to
+  remove. The frame sends its list whenever it changes
   (`POST /api/frame/timers`), and the tab reads it every few seconds while it shows. **Siri** too,
   with no setup beyond a one-time "Turn on Kitchen Frame shortcuts with Siri?" (`FrameTimers.swift`):
   "Hey Siri, Kitchen Frame 10 minutes", "Kitchen Frame pasta" or "Kitchen Frame timer" (Siri asks how
