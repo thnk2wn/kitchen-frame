@@ -1,9 +1,9 @@
 <script>
-  // On Recipes, the running timers as a row along the bottom: between the top bar's chip (too small to
-  // read from the stove) and full screen (which hides the recipe). Each timer gets a card with its
-  // picture, name, digits big enough to read at a glance, its progress, +1 min and cancel; the button
-  // at the end opens them full screen. The recipe above shrinks to make room (App.svelte), so nothing
-  // is covered. A timer that ends still raises the alert (TimerAlert.svelte).
+  // The running timers as a row along the bottom of every tab: readable from the stove without full
+  // screen hiding the tab. Each timer gets a card with its picture, name, digits big enough to read at
+  // a glance, its progress, +1 min and cancel; the button at the end opens them full screen. The tab
+  // above shrinks to make room while they run (App.svelte), so nothing is covered. A timer that ends
+  // still raises the alert (TimerAlert.svelte).
   import Icon from './Icon.svelte';
   import { timers, addTime, removeTimer, remaining, clockOf, timerPicture } from '../lib/timers.svelte.js';
 
@@ -31,7 +31,7 @@
 </div>
 
 <style>
-  .dock { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 28px 14px; border-top: 1px solid var(--sep); background: var(--ground); }
+  .dock { position: relative; z-index: 1; flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 28px 14px; border-top: 1px solid var(--sep); background: var(--ground); }
   .card { flex: 1; min-width: 0; max-width: 460px; height: 84px; display: flex; align-items: center; gap: 12px; padding: 0 10px 0 16px; border-radius: 22px; background: var(--sheet); }
   .card.ring { background: var(--pal-red-tint); }
   .pic { flex: none; color: var(--secondary); }

@@ -80,7 +80,7 @@ Each feature links to its page in [`docs/`](docs/), which has the setup and the 
 | **[Paprika recipes](docs/recipes.md)** | New | Your library, synced: categories, search, an A–Z index, notes, nutrition and full-size photos. **Save to Paprika** from Explore (recipes already there are marked). A script fixes recipes whose imports only got a thumbnail, in Paprika itself. |
 | **Meal plan** | New | Paprika's planned meals on Home ("Dinner" at the top of Today) and a Meals view for the week, which updates when the plan changes. **[Groceries for the week](docs/recipes.md#groceries-for-the-week)**: one shopping list from the week's planned recipes, combined and added up, staples and what's already on the list left out, to check over before adding (an open-weight model on Workers AI, free). |
 | **[Rotations](docs/rotations.md)** | New | Who's up early with the kids, whose turn for bedtime, on Home's Today card. |
-| **[Timers](docs/timers.md)** | New | Tap a time, then a name (Pasta, Oven), or ask Alexa. Times in recipe directions are buttons. A chip on every screen, or full screen in big digits, then a chime, an alert and an Echo announcement. |
+| **[Timers](docs/timers.md)** | New | Tap a time, then a name (Pasta, Oven), or ask Alexa. Times in recipe directions are buttons. A row along the bottom of every screen, or full screen in big digits, then a chime, an alert and an Echo announcement. |
 | **[Lists](docs/lists.md)** | Updated | Groceries and Tasks in one tab, and side by side on Home. Each from Todoist or, through a Mac at home, Apple Reminders (Siri, the watch and the phone, two-way within seconds), with priorities, due times, aisles and flags. Tap an item to edit it; ticking one gives a few seconds to undo. |
 | **[Alexa](docs/alexa.md)** | New | Your own private Alexa skill: "Alexa, ask Kitchen Frame to add eggs to groceries" (the frame then shows the list), show a tab, start the slideshow, play a group of videos or a podcast on the Echo, what's for dinner, the rundown of the day, how's my fitness (an AI summary of the rings, the week and workouts), or guest mode on. What each Echo heard and what the skill did are logged on the status page. |
 
@@ -297,8 +297,8 @@ on the frame or on an Echo through the Alexa skill.
 
 ### Timers
 
-Tap a time, then a name; times in recipe directions are buttons; up to three run, with a chip on
-every screen, a chime, a full-screen alert, and with Home Assistant a spoken announcement on a speaker
+Tap a time, then a name; times in recipe directions are buttons; up to three run, in a row along
+the bottom of every screen, a chime, a full-screen alert, and with Home Assistant a spoken announcement on a speaker
 (an Echo's, say). Names per frame with
 `TIMER_NAMES`. [docs/timers.md](docs/timers.md).
 

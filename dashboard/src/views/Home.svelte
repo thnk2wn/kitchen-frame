@@ -8,6 +8,7 @@
 <script>
   import { rotationLines } from '../lib/rotations.js';
   import { onMount } from 'svelte';
+  import { timers } from '../lib/timers.svelte.js';
   import Txt from '../components/Txt.svelte';
   // What's playing (or paused within the last 30 minutes), from App, which also feeds the top bar.
   let { playing = null } = $props();
@@ -120,7 +121,9 @@
   let uv = $derived(wx && wx.uvNow != null && wx.uvNow >= 1 ? { value: wx.uvNow, ...uvBand(wx.uvNow) } : null);
 </script>
 
-<div class="home">
+<!-- short: timers run in the row along the bottom (TimerDock.svelte), so the clock is smaller and the
+     forecast days give way, and the row fits. -->
+<div class="home" class:short={timers.list.length > 0}>
   <!-- Each card fails on its own (components/Safe.svelte): a bad event can't take the clock or lists with it. -->
   <Safe name="The clock and weather">
   <section class="now">
@@ -290,7 +293,10 @@
 <style>
   /* Sized by the room left (basis 0), never by the card, so it can't push the weather down. */
   .np-slot { flex: 1 1 0; min-height: 0; overflow: hidden; padding: 10px 0 8px; display: flex; flex-direction: column; }
-  .home { display: grid; grid-template-columns: 384px 1.3fr 1fr; gap: 20px; height: 100%; padding: 10px 28px 28px; }
+  .home { display: grid; grid-template-columns: 384px 1.3fr 1fr; grid-template-rows: minmax(0, 1fr); gap: 20px; height: 100%; padding: 10px 28px 28px; }
+  .short { padding-bottom: 16px; }
+  .short .clock { font-size: 110px; }
+  .short .days { display: none; }
   .now { display: flex; flex-direction: column; min-width: 0; }
   .date-row { display: flex; align-items: center; gap: 8px; }
   .rings { margin-left: auto; display: flex; gap: 10px; padding: 4px 0 0; }

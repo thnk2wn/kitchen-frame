@@ -110,8 +110,8 @@
   let speakerNow = $derived(shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
   let playing = $derived(fakeMedia() ? (NO_DEMO_NP ? null : DEMO_NP) : podcastNow && (podcastNow.state === 'playing' || !speakerNow || speakerNow.state !== 'playing') ? podcastNow : speakerNow);
   let mini = $derived(!!playing && ui.tab !== 'home' && ui.tab !== 'music');
-  // On Recipes, running timers dock along the bottom (TimerDock.svelte) rather than as the top bar chip.
-  let dock = $derived(ui.tab === 'recipes' && !ui.idle && timers.list.length > 0);
+  // Running timers, as a row along the bottom of every tab (TimerDock.svelte), not on the clock screen.
+  let dock = $derived(!ui.idle && timers.list.length > 0);
 </script>
 
 <div class="stage">
@@ -132,18 +132,18 @@
          player (clock.now re-checks the 30-minute hold after pausing every minute). -->
     {#if mini}<div class="np-slot"><NowPlaying player={playing} /></div>{/if}
     <div class="edge right">
-      <Timers docked={dock} />
+      <Timers full={ui.tab !== 'recipes'} />
       <!-- The bell, on every tab: a badge counts what's new since the notices were last opened, in
            the most urgent one's colour. -->
       <button class="gear bell" onclick={() => (ui.noticesOpen = true)} aria-label={fresh.length ? fresh.length + ' new notices' : 'Notices'}>
         <Icon name="bell" size={26} />{#if fresh.length}<b class="badge {fresh[0].tone}">{fresh.length}</b>{/if}
       </button>
-      <!-- The time gives way when a timer and the music both need the room, and drops AM/PM beside the music. -->
-      {#if ui.tab !== 'home' && !(timers.list.some((t) => !t.done) && mini)}<span class="num now">{mini ? clockTime(clock.now) : time(clock.now)}</span>{/if}
-      <!-- While a timer runs its chip takes this space; Home still shows the weather. -->
-      {#if wx && !timers.list.some((t) => !t.done)}<button class="wxbtn" onclick={() => (ui.weatherDay = 0)} aria-label="Weather details"><span class="wx {info.tint}"><Icon name={info.icon} size={26} /></span><span class="num">{wx.temp}°</span></button>{/if}
-      <!-- The slideshow button gives way to a running timer or the music (otherwise there'd be no room). -->
-      {#if !timers.list.some((t) => !t.done) && !mini}<button class="gear play" onclick={startSlideshow} aria-label="Start slideshow"><Icon name="play" size={24} /></button>{/if}
+      <!-- The time drops AM/PM beside the music. -->
+      {#if ui.tab !== 'home'}<span class="num now">{mini ? clockTime(clock.now) : time(clock.now)}</span>{/if}
+      <!-- The weather (Home too). -->
+      {#if wx}<button class="wxbtn" onclick={() => (ui.weatherDay = 0)} aria-label="Weather details"><span class="wx {info.tint}"><Icon name={info.icon} size={26} /></span><span class="num">{wx.temp}°</span></button>{/if}
+      <!-- The slideshow button gives way to the music (otherwise there'd be no room). -->
+      {#if !mini}<button class="gear play" onclick={startSlideshow} aria-label="Start slideshow"><Icon name="play" size={24} /></button>{/if}
       <button class="gear" onclick={() => (ui.settingsOpen = !ui.settingsOpen)} aria-label="Settings"><Icon name="gear" size={26} /></button>
     </div>
     </Safe>
@@ -168,8 +168,8 @@
     {/key}
     {/if}
   </main>
-  <!-- On Recipes, running timers as a row along the bottom, readable from the stove; the recipe
-       shrinks to make room. -->
+  <!-- Running timers as a row along the bottom, readable from the stove; the tab above shrinks to
+       make room while they run. -->
   {#if dock}<Safe name="Timers row" quiet><TimerDock /></Safe>{/if}
 
   <Safe name="Settings" quiet>{#if ui.settingsOpen && !ui.idle}<Settings />{/if}</Safe>

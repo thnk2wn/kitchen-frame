@@ -1,13 +1,12 @@
 <script>
-  // Top bar: the running timers as one countdown chip, which opens them full screen
-  // (TimerFull.svelte), and a button to start one (presets or custom), which then shows it full screen.
-  // On Recipes the timers are a row along the bottom instead (TimerDock.svelte).
-  // A timer started from a recipe's steps stays in the chip, so the recipe stays readable.
+  // Top bar: a button to start a timer (presets or custom), which then shows it full screen, or on
+  // Recipes joins the row of running timers along the bottom (TimerDock.svelte), so the recipe stays
+  // in view. Hidden once three run.
   import Icon from './Icon.svelte';
-  import { timers, startTimer, renameTimer, timerNames, remaining, clockOf, timerPicture, MAX_TIMERS } from '../lib/timers.svelte.js';
+  import { timers, startTimer, renameTimer, timerNames, MAX_TIMERS } from '../lib/timers.svelte.js';
 
-  // docked: the timers show as a row along the bottom (TimerDock.svelte, on Recipes), so no chip here.
-  let { docked = false } = $props();
+  // full: a timer started here opens full screen (not on Recipes).
+  let { full = true } = $props();
 
   const PRESETS = [1, 3, 5, 10, 15, 20, 30, 45, 60];
   // Time first, like "set a 5 minute pasta timer": a time starts at once, then the menu offers
@@ -16,13 +15,11 @@
   let naming = $state(null); // id of the timer just started, while its names are offered
   let open = $state(false);   // the start menu
   let custom = $state(10);    // minutes for the custom row
-  // One chip in the top bar: the timer that ends next, with "+N" when others run (up to 3 in all).
-  let running = $derived(timers.list.filter((t) => !t.done).sort((a, b) => a.end - b.end));
-  let next = $derived(running[0]);
+  let running = $derived(timers.list.filter((t) => !t.done).length);
 
   function start(min) { naming = startTimer(min + ' min', min * 60); }
   // Named or not, the timer just started goes full screen (on Recipes, the row along the bottom).
-  function done() { naming = null; open = false; if (!docked) timers.big = true; }
+  function done() { naming = null; open = false; if (full) timers.big = true; }
   function nameIt(n) { renameTimer(naming, n); done(); }
   function toggle() { open = !open; naming = null; }
   // A tap anywhere outside closes the start menu (a timer already started still goes full screen).
@@ -36,17 +33,8 @@
 </script>
 
 <div class="timers" bind:this={root}>
-  {#if next && !docked}
-    <div class="wrapchip">
-      <button class="chip num" class:soon={remaining(next) <= 60} onclick={() => { open = false; naming = null; timers.big = true; }}>
-        <Icon name={timerPicture(next.label) || 'timer'} size={18} /><span class="lbl">{next.label}</span>{clockOf(remaining(next))}{#if running.length > 1}<span class="more">+{running.length - 1}</span>{/if}
-      </button>
-    </div>
-  {/if}
   <div class="wrapchip">
-    <!-- With a timer running, starting another is in the full screen, so the top bar stays narrow; on
-         Recipes, with no chip, it stays here (up to three). -->
-    {#if !next || (docked && running.length < MAX_TIMERS)}
+    {#if running < MAX_TIMERS}
       <button class="gear" onclick={toggle} aria-label="Start a timer" aria-expanded={open}><Icon name="timer" size={25} /></button>
     {/if}
     {#if open && naming}
@@ -76,10 +64,6 @@
 <style>
   .timers { display: flex; align-items: center; gap: 8px; }
   .wrapchip { position: relative; }
-  .chip { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px; border-radius: 20px; background: var(--orange); color: #fff; font-size: 18px; font-weight: 700; }
-  .chip.soon { background: var(--red); }
-  .chip .more { margin-left: 2px; padding: 1px 7px; border-radius: 10px; background: rgba(255, 255, 255, .3); font-size: 14px; }
-  .chip .lbl { max-width: 96px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .9; }
   .gear { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--secondary); }
   .gear:active { background: var(--track); }
   .menu { position: absolute; top: 54px; right: 0; z-index: 20; display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 16px; min-width: 190px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18); }
