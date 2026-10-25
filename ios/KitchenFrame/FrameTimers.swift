@@ -127,11 +127,20 @@ struct AddFrameTimerMinute: AppIntent {
 }
 
 /// The phrases Siri knows without any setup. Each has to name the app, and can carry one parameter
-/// ("a pasta timer" then asks how long). Siri's own Clock takes "set a … timer" for itself, with the
-/// app's name as the timer's, so these start with the app's name, ask it, or say "countdown".
+/// ("a pasta timer" then asks how long). Siri keeps timers for itself: "set a … timer" goes to the
+/// Clock, with the app's name as the timer's, and with the app named it answers "I can't set a timer on
+/// Kitchen Frame". So the ones that work leave the word out: "Kitchen Frame 10 minutes", "Kitchen Frame
+/// pasta", "Kitchen Frame countdown".
 struct FrameShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: StartFrameTimer(), phrases: [
+            // Without "timer", which Siri keeps for its own ("I can't set a timer on Kitchen Frame").
+            "\(.applicationName) \(\.$length)",
+            "\(.applicationName) \(\.$name)",
+            "\(.applicationName) countdown",
+            "\(.applicationName) \(\.$length) countdown",
+            "\(.applicationName) \(\.$name) countdown",
+            "Count down \(\.$length) on \(.applicationName)",
             "\(.applicationName) timer",
             "\(.applicationName) start a timer",
             "\(.applicationName) \(\.$length) timer",
@@ -143,8 +152,11 @@ struct FrameShortcuts: AppShortcutsProvider {
             "Tell \(.applicationName) to start a \(\.$length) timer",
             "Start a \(.applicationName) countdown",
             "Start a \(\.$length) countdown on \(.applicationName)",
+            "Start a \(\.$name) countdown on \(.applicationName)",
         ], shortTitle: "Start Timer", systemImageName: "timer")
         AppShortcut(intent: CancelFrameTimer(), phrases: [
+            "\(.applicationName) cancel",
+            "\(.applicationName) cancel the countdown",
             "\(.applicationName) cancel the timer",
             "Tell \(.applicationName) to cancel the timer",
             "Ask \(.applicationName) to cancel the timer",

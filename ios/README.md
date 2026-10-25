@@ -14,10 +14,11 @@ A companion app for the frame:
 - **Timers** tab: the frame's timers counting down, with +1 min and cancel, and hour and minute
   wheels and a name to start one there, full screen. The frame sends its list whenever it changes
   (`POST /api/frame/timers`), and the tab reads it every few seconds while it shows. **Siri** too,
-  with no setup (`FrameTimers.swift`): "Hey Siri, Kitchen Frame 10 minute timer", "Kitchen Frame
-  timer" (Siri asks how long), "ask Kitchen Frame to start a pasta timer", "Kitchen Frame cancel the
-  timer", "Kitchen Frame add a minute". Siri's own Clock takes "set a … timer" phrasing for itself, so
-  start with the app's name. Apple's phrases take one detail each, so a length and a name together
+  with no setup beyond a one-time "Turn on Kitchen Frame shortcuts with Siri?" (`FrameTimers.swift`):
+  "Hey Siri, Kitchen Frame 10 minutes", "Kitchen Frame pasta" or "Kitchen Frame timer" (Siri asks how
+  long, with a list to tap or say), "Kitchen Frame cancel", "Kitchen Frame add a minute". Siri keeps
+  timers for itself: "set a … Kitchen Frame timer" goes to the Clock, and "set a timer on Kitchen
+  Frame" gets "I can't set a timer on Kitchen Frame", so start with the app's name. Apple's phrases take one detail each, so a length and a name together
   aren't one phrase. Like Remote, home Wi-Fi only.
 - **Guest mode** (Settings) hides personal things on the frame (Fitness) while guests are over.
 - **Apple Health:** Settings → Apple Health sends its owner's Activity rings, steps and recent workouts
