@@ -11,11 +11,14 @@ A companion app for the frame:
   what the frame is displaying. **Screenshot** shows the frame's screen as it is right now, full screen
   (pinch to zoom, share): the frame's kiosk app (1.7+) captures it and the Worker keeps it 10 minutes
   (`dashboard/worker/screenshot.js`); the frame says "Screenshot sent to a phone" afterwards.
-- **Timers** (on Remote): the frame's timers counting down, with +1 and cancel, and a name and a time
-  to start one there, full screen. **Siri** too, with no setup: "Hey Siri, set a 10 minute Kitchen
-  Frame timer", "start a pasta timer on Kitchen Frame" (Siri asks how long), "cancel the Kitchen Frame
-  timer", "add a minute to the Kitchen Frame timer" (`FrameTimers.swift`). Apple's phrases take one
-  detail each, so a length and a name together aren't one phrase. Like Remote, home Wi-Fi only.
+- **Timers** tab: the frame's timers counting down, with +1 min and cancel, and hour and minute
+  wheels and a name to start one there, full screen. The frame sends its list whenever it changes
+  (`POST /api/frame/timers`), and the tab reads it every few seconds while it shows. **Siri** too,
+  with no setup (`FrameTimers.swift`): "Hey Siri, Kitchen Frame 10 minute timer", "Kitchen Frame
+  timer" (Siri asks how long), "ask Kitchen Frame to start a pasta timer", "Kitchen Frame cancel the
+  timer", "Kitchen Frame add a minute". Siri's own Clock takes "set a … timer" phrasing for itself, so
+  start with the app's name. Apple's phrases take one detail each, so a length and a name together
+  aren't one phrase. Like Remote, home Wi-Fi only.
 - **Guest mode** (Settings) hides personal things on the frame (Fitness) while guests are over.
 - **Apple Health:** Settings → Apple Health sends its owner's Activity rings, steps and recent workouts
   to the frame's [Fitness](../docs/fitness.md) tab, when the app opens and when Health has new data;
@@ -59,7 +62,8 @@ turned on again. Unpair from the app's Settings.
 
 | Part | Where |
 | --- | --- |
-| Remote | `POST /api/frame/command` (`show` with a `tab`, `slideshow`, `wake`, `close`, `timer` with an `action`), then `POST /api/frame/checkin` and `GET /api/frame/status` for what it shows |
+| Remote | `POST /api/frame/command` (`show` with a `tab`, `slideshow`, `wake`, `close`), then `POST /api/frame/checkin` and `GET /api/frame/status` for what it shows |
+| Timers | `GET /api/frame/timers` (the frame sends them as they change), `POST /api/frame/command` (`timer`: `start` with a `label` and `seconds`, `cancel` or `add` with the timer's `id`) |
 | Screenshot | `POST /api/frame/screenshot/request`, then `GET /api/frame/screenshot?since=` until the frame's JPEG is there |
 | Ops | `GET /api/ops/summary` (`dashboard/worker/ops.js`), what needs attention as `dashboard/ops/page.html` decides it; `KitchenFrame/OpsView.swift` |
 | Pairing | `kitchenframe://pair?url=…&code=…`, a one-time code from the frame's Settings (`dashboard/src/components/Settings.svelte`), traded for this phone's own key (`POST /api/devices/claim`, `dashboard/worker/devices.js`); kept by `KitchenFrame/Pairing.swift` |

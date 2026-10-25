@@ -3,10 +3,21 @@
 // announcement on a speaker through Home Assistant (a notify entity, e.g. an Echo's "Announce").
 // Each timer keeps its end time in localStorage, so a reload or Wi-Fi blip doesn't lose it.
 import { ha, callService } from './ha.svelte.js';
+import { api } from './api.js';
 
 const KEY = 'frame-timers';
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } };
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(timers.list)); } catch {} };
+// Every change is saved, and sent to the Worker for the phone app's Remote (only from the kiosk app,
+// so a laptop viewing the dashboard doesn't replace the frame's list); a burst of changes sends once.
+let sending = null;
+const save = () => {
+  try { localStorage.setItem(KEY, JSON.stringify(timers.list)); } catch {}
+  if (typeof window === 'undefined' || !window.FrameKiosk || sending) return;
+  sending = setTimeout(() => {
+    sending = null;
+    api('/api/frame/timers', { method: 'POST', body: JSON.stringify({ timers: timers.list.map(({ id, label, end, total, done }) => ({ id, label, end, total, done })) }) }).catch(() => {});
+  }, 300);
+};
 
 // list: [{ id, label, end, total, done }] (end in ms). now ticks once a second only while any run.
 // big: the full-screen view (TimerFull.svelte) is up, from its button or a timer started by voice.
@@ -88,7 +99,8 @@ export function removeTimer(id) {
 // phone's by id, Alexa's by name: durations.js pickTimer).
 export function fromVoice({ action, label, seconds, id }) {
   if (action === 'start') { startTimer(label, seconds); timers.big = true; return; }
-  const t = (id && timers.list.find((x) => x.id === id)) || pickTimer(timers.list, label);
+  // The phone names the timer it showed: if that one's gone, nothing (never a different timer).
+  const t = id ? timers.list.find((x) => x.id === id) : pickTimer(timers.list, label);
   if (!t) return;
   if (action === 'cancel') removeTimer(t.id);
   if (action === 'add') addTime(t.id, seconds || 60);
@@ -124,6 +136,10 @@ function finished(t) {
 }
 // Drop alerts that ended long ago when the page loads, then start ticking.
 timers.list = timers.list.filter((t) => !(t.done && Date.now() - t.end > 30 * 60000));
+save();
+// The phone's list starts from this one, not what was sent before a reload: sent a few seconds in,
+// once the kiosk app's bridge (window.FrameKiosk) is there.
+setTimeout(save, 5000);
 tick();
 
 // ?timer=Pasta:7.5 starts a named timer (minutes) on arrival, once (links, screenshots).

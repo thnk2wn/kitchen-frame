@@ -101,13 +101,11 @@ struct API: Sendable {
         var tab: String?
         var screen: String?
         var receivedAt: String?
-        /// The frame's timers at its last check-in (dashboard/src/lib/timers.svelte.js).
-        var timers: [FrameTimer]?
     }
 
     /// A timer on the frame: when it ends (ms since 1970), its whole length in seconds, and whether it's
     /// ringing.
-    struct FrameTimer: Decodable, Sendable, Identifiable {
+    struct FrameTimer: Decodable, Sendable, Identifiable, Equatable {
         var id: String
         var label: String
         var end: Double
@@ -156,6 +154,13 @@ struct API: Sendable {
     /// show (with a tab), slideshow, wake or close: the same commands Alexa sends.
     func command(_ command: String, tab: String? = nil) async throws {
         try await sendCommand(Command(command: command, tab: tab))
+    }
+
+    /// The frame's timers as it last sent them (it sends on every change), and when they arrived (ms).
+    struct FrameTimers: Decodable, Sendable { var timers: [FrameTimer]; var at: Double }
+
+    func timers() async throws -> FrameTimers {
+        try JSONDecoder().decode(FrameTimers.self, from: try await send("api/frame/timers", timeout: 10))
     }
 
     /// A timer on the frame, as Alexa starts them: start one (shown full screen there), or cancel or add

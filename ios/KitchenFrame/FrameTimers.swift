@@ -1,14 +1,13 @@
 import AppIntents
 import Foundation
 
-/// Timers on the frame, from this phone: the Remote's buttons (RemoteView), and Siri through App
+/// Timers on the frame, from this phone: the Timers tab (TimersView), and Siri through App
 /// Shortcuts ("Hey Siri, set a 10 minute Kitchen Frame timer"). Each is the Worker's timer command,
 /// the one Alexa sends (dashboard/worker/alexa.js): the frame starts it and shows it full screen.
-/// Like the rest of the Remote, it works from the home Wi-Fi only (dashboard/worker/home.js).
+/// Like Remote, it works from the home Wi-Fi only (dashboard/worker/home.js).
 enum FrameTimers {
-    /// The frame's own default names (dashboard/src/lib/timers.svelte.js) and times, and how many can run.
+    /// The frame's own default names (dashboard/src/lib/timers.svelte.js), and how many can run.
     static let names = ["Pasta", "Bread", "Veggies", "Oven", "Protein"]
-    static let minutes = [1, 3, 5, 10, 15, 20, 30, 45, 60]
     static let most = 3
 
     /// "10 minutes", "1 hour and 30 minutes": what Siri says back.
@@ -127,26 +126,32 @@ struct AddFrameTimerMinute: AppIntent {
     }
 }
 
-/// The phrases Siri knows without any setup. Each has to name the app, and can carry one parameter:
-/// "a pasta timer" then asks how long.
+/// The phrases Siri knows without any setup. Each has to name the app, and can carry one parameter
+/// ("a pasta timer" then asks how long). Siri's own Clock takes "set a … timer" for itself, with the
+/// app's name as the timer's, so these start with the app's name, ask it, or say "countdown".
 struct FrameShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: StartFrameTimer(), phrases: [
-            "Start a \(.applicationName) timer",
-            "Set a \(.applicationName) timer",
-            "Start a \(\.$length) \(.applicationName) timer",
-            "Set a \(\.$length) \(.applicationName) timer",
-            "Start a \(\.$length) timer on \(.applicationName)",
-            "Set a \(\.$length) timer on \(.applicationName)",
-            "Start a \(\.$name) timer on \(.applicationName)",
-            "Set a \(\.$name) timer on \(.applicationName)",
+            "\(.applicationName) timer",
+            "\(.applicationName) start a timer",
+            "\(.applicationName) \(\.$length) timer",
+            "\(.applicationName) timer for \(\.$length)",
+            "\(.applicationName) \(\.$name) timer",
+            "Ask \(.applicationName) to start a timer",
+            "Ask \(.applicationName) to start a \(\.$length) timer",
+            "Ask \(.applicationName) to start a \(\.$name) timer",
+            "Tell \(.applicationName) to start a \(\.$length) timer",
+            "Start a \(.applicationName) countdown",
+            "Start a \(\.$length) countdown on \(.applicationName)",
         ], shortTitle: "Start Timer", systemImageName: "timer")
         AppShortcut(intent: CancelFrameTimer(), phrases: [
-            "Cancel the \(.applicationName) timer",
-            "Stop the \(.applicationName) timer",
+            "\(.applicationName) cancel the timer",
+            "Tell \(.applicationName) to cancel the timer",
+            "Ask \(.applicationName) to cancel the timer",
         ], shortTitle: "Cancel Timer", systemImageName: "xmark.circle")
         AppShortcut(intent: AddFrameTimerMinute(), phrases: [
-            "Add a minute to the \(.applicationName) timer",
+            "\(.applicationName) add a minute",
+            "Tell \(.applicationName) to add a minute",
         ], shortTitle: "Add a Minute", systemImageName: "plus.circle")
     }
 }

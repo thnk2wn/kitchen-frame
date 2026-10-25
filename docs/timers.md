@@ -20,7 +20,7 @@ recipe stays readable.
 timer" (without a time, Alexa asks how long), "…to cancel the timer", "…to add a minute". The timer
 runs on the frame, full screen, not on the Echo. With Alexa+ on, "timer" may go to Alexa's own timers
 instead. The [phone app](../ios/README.md) starts, adds to and cancels them too, from its Remote or
-through Siri ("Hey Siri, set a 10 minute Kitchen Frame timer").
+through Siri ("Hey Siri, Kitchen Frame 10 minute timer").
 
 When a timer ends: the frame chimes (Web Audio, no sound files), a full-screen alert offers +1 min
 or Dismiss, and, with Home Assistant, a speaker announces it through a `notify` entity, such as an

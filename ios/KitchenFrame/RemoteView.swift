@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// Show a screen on the frame, start its slideshow, wake it or close what's open, and start, add to or
-/// cancel its timers: the commands Alexa sends, over the Worker (POST /api/frame/command). Screenshot
-/// shows what it shows right now. Siri starts timers too (FrameTimers.swift).
+/// Show a screen on the frame, start its slideshow, wake it or close what's open: the commands
+/// Alexa sends, over the Worker (POST /api/frame/command). Screenshot shows what it shows right now.
 struct RemoteView: View {
     let api: API
 
@@ -19,8 +18,6 @@ struct RemoteView: View {
     @State private var busy: String?
     @State private var problem: String?
     @State private var screenshot = false
-    /// The name the next timer started here gets (none: "10 min", as on the frame).
-    @State private var timerName: String?
     /// On the frame's home network (API.atHome): the buttons work only there. Nil until known.
     @State private var home: Bool?
 
@@ -49,9 +46,6 @@ struct RemoteView: View {
                     }
                     .disabled(home == false)
 
-                    timersSection
-                        .disabled(home == false)
-
                     Text("Show").font(.headline)
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
                         ForEach(Self.screens, id: \.tab) { s in
@@ -69,72 +63,6 @@ struct RemoteView: View {
             // Each time the tab shows: the phone may have left or come back to the home Wi-Fi.
             .onAppear { Task { home = await api.atHome() } }
         }
-    }
-
-    /// The frame's timers, counting down here from their end times, with +1 min and cancel; then a
-    /// name to pick (or none) and a time, which starts one on the frame, full screen there.
-    @ViewBuilder private var timersSection: some View {
-        let running = (status?.timers ?? []).sorted { ($0.done ? 0 : 1, $0.end) < ($1.done ? 0 : 1, $1.end) }
-        Text("Timers").font(.headline)
-        ForEach(running) { t in
-            HStack(spacing: 12) {
-                Text(t.label).font(.body.weight(.semibold)).lineLimit(1)
-                Spacer()
-                if t.done || t.endsAt <= .now {
-                    Text("Time’s up").foregroundStyle(.red).font(.body.weight(.semibold))
-                } else {
-                    Text(timerInterval: Date.now...t.endsAt, countsDown: true)
-                        .font(.title3.monospacedDigit().weight(.bold)).foregroundStyle(.orange)
-                }
-                Button { Task { await timer("add" + t.id, "add", seconds: 60, id: t.id) } } label: {
-                    if busy == "add" + t.id { ProgressView() } else { Text("+1") }
-                }
-                .buttonStyle(.bordered)
-                Button(role: .destructive) { Task { await timer("cancel" + t.id, "cancel", id: t.id) } } label: {
-                    if busy == "cancel" + t.id { ProgressView() } else { Image(systemName: "xmark") }
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Cancel " + t.label)
-            }
-            .disabled(busy != nil)
-        }
-        if running.filter({ !$0.done }).count < FrameTimers.most {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(FrameTimers.names, id: \.self) { n in
-                        Button(n) { timerName = timerName == n ? nil : n }
-                            .buttonStyle(.bordered)
-                            .tint(timerName == n ? .orange : nil)
-                    }
-                }
-            }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 8)], spacing: 8) {
-                ForEach(FrameTimers.minutes, id: \.self) { m in
-                    Button {
-                        Task { await timer("start\(m)", "start", label: timerName ?? "\(m) min", seconds: m * 60) }
-                    } label: {
-                        Group { if busy == "start\(m)" { ProgressView() } else { Text(m < 60 ? "\(m) min" : "1 hr") } }
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-            .disabled(busy != nil)
-        }
-    }
-
-    private func timer(_ id: String, _ action: String, label: String? = nil, seconds: Int? = nil, id timerId: String? = nil) async {
-        busy = id
-        problem = nil
-        do {
-            try await api.timer(action, label: label, seconds: seconds, id: timerId)
-            if action == "start" { timerName = nil }
-            busy = nil
-            await refreshAfterCheckIn()
-        } catch {
-            problem = error.localizedDescription
-        }
-        busy = nil
     }
 
     private var showing: String {

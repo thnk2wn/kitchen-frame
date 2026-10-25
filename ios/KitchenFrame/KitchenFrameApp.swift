@@ -147,6 +147,7 @@ struct RootView: View {
         if let api = model.api {
             TabView(selection: $tab) {
                 Tab("Remote", systemImage: "av.remote", value: "remote") { RemoteView(api: api) }
+                Tab("Timers", systemImage: "timer", value: "timers") { TimersView(api: api) }
                 Tab("Ops", systemImage: "waveform.path.ecg", value: "ops") { OpsView(api: api) }
                     .badge(model.ops.report?.attention ?? 0)
                 Tab("Settings", systemImage: "gear", value: "settings") { SettingsView() }

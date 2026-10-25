@@ -2,7 +2,7 @@
 // so it reports to the Worker instead: what it's running and showing, every 10 minutes and on load,
 // and a copy of its Settings choices whenever they change. After a reset (a firmware update wiped
 // it once) the frame finds its storage empty and takes its settings back from here.
-//   POST /api/frame/status    { version, release, webview, kiosk, loadedAt, screen, tab, ha, memory?, timers?, settings?, events? }
+//   POST /api/frame/status    { version, release, webview, kiosk, loadedAt, screen, tab, ha, memory?, settings?, events? }
 //   GET  /api/frame/status    -> the last check-in, with when it arrived and the last 200 events
 //                                (scripts/frame-status.sh, --log for the events)
 // Events (src/lib/log.svelte.js) are written to the Worker's log one by one, as structured entries
@@ -88,7 +88,7 @@ function cleanMemory(m) {
   return Object.keys(out).length ? out : undefined;
 }
 // The frame's timers (lib/timers.svelte.js), for the phone app's Remote: at most a few, each cut down.
-function cleanTimers(list) {
+export function cleanTimers(list) {
   if (!Array.isArray(list)) return undefined;
   return list.slice(0, 6).filter((t) => t && Number.isFinite(t.end) && Number.isFinite(t.total))
     .map((t) => ({ id: clip(t.id, 20) || '', label: clip(t.label, 40) || 'Timer', end: Math.round(t.end), total: Math.round(t.total), done: t.done === true }));
@@ -151,7 +151,7 @@ export async function saveStatus(env, body) {
   const status = {
     version: clip(b.version, 40), release: clip(b.release, 60), webview: clip(b.webview, 40), kiosk: clip(b.kiosk, 40),
     loadedAt: clip(b.loadedAt, 40), screen: clip(b.screen, 20), tab: clip(b.tab, 20), ha: clip(b.ha, 20),
-    memory: cleanMemory(b.memory), timers: cleanTimers(b.timers), receivedAt: new Date().toISOString(),
+    memory: cleanMemory(b.memory), receivedAt: new Date().toISOString(),
   };
   // The settings first: what a person changed goes into this check-in's events.
   let saveSettings = null, version = null;

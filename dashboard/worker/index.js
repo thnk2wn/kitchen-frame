@@ -35,6 +35,7 @@
 //   GET  /api/ops/summary            everything the status page shows (ops.js; ops/ is that page)
 //   GET, POST, DELETE /api/fitness   Activity rings and workouts, sent by each person's phone (fitness.js)
 //   GET, POST /api/frame/guest       guest mode: nothing personal on the frame (guest.js)
+//   GET, POST /api/frame/timers      { timers, at }: the frame's timers, sent as they change, for the phone
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
@@ -99,7 +100,7 @@ import { cspPolicy, cspReport } from './csp.js';
 import { atHome, homeCheck, homeOnly, noteHome } from './home.js';
 import { TOKEN_PREFIX, allowed, deviceById, deviceForToken, devicesApi, fitnessAllowed } from './devices.js';
 import { listNotices, addNotice } from './notices.js';
-import { saveStatus, getStatus, getSettings, getSettingsHistory } from './frame.js';
+import { saveStatus, getStatus, getSettings, getSettingsHistory, cleanTimers } from './frame.js';
 import { opsSummary } from './ops.js';
 import { listVideos, thumbResponse, videoIdOf, videoTitle, parseSetting } from './youtube.js';
 import { handleAlexa } from './alexa.js';
@@ -444,6 +445,12 @@ async function handle(req, env, ctx) {
         const guest = await guestMode(env);
         return json(guest.on ? { people: [], guest } : { ...(await listFitness(env)), guest });
       }
+      // The frame's timers: the frame sends them as they change, the phone app's Remote reads them.
+      if (url.pathname === '/api/frame/timers' && req.method === 'POST') {
+        const { timers } = await req.json().catch(() => ({}));
+        return room(env).fetch('https://room/timers', { method: 'POST', body: JSON.stringify({ timers: cleanTimers(timers) || [] }) });
+      }
+      if (url.pathname === '/api/frame/timers' && req.method === 'GET') return room(env).fetch('https://room/timers');
       if (url.pathname === '/api/frame/guest' && req.method === 'GET') return json(await guestMode(env));
       if (url.pathname === '/api/frame/guest' && req.method === 'POST') {
         const { on } = await req.json().catch(() => ({}));

@@ -121,6 +121,12 @@ export class MessageRoom {
       }
       return json({ on: !!((await this.ctx.storage.get('guest')) || {}).on });
     }
+    // The frame's timers, sent by the frame whenever they change, for the phone app's Remote: kept here
+    // (not KV, which can answer with the old list for a minute), with when they arrived.
+    if (path === '/timers') {
+      if (req.method === 'POST') await this.ctx.storage.put('timers', { timers: (await req.json().catch(() => ({}))).timers || [], at: Date.now() });
+      return json((await this.ctx.storage.get('timers')) || { timers: [], at: 0 });
+    }
     if (path === '/post') return this.post(req);
     // A command for the frame itself ("checkin": send your status and events now; "reload": load the
     // dashboard again, e.g. to pick up a deploy at once), pushed to
