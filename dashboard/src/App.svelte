@@ -20,6 +20,7 @@
   import Timers from './components/Timers.svelte';
   import TimerAlert from './components/TimerAlert.svelte';
   import TimerFull from './components/TimerFull.svelte';
+  import TimerDock from './components/TimerDock.svelte';
   import WeatherSheet from './components/WeatherSheet.svelte';
   import EventSheet from './components/EventSheet.svelte';
   import TaskSheet from './components/TaskSheet.svelte';
@@ -109,6 +110,8 @@
   let speakerNow = $derived(shown(nowPlaying({ hold: true, now: clock.now.getTime() })));
   let playing = $derived(fakeMedia() ? (NO_DEMO_NP ? null : DEMO_NP) : podcastNow && (podcastNow.state === 'playing' || !speakerNow || speakerNow.state !== 'playing') ? podcastNow : speakerNow);
   let mini = $derived(!!playing && ui.tab !== 'home' && ui.tab !== 'music');
+  // On Recipes, running timers dock along the bottom (TimerDock.svelte) rather than as the top bar chip.
+  let dock = $derived(ui.tab === 'recipes' && !ui.idle && timers.list.length > 0);
 </script>
 
 <div class="stage">
@@ -129,7 +132,7 @@
          player (clock.now re-checks the 30-minute hold after pausing every minute). -->
     {#if mini}<div class="np-slot"><NowPlaying player={playing} /></div>{/if}
     <div class="edge right">
-      <Timers />
+      <Timers docked={dock} />
       <!-- The bell, on every tab: a badge counts what's new since the notices were last opened, in
            the most urgent one's colour. -->
       <button class="gear bell" onclick={() => (ui.noticesOpen = true)} aria-label={fresh.length ? fresh.length + ' new notices' : 'Notices'}>
@@ -165,6 +168,9 @@
     {/key}
     {/if}
   </main>
+  <!-- On Recipes, running timers as a row along the bottom, readable from the stove; the recipe
+       shrinks to make room. -->
+  {#if dock}<Safe name="Timers row" quiet><TimerDock /></Safe>{/if}
 
   <Safe name="Settings" quiet>{#if ui.settingsOpen && !ui.idle}<Settings />{/if}</Safe>
   <!-- The clock screen: if it fails, a plain black screen beats a white one, and a tap on it still

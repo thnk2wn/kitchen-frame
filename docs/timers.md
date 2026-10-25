@@ -13,8 +13,12 @@ columns, ending soonest first, each with +1 min and Cancel, and New timer below 
 turns red in its place, with +1 min and Dismiss. A timer named for food (Pasta, Bread, Chicken, Oven
 and so on) has a faint picture of it in its corner, and in the chip. With Home Assistant, the bottom row picks the speaker that says when a timer is done (or
 Frame only), the same choice as in Settings. It goes back to the chip with its button, or when the
-last timer is dismissed or cancelled. A timer started from a recipe's steps stays in the chip, so the
-recipe stays readable.
+last timer is dismissed or cancelled.
+
+**On Recipes**, running timers are a row along the bottom instead of the chip: a card each, with
+its picture, name, digits readable from the stove, progress, +1 min and cancel, and a button for
+full screen. The recipe above shrinks to make room. Timers started while Recipes is open (from a
+recipe's steps, the top bar, Alexa or the phone) join the row rather than going full screen.
 
 **By voice**, with the [Alexa skill](alexa.md): "Alexa, ask Kitchen Frame to start a 10 minute pasta
 timer" (without a time, Alexa asks how long), "…to cancel the timer", "…to add a minute". The timer

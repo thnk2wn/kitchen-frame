@@ -349,7 +349,8 @@ function connectMessages() {
       if (d.command === 'slideshow') startSlideshow();
       if (d.command === 'playgroup') playGroup(d.group);
       // "Start a 10 minute pasta timer", "cancel the timer", "add a minute".
-      if (d.command === 'timer') import('./timers.svelte.js').then((m) => m.fromVoice(d));
+      // On Recipes a new timer joins the row along the bottom rather than covering the recipe.
+      if (d.command === 'timer') import('./timers.svelte.js').then((m) => m.fromVoice(d, { full: ui.tab !== 'recipes' }));
       // "What's for dinner": tonight's recipe, or Recipes → Meals when there are several.
       if (d.command === 'recipe' && d.id) { ui.settingsOpen = false; ui.openRecipe = { id: d.id, title: d.title || '' }; ui.tab = 'recipes'; }
       if (d.command === 'meals') { ui.settingsOpen = false; ui.openMeals = true; ui.tab = 'recipes'; }

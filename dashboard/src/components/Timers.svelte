@@ -1,9 +1,13 @@
 <script>
   // Top bar: the running timers as one countdown chip, which opens them full screen
   // (TimerFull.svelte), and a button to start one (presets or custom), which then shows it full screen.
+  // On Recipes the timers are a row along the bottom instead (TimerDock.svelte).
   // A timer started from a recipe's steps stays in the chip, so the recipe stays readable.
   import Icon from './Icon.svelte';
   import { timers, startTimer, renameTimer, timerNames, remaining, clockOf, timerPicture } from '../lib/timers.svelte.js';
+
+  // docked: the timers show as a row along the bottom (TimerDock.svelte, on Recipes), so no chip here.
+  let { docked = false } = $props();
 
   const PRESETS = [1, 3, 5, 10, 15, 20, 30, 45, 60];
   // Time first, like "set a 5 minute pasta timer": a time starts at once, then the menu offers
@@ -17,8 +21,8 @@
   let next = $derived(running[0]);
 
   function start(min) { naming = startTimer(min + ' min', min * 60); }
-  // Named or not, the timer just started goes full screen.
-  function done() { naming = null; open = false; timers.big = true; }
+  // Named or not, the timer just started goes full screen (on Recipes, the row along the bottom).
+  function done() { naming = null; open = false; if (!docked) timers.big = true; }
   function nameIt(n) { renameTimer(naming, n); done(); }
   function toggle() { open = !open; naming = null; }
   // A tap anywhere outside closes the start menu (a timer already started still goes full screen).
@@ -32,7 +36,7 @@
 </script>
 
 <div class="timers" bind:this={root}>
-  {#if next}
+  {#if next && !docked}
     <div class="wrapchip">
       <button class="chip num" class:soon={remaining(next) <= 60} onclick={() => { open = false; naming = null; timers.big = true; }}>
         <Icon name={timerPicture(next.label) || 'timer'} size={18} /><span class="lbl">{next.label}</span>{clockOf(remaining(next))}{#if running.length > 1}<span class="more">+{running.length - 1}</span>{/if}

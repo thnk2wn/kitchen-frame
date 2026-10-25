@@ -95,10 +95,11 @@ export function removeTimer(id) {
 }
 
 // From Alexa (worker/alexa.js) or the phone app's Remote, through the Worker's message connection:
-// start a timer and show it full screen, from across the kitchen; cancel one, or add time to one (the
-// phone's by id, Alexa's by name: durations.js pickTimer).
-export function fromVoice({ action, label, seconds, id }) {
-  if (action === 'start') { startTimer(label, seconds); timers.big = true; return; }
+// start a timer and show it full screen, from across the kitchen (unless full is false: on Recipes it
+// joins the row along the bottom, TimerDock.svelte, and the recipe stays in view); cancel one, or add
+// time to one (the phone's by id, Alexa's by name: durations.js pickTimer).
+export function fromVoice({ action, label, seconds, id }, { full = true } = {}) {
+  if (action === 'start') { startTimer(label, seconds); if (full) timers.big = true; return; }
   // The phone names the timer it showed: if that one's gone, nothing (never a different timer).
   const t = id ? timers.list.find((x) => x.id === id) : pickTimer(timers.list, label);
   if (!t) return;
