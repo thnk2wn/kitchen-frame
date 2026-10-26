@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { time, longDate, dow, dayName, dueLabel, timeRange, formatDate } from './format.js';
+import { time, longDate, dow, dayName, dueLabel, timeRange, formatDate, placeName } from './format.js';
 
 // The cached formatters must read exactly as the toLocale…String calls they replaced.
 const days = [new Date(2026, 0, 1, 0, 5), new Date(2026, 2, 8, 12, 0), new Date(2026, 9, 20, 16, 34), new Date(2026, 11, 31, 23, 59)];
@@ -30,4 +30,12 @@ test('formatDate reuses one formatter per set of options', () => {
   const d = days[2];
   assert.equal(formatDate(d, { month: 'short', day: 'numeric' }), d.toLocaleDateString([], { month: 'short', day: 'numeric' }));
   assert.equal(formatDate(d, { month: 'short', day: 'numeric' }), formatDate(new Date(d), { month: 'short', day: 'numeric' }));
+});
+
+test('placeName: the name when there is one, else street and town, never zip or country', () => {
+  assert.equal(placeName('Main Street Gym - Springfield 120 Oak St, Springfield, IL 62701, United States'), 'Main Street Gym - Springfield');
+  assert.equal(placeName('Lakeside Pediatrics at Riverton 45 Elm Rd, Riverton, IL 62561, United States'), 'Lakeside Pediatrics at Riverton');
+  assert.equal(placeName('Neyland Stadium, Knoxville'), 'Neyland Stadium');
+  assert.equal(placeName('120 Oak St, Springfield, IL 62701, United States'), '120 Oak St, Springfield');
+  assert.equal(placeName('Video call'), 'Video call');
 });

@@ -15,6 +15,7 @@
 import { calendar, calendarNames } from './state.svelte.js';
 import { say, speak } from './announce.svelte.js';
 import { quietNow } from './night.svelte.js';
+import { STREET } from './format.js';
 import { drivable, driveOf, loadDrive, SOON_MS } from './drive.svelte.js';
 
 const MIN = 60000;
@@ -44,7 +45,6 @@ export function reminderTimes(e, r) {
   return r.all.map((m) => from - m * MIN);
 }
 
-const STREET = /,|\s+(?=\d{1,6}[a-z]?\s+(?:[a-z.]+\s+){1,4}(?:st|street|ave|avenue|rd|road|dr|drive|blvd|boulevard|ln|lane|way|ct|court|pkwy|parkway|hwy|highway|pl|place|cir|circle|ter|trl|trail)\b)/i;
 const clean = (t) => String(t || '').replace(/\p{Extended_Pictographic}|️|‍/gu, '').replace(/\s+/g, ' ').trim();
 // "In 30 minutes", "In an hour", "In 1 hour 5 minutes" (and "in ..." for the leaving part).
 const inTime = (mins) => (mins < 60 ? 'In ' + mins + ' minute' + (mins === 1 ? '' : 's')

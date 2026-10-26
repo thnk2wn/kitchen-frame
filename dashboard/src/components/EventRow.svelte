@@ -1,9 +1,9 @@
 <script>
   import Txt from './Txt.svelte';
   import Icon from './Icon.svelte';
-  import { calVars, timeRange, isPast, isNow } from '../lib/format.js';
+  import { calVars, timeRange, isPast, isNow, placeName } from '../lib/format.js';
   import { canOpen, openEvent, pinFor } from '../lib/state.svelte.js';
-  // place: show the location after the time (Today does; Upcoming keeps rows short).
+  // place: show the place after the time, short (Today does; Upcoming keeps rows short).
   // leave: "Leave in 20 min · 14 min drive", for the next event with a drive (views/Home.svelte).
   // drive: minutes to drive there, shown beside the time (Today's other events with a drive).
   let { event, now, place = true, leave = '', drive = 0 } = $props();
@@ -17,7 +17,7 @@
   <div class="body">
     <div class="title"><Txt text={event.title} /></div>
     <div class="meta">
-      {#if event.allDay}All day{:else if live}<b class="now">Now</b> until {timeRange(event).split(' – ')[1]}{:else}{timeRange(event)}{/if}{#if drive}{' · '}<span class="drive"><Icon name="car" size={16} />{drive} min</span>{/if}{event.location && place ? ' · ' + event.location : ''}
+      {#if event.allDay}All day{:else if live}<b class="now">Now</b> until {timeRange(event).split(' – ')[1]}{:else}{timeRange(event)}{/if}{#if drive}{' · '}<span class="drive"><Icon name="car" size={16} />{drive} min</span>{/if}{event.location && place ? ' · ' + placeName(event.location) : ''}
     </div>
     {#if leave}<div class="leave"><Icon name="car" size={18} />{leave}</div>{/if}
   </div>

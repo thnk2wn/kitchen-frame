@@ -94,6 +94,18 @@ export function timeRange(e) {
   const [at, ap] = a.split(/\s/), [, bp] = b.split(/\s/);
   return (ap === bp ? at : a) + ' – ' + b;
 }
+// Where an address's street starts: at a comma, or before a street number ("Main Street Gym 120 Oak
+// St, ...").
+export const STREET = /,|\s+(?=\d{1,6}[a-z]?\s+(?:[a-z.]+\s+){1,4}(?:st|street|ave|avenue|rd|road|dr|drive|blvd|boulevard|ln|lane|way|ct|court|pkwy|parkway|hwy|highway|pl|place|cir|circle|ter|trl|trail)\b)/i;
+// An event's place, short for a row: its name when it has one ("Main Street Gym - Springfield"), else the street
+// and town ("120 Oak St, Springfield"), never the state, zip or country. The event's sheet
+// shows the whole address.
+export function placeName(loc) {
+  const s = String(loc || '').replace(/\s+/g, ' ').trim();
+  const name = s.split(STREET)[0].trim();
+  if (name && !/^\d/.test(name)) return name;
+  return s.split(/\s*,\s*/).slice(0, 2).filter((p) => p && !/^(united states|usa?)$/i.test(p) && !/\d{5}/.test(p)).join(', ');
+}
 // A timed task's moment: "16:30" on its due day (Reminders, or a floating Todoist time), or a full
 // ISO time (a Todoist task pinned to a time zone). null when it has no time.
 export function dueAt(item) {
