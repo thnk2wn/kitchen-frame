@@ -17,7 +17,7 @@ last timer is dismissed or cancelled.
 
 **The row**: while timers run, they're a row along the bottom of every tab (not the clock screen):
 a card each, with its picture, name, digits readable from the stove, progress, +1 min and cancel,
-and a button for full screen. The tab above shrinks to make room. The timer button in the top bar
+and a button for full screen (tapping a card opens it too). The tab above shrinks to make room. The timer button in the top bar
 starts more, up to three, and they join the row. On Recipes, timers from Alexa or the phone join
 the row too, rather than going full screen, so the recipe stays in view.
 
