@@ -33,7 +33,7 @@
 {#if timers.big && list.length}
   <div class="full" role="dialog" aria-label="Timers" tabindex="-1"
     onkeydown={(e) => { if (e.key === 'Escape') timers.big = false; }}>
-    <div class="cols" style="--digits: {size}px">
+    <div class="cols" style="--digits: {size}px; --name: {[64, 52, 40][Math.min(list.length, 3) - 1]}px">
       {#each list as t (t.id)}
         <div class="col" class:ring={t.done}>
           <!-- A food name's picture, faint in the corner (lib/durations.js timerPicture). -->
@@ -86,7 +86,8 @@
   .col { position: relative; overflow: hidden; }
   .col > :not(.pic) { position: relative; }
   .pic { position: absolute; right: 3%; bottom: 3%; opacity: .07; transform: rotate(-12deg); color: var(--label); }
-  .name { max-width: 100%; font-size: 34px; font-weight: 700; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Names as big as the count allows: from across the kitchen they tell the timers apart. */
+  .name { max-width: 100%; font-size: var(--name); line-height: 1.15; font-weight: 700; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .digits { font-size: var(--digits); line-height: 1; font-weight: 700; letter-spacing: -.03em; color: var(--orange-text); white-space: nowrap; }
   .digits.soon, .digits.up { color: var(--red-text); }
   .digits.up { font-size: calc(var(--digits) * .55); }

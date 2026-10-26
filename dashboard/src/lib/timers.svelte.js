@@ -91,7 +91,7 @@ export function addTime(id, seconds) {
 export function removeTimer(id) {
   timers.list = timers.list.filter((t) => t.id !== id);
   if (!timers.list.length) timers.big = false;
-  save();
+  save(); tick(); // stops the repeating chime now, not one more chime later
 }
 
 // From Alexa (worker/alexa.js) or the phone app's Remote, through the Worker's message connection:
