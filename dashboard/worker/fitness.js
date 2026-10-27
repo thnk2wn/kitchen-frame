@@ -89,7 +89,27 @@ export function cleanFitness(b) {
   // reason: why the phone sent (app opened, a workout saved, a Health update), for the status page.
   // dataAt: when the phone's newest Watch reading ends (how current the rings are); none from older apps.
   const weight = cleanWeight(b.weight);
-  return { id, name, updated: new Date().toISOString(), dataAt: iso(b.dataAt) || null, reason: clip(b.reason, 40) || null, unit: b.unit === 'km' ? 'km' : 'mi', days, steps: num(b.steps), meters: num(b.meters), workouts, ...(weight ? { weight } : {}) };
+  const usual = cleanUsual(b.usual);
+  return { id, name, updated: new Date().toISOString(), dataAt: iso(b.dataAt) || null, reason: clip(b.reason, 40) || null, unit: b.unit === 'km' ? 'km' : 'mi', days, steps: num(b.steps), meters: num(b.meters), workouts, ...(weight ? { weight } : {}), ...(usual ? { usual } : {}) };
+}
+
+// usual: where each ring usually is by the end of each hour on each day of the week (7, Sunday first,
+// each 24 shares of the day's goal per ring, or null for a weekday with too few days), so the frame
+// says behind against a usual Monday, not a straight line through the day. A day's three rings or none.
+const cleanUsualDay = (u) => {
+  if (!u || typeof u !== 'object') return null;
+  const out = {};
+  for (const ring of ['move', 'exercise', 'stand']) {
+    const a = Array.isArray(u[ring]) && u[ring].length === 24 ? u[ring].map((v) => inRange(v, 0, 5)) : null;
+    if (!a || a.some((v) => v == null)) return null;
+    out[ring] = a.map((v, i) => Math.max(v, ...a.slice(0, i))); // a running total never goes down
+  }
+  return out;
+};
+export function cleanUsual(u) {
+  if (!Array.isArray(u) || u.length !== 7) return null;
+  const days = u.map(cleanUsualDay);
+  return days.some(Boolean) ? days : null;
 }
 
 // Each phone's numbers live in the room's store (store.js), not KV: written hourly and after every

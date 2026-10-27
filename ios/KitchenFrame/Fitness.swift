@@ -240,6 +240,12 @@ final class FitnessSync {
             var unit: String; var points: [Point]; var goal: Double?; var heightM: Double?; var bmi: Double?; var bodyFat: Double?; var show: String?
         }
         var weight: Weight?
+        /// Where each ring usually is by the end of each hour (0 to 23), as a share of the day's goal, on
+        /// each day of the week (Sunday first): the frame says behind against a usual Monday, say, not a
+        /// straight line through the day, nor a week's average that blurs workout days into rest days
+        /// (dashboard/src/lib/fitness.js nudge). Nil for a weekday with too few days to go on.
+        struct Usual: Encodable { var move, exercise, stand: [Double] }
+        var usual: [Usual?]?
     }
 
     private func read(reason: String) async throws -> Report {
@@ -262,7 +268,65 @@ final class FitnessSync {
         }
         return Report(id: phoneId, name: name, reason: reason, unit: Locale.current.measurementSystem == .metric ? "km" : "mi",
                       days: days, steps: try await steps, meters: try await meters, workouts: try await workouts, dataAt: try await dataAt,
-                      weight: try await weightReport(calendar: cal))
+                      weight: try await weightReport(calendar: cal), usual: try? await usual(days: days, calendar: cal))
+    }
+
+    /// The 4 weeks before today, hour by hour, by day of the week: each ring's running total by each
+    /// hour's end as a share of that day's goal, the middle of that weekday's days the Watch was worn (a
+    /// ring with any progress), so one missed workout or one big day doesn't move it much.
+    private func usual(days: [Report.Day], calendar cal: Calendar) async throws -> [Report.Usual?]? {
+        let today = cal.startOfDay(for: .now)
+        let start = cal.date(byAdding: .day, value: -28, to: today)!
+        async let energy = perHour(Self.energy, unit: .kilocalorie(), from: start, to: today, calendar: cal)
+        async let exercise = perHour(Self.exercise, unit: .minute(), from: start, to: today, calendar: cal)
+        async let stood = stoodPerHour(from: start, to: today, calendar: cal)
+        let (e, x, s) = (try await energy, try await exercise, try await stood)
+        let byDate = Dictionary(days.map { ($0.date, $0) }, uniquingKeysWith: { a, _ in a })
+        // Per weekday (0 is Sunday), per ring, each worn day's 24 running shares.
+        var curves = [[[[Double]]]](repeating: [[], [], []], count: 7)
+        for i in 0..<28 {
+            let date = cal.date(byAdding: .day, value: i, to: start)!
+            guard let d = byDate[Self.dayKey(date, cal)], d.move + d.exercise + d.stand > 0 else { continue } // the Watch not worn
+            let w = cal.component(.weekday, from: date) - 1
+            for (r, (hours, goal)) in [(e[d.date], d.moveGoal), (x[d.date], d.exerciseGoal), (s[d.date], d.standGoal)].enumerated() where goal > 0 {
+                var total = 0.0
+                curves[w][r].append((0..<24).map { h in total += hours?[h] ?? 0; return total / goal })
+            }
+        }
+        let middle = { (v: [Double]) -> Double in
+            let o = v.sorted(), n = o.count
+            return ((n % 2 == 1 ? o[n / 2] : (o[n / 2 - 1] + o[n / 2]) / 2) * 100).rounded() / 100
+        }
+        let out: [Report.Usual?] = curves.map { rings in
+            // Two or more days of that weekday for Exercise and Stand; Move may be off (set in minutes).
+            guard rings[1].count >= 2, rings[2].count >= 2 else { return nil }
+            let each = rings.map { c in (0..<24).map { h in c.count >= 2 ? middle(c.map { $0[h] }) : 0 } }
+            return Report.Usual(move: each[0], exercise: each[1], stand: each[2])
+        }
+        return out.contains { $0 != nil } ? out : nil
+    }
+
+    /// A quantity's total for each hour (0 to 23) of each local day between two times.
+    private func perHour(_ type: HKQuantityType, unit: HKUnit, from start: Date, to end: Date, calendar cal: Calendar) async throws -> [String: [Double]] {
+        let descriptor = HKStatisticsCollectionQueryDescriptor(
+            predicate: .quantitySample(type: type, predicate: HKQuery.predicateForSamples(withStart: start, end: end)),
+            options: .cumulativeSum, anchorDate: start, intervalComponents: DateComponents(hour: 1))
+        var out: [String: [Double]] = [:]
+        try await descriptor.result(for: store).enumerateStatistics(from: start, to: end) { stats, _ in
+            guard let v = stats.sumQuantity()?.doubleValue(for: unit) else { return }
+            out[Self.dayKey(stats.startDate, cal), default: [Double](repeating: 0, count: 24)][cal.component(.hour, from: stats.startDate)] += v
+        }
+        return out
+    }
+
+    /// The hours stood in (the Stand ring's), as 1 in each hour of each local day between two times.
+    private func stoodPerHour(from start: Date, to end: Date, calendar cal: Calendar) async throws -> [String: [Double]] {
+        let descriptor = HKSampleQueryDescriptor(predicates: [.categorySample(type: Self.standHour, predicate: HKQuery.predicateForSamples(withStart: start, end: end))], sortDescriptors: [])
+        var out: [String: [Double]] = [:]
+        for sample in try await descriptor.result(for: store) where sample.value == HKCategoryValueAppleStandHour.stood.rawValue {
+            out[Self.dayKey(sample.startDate, cal), default: [Double](repeating: 0, count: 24)][cal.component(.hour, from: sample.startDate)] = 1
+        }
+        return out
     }
 
     /// Weigh-ins from before what Health lets this app read (its 30-day limit), copied in once as

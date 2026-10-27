@@ -10,9 +10,16 @@ on, their weight trend against a goal. Every person's own iPhone sends their num
 ## What it shows
 
 - **Today:** the three rings and their numbers against the person's own goals, today's steps and
-  distance, and a line on how the day is going against the time of day: on track, behind on a ring
-  (in that ring's colour, which pulses for a few seconds as the tab opens and again every 5 minutes
-  through the day), or all three closed (a check in the rings, and a small bounce as the tab opens).
+  distance, and a line on how the day is going against a usual one: not started (nothing yet, the
+  Watch not on), on track, ahead, behind on a ring (in that ring's colour, which pulses for a few
+  seconds as the tab opens and again every 5 minutes through the day), or all three closed (a check
+  in the rings, and a small bounce as the tab opens). "Usual" is this day of the week over the last
+  4 weeks: the phone works out where each ring was by the end of each hour on each of those days,
+  and sends the middle one for each weekday, so a regular morning workout sets that weekday's pace
+  and the rest days keep their own, with nothing to set up. Behind means well short of that (under
+  80% of it, and at least a tenth of the goal), ahead well past it on every open ring. A weekday with
+  fewer than two days to go on, or an older phone app, falls back to a straight line from 6 AM to
+  10 PM.
 - **The last 7 days** as small rings. Tap one for that day's numbers, steps and minutes of workouts.
 - **Trends**, from the last 4 weeks: a streak (days in a row with Move closed, or all three), today's
   steps and exercise against the person's usual by this time of day, and how many days had a workout.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanFitness, listFitness, saveFitness, removeFitness } from './fitness.js';
+import { cleanUsual, cleanFitness, listFitness, saveFitness, removeFitness } from './fitness.js';
 
 const kv = () => {
   const m = new Map();
@@ -96,4 +96,19 @@ test('weight: weigh-ins as differences from the goal, one a day, in order; the g
   // Not shared: no weight at all.
   assert.ok(!('weight' in cleanFitness({ id: ID1, name: 'Sam' })));
   assert.ok(!('weight' in cleanFitness({ id: ID1, name: 'Sam', weight: { points: [] } })));
+});
+
+test('cleanUsual: 7 weekdays of 24 shares per ring, never going down through the day; anything else dropped', () => {
+  const ramp = Array.from({ length: 24 }, (_, h) => h / 23);
+  const dip = ramp.map((v, h) => (h === 10 ? 0 : v));
+  const day = { move: ramp, exercise: dip, stand: ramp };
+  const u = cleanUsual([day, null, day, day, day, day, { move: ramp, exercise: ramp }]);
+  assert.equal(u[0].exercise[10], u[0].exercise[9]);
+  assert.equal(u[0].move[23], 1);
+  assert.equal(u[1], null);
+  assert.equal(u[6], null); // a ring missing
+  assert.equal(cleanUsual([day, day]), null);
+  assert.equal(cleanUsual(Array(7).fill(null)), null);
+  assert.equal(cleanUsual(Array(7).fill({ move: ramp.slice(1), exercise: ramp, stand: ramp })), null);
+  assert.deepEqual(cleanFitness({ id: '0b1c2d3e-0000-4000-8000-000000000001', name: 'Alex', usual: Array(7).fill(day) }).usual[3].stand, u[0].stand);
 });

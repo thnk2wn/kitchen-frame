@@ -21,7 +21,7 @@
 <button class="home-rings" class:roomy onclick={() => (ui.tab = 'fitness')} aria-label="Fitness">
   {#each people as p (p.id)}
     {@const t = p.today}
-    {@const n = nudge(t, clock.now)}
+    {@const n = nudge(t, clock.now, p.usual)}
     <span class="person" class:stale={p.stale}>
       {#key beat}<Rings move={p.rings.move} exercise={p.rings.exercise} stand={p.rings.stand} {size} {light} pulse={p.waiting ? null : n.ring} />{/key}
       <span class="text">
@@ -36,7 +36,7 @@
           <span class="num" style="color:{colors.stand}">{t.stand}<i>/{t.standGoal} hrs</i></span>
         {:else}
           {#if n.ring}<span class="behind" style="--n:{colors[n.ring]}">{#key beat}<span class="pulse"></span>{/key}{people.length > 1 ? 'Behind' : label[n.ring] + ' behind'}</span>
-          {:else}<span class="note">{n.done ? 'All closed' : 'On track'}</span>{/if}
+          {:else}<span class="note">{n.done ? 'All closed' : n.idle ? 'Not started' : n.ahead ? 'Ahead' : 'On track'}</span>{/if}
         {/if}
       </span>
     </span>

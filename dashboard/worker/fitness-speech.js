@@ -16,7 +16,7 @@ export function fitnessFacts(people, wall, tz, now = new Date()) {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(now);
   const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(now - 864e5));
   return people.map((p) => view(p, wall)).filter((v) => !v.empty).map((v) => {
-    const n = nudge(v.today, wall);
+    const n = nudge(v.today, wall, v.usual);
     const past = v.week.slice(0, 6).filter((d) => d.move != null);
     return {
       name: v.name,
@@ -25,7 +25,7 @@ export function fitnessFacts(people, wall, tz, now = new Date()) {
       today: v.waiting ? null : v.today,
       // waiting: the phone sent before its Health had today's rings from the Watch; today's numbers aren't known.
       waiting: v.waiting,
-      status: v.waiting ? 'waiting for today\'s rings from the Watch' : n.done ? 'all three rings closed' : n.ring ? 'behind on ' + n.ring : 'on track',
+      status: v.waiting ? 'waiting for today\'s rings from the Watch' : n.done ? 'all three rings closed' : n.idle ? 'not started yet' : n.ring ? 'behind on ' + n.ring : n.ahead ? 'ahead of usual' : 'on track',
       left: v.waiting ? [] : n.left.map((l) => l.ring + ' ' + l.text),
       pastDays: past.length,
       allClosedDays: past.filter((d) => d.move >= 1 && d.exercise >= 1 && d.stand >= 1).length,
@@ -57,6 +57,7 @@ export function plainSpeech(facts) {
     const t = f.today;
     const who = one ? 'You\'re' : f.name + ' is';
     const status = f.status === 'all three rings closed' ? (one ? 'You\'ve' : f.name + ' has') + ' closed all three rings today.'
+      : f.status === 'not started yet' ? (one ? 'You haven\'t' : f.name + ' hasn\'t') + ' started moving yet today.'
       : f.status === 'on track' ? who + ' on track today.' : who + ' ' + f.status + ' today.';
     const parts = f.waiting ? [(one ? 'Your' : f.name + '\'s') + ' rings for today haven\'t come from the Watch yet.'] : [status,
       'Move ' + t.move + ' of ' + t.moveGoal + ' calories, exercise ' + t.exercise + ' of ' + plural(t.exerciseGoal, 'minute') + ', stand ' + t.stand + ' of ' + plural(t.standGoal, 'hour') + '.'];

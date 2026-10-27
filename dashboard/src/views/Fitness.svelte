@@ -76,7 +76,7 @@
 <div class="fitness" class:one={people.length === 1} class:many={people.length > 2}>
   {#each people as p (p.id)}
     {@const t = p.today}
-    {@const n = nudge(t, clock.now)}
+    {@const n = nudge(t, clock.now, p.usual)}
     {@const a = canAsk(ui.demo) ? askState(p, clock.now) : null}
     {@const wc = weightChip(p.weight)}
     <section class="sheet person" class:stale={p.stale}>

@@ -102,25 +102,35 @@ export function distance(meters, unit) {
   return (v < 10 ? v.toFixed(1) : Math.round(v)) + ' ' + (unit === 'km' ? 'km' : 'mi');
 }
 
-// What's left today, against how far through the day it is (6 AM to 10 PM): a headline (all closed,
-// on track, or the ring furthest behind) and what each open ring still needs, short enough for one line.
-export function nudge(t, now) {
-  const h = now.getHours() + now.getMinutes() / 60;
-  const pace = Math.max(0.05, Math.min(1, (h - 6) / 16));
+// How far along a ring usually is by now, as a share of its goal: the middle of the last 4 weeks of
+// this weekday at each hour's end (usual, from the phone: ios/KitchenFrame/Fitness.swift), between the
+// hours. Without it (an older app, or too few of this weekday), a straight line from 6 AM to 10 PM.
+export function usualBy(usual, ring, now) {
+  const u = Array.isArray(usual) && usual[now.getDay()] && usual[now.getDay()][ring];
+  const h = now.getHours(), f = now.getMinutes() / 60;
+  if (!Array.isArray(u) || u.length !== 24) return Math.max(0.05, Math.min(1, (h + f - 6) / 16));
+  const a = h ? u[h - 1] : 0;
+  return a + (u[h] - a) * f;
+}
+
+// What's left today, against where each ring usually is by this time of day: a headline (all closed,
+// not started, ahead, on track, or the ring furthest behind) and what each open ring still needs,
+// short enough for one line. Behind means well short of the usual, not just short of it.
+export function nudge(t, now, usual) {
   const rings = [
     { ring: 'move', name: 'Move', share: t.move / (t.moveGoal || 1), left: t.moveGoal - t.move, unit: 'kcal' },
     { ring: 'exercise', name: 'Exercise', share: t.exercise / (t.exerciseGoal || 1), left: t.exerciseGoal - t.exercise, unit: 'min' },
     { ring: 'stand', name: 'Stand', share: t.stand / (t.standGoal || 1), left: t.standGoal - t.stand, unit: 'hrs' },
-  ];
+  ].map((r) => ({ ...r, usual: usualBy(usual, r.ring, now) }));
   // A goal of 0 (Move set in minutes) isn't a ring to close here.
   const open = rings.filter((r) => r.left > 0 && (r.ring !== 'move' || t.moveGoal > 0));
   if (!open.length) return { done: true, headline: t.moveGoal > 0 ? 'All three rings closed' : 'Rings closed', left: [] };
-  const behind = open.filter((r) => r.share < pace * 0.8).sort((a, b) => a.share - b.share)[0];
-  return {
-    ring: behind ? behind.ring : null,
-    headline: behind ? 'Behind on ' + behind.name : 'On track',
-    left: open.map((r) => ({ ring: r.ring, text: r.left + ' ' + (r.unit === 'hrs' && r.left === 1 ? 'hr' : r.unit) })),
-  };
+  const left = open.map((r) => ({ ring: r.ring, text: r.left + ' ' + (r.unit === 'hrs' && r.left === 1 ? 'hr' : r.unit) }));
+  // Nothing at all yet: the Watch isn't on, or only just. Not behind.
+  if (!t.move && !t.exercise && !t.stand) return { ring: null, headline: 'Not started', idle: true, left };
+  const behind = open.filter((r) => r.share < r.usual * 0.8 && r.usual - r.share >= 0.1).sort((a, b) => (a.share - a.usual) - (b.share - b.usual))[0];
+  const ahead = !behind && open.every((r) => r.usual >= 0.1 && r.share >= r.usual * 1.2);
+  return { ring: behind ? behind.ring : null, ahead, headline: behind ? 'Behind on ' + behind.name : ahead ? 'Ahead' : 'On track', left };
 }
 
 // Two invented people, in the shape the Worker sends, with today's numbers built from the time of
@@ -139,9 +149,18 @@ export function demoFitness(now) {
   const updated = new Date(now.getTime() - 20 * 60000).toISOString();
   const dataAt = new Date(now.getTime() - 26 * 60000).toISOString();
   const steps = (base, per) => Math.round(base + day * per);
+  // A usual day: a morning workout, then a steady afternoon (shares of each goal by each hour's end).
+  const day1 = { move: [], exercise: [], stand: [] };
+  for (let hr = 0; hr < 24; hr++) {
+    const d = Math.max(0, Math.min(1, (hr + 1 - 7) / 14));
+    day1.move.push(Math.round(Math.min(1.1, d * 0.8 + (hr >= 7 ? 0.25 : 0)) * 100) / 100);
+    day1.exercise.push(Math.round(Math.min(1.1, d * 0.4 + (hr >= 7 ? 0.7 : 0)) * 100) / 100);
+    day1.stand.push(Math.round(Math.min(1, Math.max(0, hr - 6) / 12) * 100) / 100);
+  }
+  const usual = Array(7).fill(day1);
   return [
     {
-      id: 'demo-alex', name: 'Alex', updated, dataAt, unit: 'mi', steps: steps(1200, 9800), meters: Math.round(steps(1200, 9800) * 0.75), weight: demoWeight(now),
+      id: 'demo-alex', name: 'Alex', updated, dataAt, unit: 'mi', steps: steps(1200, 9800), meters: Math.round(steps(1200, 9800) * 0.75), weight: demoWeight(now), usual,
       days: [...past(1, [600, 30, 12]), { date: dayKey(now), move: Math.round(620 * Math.min(1.15, day * 1.25 + 0.18)), moveGoal: 600, exercise: Math.round(Math.min(48, 6 + day * 52)), exerciseGoal: 30, stand: Math.max(stood - 1, 0), standGoal: 12, steps: steps(1200, 9800), workoutMinutes: 42 }],
       workouts: [
         { type: 'Strength training', kind: 'strength', start: at(0, 6, 10), minutes: 42.2, kcal: 286, totalKcal: 362, effort: 6, heartRate: 118 },
@@ -150,7 +169,7 @@ export function demoFitness(now) {
       ],
     },
     {
-      id: 'demo-sam', name: 'Sam', updated, dataAt, unit: 'mi', steps: steps(600, 7400), meters: Math.round(steps(600, 7400) * 0.7),
+      id: 'demo-sam', name: 'Sam', updated, dataAt, usual, unit: 'mi', steps: steps(600, 7400), meters: Math.round(steps(600, 7400) * 0.7),
       days: [...past(4, [480, 30, 12]), { date: dayKey(now), move: Math.round(480 * Math.min(1, day * 0.9 + 0.05)), moveGoal: 480, exercise: Math.round(Math.min(30, day * 22)), exerciseGoal: 30, stand: stood, standGoal: 12, steps: steps(600, 7400), workoutMinutes: 0 }],
       workouts: [
         { type: 'Yoga', kind: 'yoga', start: at(-1, 19, 30), minutes: 35, kcal: 118, totalKcal: 168, effort: 3 },
