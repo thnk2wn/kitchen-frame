@@ -182,6 +182,10 @@ struct API: Sendable {
         _ = try await send("api/frame/timers/recents", method: "DELETE", body: try json(r), contentType: "application/json", timeout: 10)
     }
 
+    func forgetAllRecents() async throws {
+        _ = try await send("api/frame/timers/recents", method: "DELETE", body: Data(#"{"all":true}"#.utf8), contentType: "application/json", timeout: 10)
+    }
+
     /// A timer on the frame, as Alexa starts them: start one (shown full screen there), or cancel or add
     /// to one, by its id, or with none the one ringing or ending next.
     func timer(_ action: String, label: String? = nil, seconds: Int? = nil, id: String? = nil) async throws {

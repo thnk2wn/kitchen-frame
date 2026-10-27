@@ -43,7 +43,7 @@ struct TimersView: View {
 
                 if sorted.filter({ !$0.done }).count < FrameTimers.most {
                     if !recents.isEmpty {
-                        Section("Recents") {
+                        Section {
                             ForEach(recents) { r in
                                 Button { Task { await start(r.label, seconds: r.seconds, busyId: "recent" + r.id) } } label: {
                                     HStack {
@@ -65,6 +65,18 @@ struct TimersView: View {
                                 Task {
                                     do { for r in rs { try await api.forgetRecent(r) } } catch { problem = error.localizedDescription }
                                 }
+                            }
+                        } header: {
+                            HStack {
+                                Text("Recents")
+                                Spacer()
+                                // Small, beside the heading: all of them gone, on every phone (the Worker keeps them).
+                                Button("Clear") {
+                                    recents = []
+                                    Task { do { try await api.forgetAllRecents() } catch { problem = error.localizedDescription } }
+                                }
+                                .font(.footnote)
+                                .textCase(nil)
                             }
                         }
                         .disabled(busy != nil || home == false)

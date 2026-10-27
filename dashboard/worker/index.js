@@ -37,7 +37,7 @@
 //   GET, POST /api/frame/guest       guest mode: nothing personal on the frame (guest.js)
 //   GET, POST /api/frame/timers      { timers, at, recents }: the frame's timers, sent as they change, for the phone,
 //                                    and the names and lengths used lately
-//   DELETE /api/frame/timers/recents { label, seconds }: forget one of the recents
+//   DELETE /api/frame/timers/recents { label, seconds }: forget one of the recents ({ all: true }: all of them)
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
@@ -455,8 +455,9 @@ async function handle(req, env, ctx) {
       if (url.pathname === '/api/frame/timers' && req.method === 'GET') return room(env).fetch('https://room/timers');
       // One of the recents swiped away on the phone.
       if (url.pathname === '/api/frame/timers/recents' && req.method === 'DELETE') {
-        const { label, seconds } = await req.json().catch(() => ({}));
-        if (typeof label !== 'string' || !Number.isFinite(seconds)) return json({ error: 'label and seconds required' }, 400);
+        const { label, seconds, all } = await req.json().catch(() => ({}));
+        if (all === true) return room(env).fetch('https://room/timers', { method: 'DELETE', body: JSON.stringify({ all }) });
+        if (typeof label !== 'string' || !Number.isFinite(seconds)) return json({ error: 'label and seconds, or all: true' }, 400);
         return room(env).fetch('https://room/timers', { method: 'DELETE', body: JSON.stringify({ label, seconds }) });
       }
       if (url.pathname === '/api/frame/guest' && req.method === 'GET') return json(await guestMode(env));

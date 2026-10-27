@@ -14,7 +14,7 @@ A companion app for the frame:
 - **Timers** tab: the frame's timers counting down, with +1 min and cancel, and hour and minute
   wheels and a name to start one there, full screen. **Recents**, as in the Clock app: the last few
   names and lengths used (from the app, Siri, the frame or Alexa), one tap to start again, swipe to
-  remove. The Worker keeps them as the frame's timers arrive, so they're ready on any phone. The frame sends its list whenever it changes
+  remove one, Clear beside the heading for all. The Worker keeps them as the frame's timers arrive, so they're ready on any phone. The frame sends its list whenever it changes
   (`POST /api/frame/timers`), and the tab reads it every few seconds while it shows. **Siri** too,
   with no setup beyond a one-time "Turn on Kitchen Frame shortcuts with Siri?" (`FrameTimers.swift`):
   "Hey Siri, Kitchen Frame 10 minutes", "Kitchen Frame pasta" or "Kitchen Frame timer" (Siri asks how
@@ -66,7 +66,7 @@ turned on again. Unpair from the app's Settings.
 | Part | Where |
 | --- | --- |
 | Remote | `POST /api/frame/command` (`show` with a `tab`, `slideshow`, `wake`, `close`), then `POST /api/frame/checkin` and `GET /api/frame/status` for what it shows |
-| Timers | `GET /api/frame/timers` (the frame sends them as they change; with the `recents`), `DELETE /api/frame/timers/recents` (`label`, `seconds`), `POST /api/frame/command` (`timer`: `start` with a `label` and `seconds`, `cancel` or `add` with the timer's `id`) |
+| Timers | `GET /api/frame/timers` (the frame sends them as they change; with the `recents`), `DELETE /api/frame/timers/recents` (`label`, `seconds`, or `all: true`), `POST /api/frame/command` (`timer`: `start` with a `label` and `seconds`, `cancel` or `add` with the timer's `id`) |
 | Screenshot | `POST /api/frame/screenshot/request`, then `GET /api/frame/screenshot?since=` until the frame's JPEG is there |
 | Ops | `GET /api/ops/summary` (`dashboard/worker/ops.js`), what needs attention as `dashboard/ops/page.html` decides it; `KitchenFrame/OpsView.swift` |
 | Pairing | `kitchenframe://pair?url=…&code=…`, a one-time code from the frame's Settings (`dashboard/src/components/Settings.svelte`), traded for this phone's own key (`POST /api/devices/claim`, `dashboard/worker/devices.js`); kept by `KitchenFrame/Pairing.swift` |

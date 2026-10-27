@@ -459,6 +459,8 @@ test('frame timers: each new one goes first in the recents, once per name and le
   await call('DELETE', { label: 'Brews', seconds: 600 }, '/api/frame/timers/recents');
   assert.deepEqual((await (await call('GET')).json()).recents.map((x) => x.label), ['3 min', 'Pasta']);
   assert.equal((await call('DELETE', {}, '/api/frame/timers/recents')).status, 400);
+  await call('DELETE', { all: true }, '/api/frame/timers/recents');
+  assert.deepEqual((await (await call('GET')).json()).recents, []);
 });
 
 test('frame: events from the check-in are logged and the last ones kept with the status', async () => {

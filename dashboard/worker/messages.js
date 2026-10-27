@@ -140,8 +140,8 @@ export class MessageRoom {
       }
       // Swiped away on the phone.
       if (req.method === 'DELETE') {
-        const { label, seconds } = await req.json().catch(() => ({}));
-        recents.list = recents.list.filter((r) => r.label !== label || r.seconds !== seconds);
+        const { label, seconds, all } = await req.json().catch(() => ({}));
+        recents.list = all === true ? [] : recents.list.filter((r) => r.label !== label || r.seconds !== seconds);
         await this.ctx.storage.put('timer-recents', recents);
       }
       return json({ ...((await this.ctx.storage.get('timers')) || { timers: [], at: 0 }), recents: recents.list });
