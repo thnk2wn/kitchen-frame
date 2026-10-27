@@ -10,23 +10,52 @@ signed in to that account. Optional: everything else on the frame works without 
 
 ## What you can say
 
-Start with "Alexa, ask Kitchen Frame to…" or "Alexa, tell Kitchen Frame to…", or say "Alexa, open
-Kitchen Frame" and then the request.
+Every request is one sentence in three parts, and all three matter:
 
-**Alexa+ (Amazon's AI Alexa) doesn't route to custom skills reliably.** It decides for itself whether
-"ask Kitchen Frame to show the house" is for the skill, and often announces it to every Echo instead
-("Announcing on all devices"), answers with its own features (Photo Frame slideshows, "not
-available on this device"), or doesn't recognise the skill's name at all. With the original Alexa the
-same requests reach the skill every time, with the same name. To go back: say "Alexa, exit Alexa+" to
-an Echo, or disable it under Manage Your Alexa+ Access at alexaplus.com. Other skill makers report the
-same and give the same advice. (Use two words for the name; Amazon discourages one-word names.)
+> **"Alexa, ask Kitchen Frame to** start a 10 minute pasta timer**."**
+
+1. **"Alexa,"**
+2. **"ask Kitchen Frame to"** ("tell Kitchen Frame to" works too). The skill's name, said clearly,
+   with "ask" or "tell" in front of it and "to" after it.
+3. **The request**, worded like one in the table below.
+
+Leave out a part and Alexa handles the request itself instead:
+
+| You say | Alexa does |
+| --- | --- |
+| "Alexa, Kitchen Frame two minute timer" (no "ask … to") | Starts its own timer on the Echo, named "Kitchen Frame" |
+| "Alexa, set a seven minute timer on photo frame" (a different name) | Starts its own timer on the Echo |
+| "Alexa, ask kitchen fan to …" (the name misheard) | Takes it as a message and announces it on every Echo |
+
+When that happens, cancel the Echo's timer ("Alexa, cancel the timer") and say it again with all three
+parts. The status page's Alexa section shows what each Echo heard, so you can see which part it missed
+([below](#when-somethings-wrong)).
+
+**Timers**, the requests used most:
+
+- "Alexa, ask Kitchen Frame to start a 10 minute pasta timer"
+- "Alexa, ask Kitchen Frame to set a timer for 1 hour"
+- "Alexa, ask Kitchen Frame to start a timer" (Alexa asks how long)
+- "Alexa, ask Kitchen Frame to add a minute" · "…to add 5 minutes to the bread timer"
+- "Alexa, ask Kitchen Frame to cancel the timer" · "…to cancel the pasta timer"
+
+A plain "Alexa, cancel the timer" (without the skill's name) cancels the Echo's own timer, not the
+frame's.
+
+**Alexa+ (Amazon's AI Alexa) is less reliable with skills.** It sometimes announces a request, answers
+with its own features, or misses the skill's name even when all three parts are there. With the
+original Alexa the same requests reach the skill every time. To go back: say "Alexa, exit Alexa+" to an
+Echo, or turn it off under Manage Your Alexa+ Access at alexaplus.com. With Alexa+ on, words like
+"today", "calendar", "photos", "slideshow", "open" and "help" were often taken by Alexa's own features
+even after the skill's name; the extra phrases below (the rundown, go to sleep, show the clock) avoid
+them.
+
+**Everything else** works the same way, "Alexa, ask Kitchen Frame to" and then:
 
 | Say | What happens |
 | --- | --- |
 | add eggs to groceries · put eggs on the shopping list · add milk | Adds to Groceries (also when no list is named), in Todoist or Reminders as the list is set up ([lists](lists.md)), and shows Groceries on the frame |
 | add call the dentist to my tasks · remind us to call the dentist | Adds to Tasks and shows it |
-| start a 10 minute pasta timer · set a timer for 1 hour · start a timer | Starts a timer on the frame and shows it full screen ([timers](timers.md)); without a time, Alexa asks how long |
-| cancel the timer · cancel the pasta timer · add a minute · add 5 minutes to the bread timer | Cancels or adds to a timer on the frame: the one named, else the one ringing or ending next |
 | show the calendar · go to recipes · switch to videos · show the house | The frame switches to that tab (or Media's music, TV or videos view), waking from the slideshow |
 | show notifications · show notices | Opens the notices sheet over whatever is showing |
 | hide notifications · close that | Closes whatever sheet is open (notices, an event, a task, the weather, Settings) |
@@ -41,11 +70,7 @@ same and give the same advice. (Use two words for the name; Amazon discourages o
 
 In demo mode the frame tells the Worker, and the rundown and dinner read the frame's invented day.
 
-**With Alexa+ on**, words like "today", "calendar", "photos", "slideshow", "open" and "help" were often
-taken by Alexa's own features even after the skill's name; the extra phrases (the rundown, go to
-sleep, show the clock) avoid them.
-
-The skill's name has to be said. To drop it, make an Alexa **Routine** (Alexa app → More → Routines)
+The skill's name has to be said. To drop it for a request you make often, make an Alexa **Routine** (Alexa app → More → Routines)
 with "When this happens: Voice" set to a phrase like "show the calendar" and the action "Customize →
 ask Kitchen Frame to show the calendar".
 
@@ -105,10 +130,11 @@ The Worker answers only requests that:
   that reached the skill, what it understood, said and sent the frame. A red row is Alexa announcing
   a misheard request to the house ("ask kitchen friend to go home"); a request missing from the
   skill's rows never reached it. Amazon's Review Voice History has the same words, kept longer.
-- **Announcements by mistake:** when Alexa doesn't catch the skill's name in "ask … to …", it can
-  take the request as a message and announce it on every Echo. "Alexa, open Kitchen Frame" then the
-  request can't be taken that way, and Do Not Disturb on an Echo (a child's room at nap time) blocks
-  announcements there whatever their cause.
+- **Announcements by mistake:** Alexa didn't catch "ask Kitchen Frame to" and took the request as a
+  message for every Echo. Say the name clearly and keep "ask … to" around it. Do Not Disturb on an Echo
+  (a child's room at nap time) blocks announcements there whatever their cause.
+- **An Echo timer instead of the frame's:** the request left out "ask Kitchen Frame to", or used
+  another name ("photo frame").
 
 - **"There was a problem with the requested skill's response":** look at `npx wrangler tail`. A
   line starting `alexa refused:` says which check failed (most often `ALEXA_SKILL_ID` not set or not
