@@ -119,6 +119,19 @@
   // UV right now, for sunscreen (the same reading HA's weather shows, give or take the source). Hidden
   // when it's under 1: night, dawn and dusk. The day's peak is in the weather sheet.
   let uv = $derived(wx && wx.uvNow != null && wx.uvNow >= 1 ? { value: wx.uvNow, ...uvBand(wx.uvNow) } : null);
+  // In its place when it's hidden, the next sunrise or sunset: tomorrow's sunrise in the evening and
+  // overnight, today's sunset in the early morning.
+  let sun = $derived.by(() => {
+    if (!wx || uv) return null;
+    const now = clock.now.getTime();
+    for (const d of wx.days) for (const k of ['sunrise', 'sunset']) {
+      const at = d[k] && new Date(d[k]);
+      if (at && at.getTime() > now) return { icon: k, label: (k === 'sunrise' ? 'Sunrise ' : 'Sunset ') + time(at) };
+    }
+    return null;
+  });
+  // Feels like, only when it's far enough from the temperature to change what to wear (wind, humidity).
+  let feels = $derived(wx && wx.feels != null && Math.abs(wx.feels - wx.temp) >= 3 ? wx.feels : null);
 </script>
 
 <!-- short: timers run in the row along the bottom (TimerDock.svelte), so the clock is smaller and the
@@ -152,7 +165,8 @@
 
     {#if wx}
       <div class="sheet weather">
-        {#if uv}<span class="uv {uv.cls}" title="UV index now">UV {uv.value} · {uv.label}</span>{/if}
+        {#if uv}<span class="uv {uv.cls}" title="UV index now">UV {uv.value} · {uv.label}</span>
+        {:else if sun}<span class="uv sun"><Icon name={sun.icon} size={17} />{sun.label}</span>{/if}
         {#if wx.alerts && wx.alerts.length}
           {@const a = wx.alerts[0]}
           <button class="wx-alert" class:severe={a.severity === 'Severe' || a.severity === 'Extreme'} onclick={() => (ui.weatherDay = 0)}>
@@ -165,7 +179,7 @@
           <span class="cond">
             <span class="ic {info.tint}"><Icon name={info.icon} size={34} /></span>
             <span>{info.label}</span>
-            <span class="hl num">H:{wx.days[0].hi}° L:{wx.days[0].lo}°</span>
+            <span class="hl num">H:{wx.days[0].hi}° L:{wx.days[0].lo}°{#if feels != null}<span class="feels">Feels {feels}°</span>{/if}</span>
           </span>
         </button>
         <div class="days">
@@ -315,6 +329,8 @@
   .uv-high { background: #ff9500; }
   .uv-vhigh { background: #ff3b30; }
   .uv-ext { background: #af52de; }
+  /* The next sunrise or sunset, when UV is hidden: plain, so it doesn't read as a UV level. */
+  .uv.sun { display: flex; align-items: center; gap: 6px; background: var(--track); color: var(--secondary); font-weight: 600; }
   .wx-now { display: flex; align-items: center; gap: 18px; width: 100%; text-align: left; color: inherit; }
   .wx-now:active, .day:active, .wx-alert:active { opacity: .6; }
   .wx-alert { display: flex; align-items: center; gap: 8px; width: 100%; margin: -6px 0 12px; padding: 7px 12px; border-radius: 12px; background: var(--orange); color: #fff; font-size: 17px; font-weight: 700; text-align: left; }
@@ -323,6 +339,7 @@
   .temp { font-size: 76px; font-weight: 300; line-height: 1; letter-spacing: -.03em; }
   .cond { display: flex; flex-direction: column; gap: 3px; font-size: 19px; font-weight: 600; }
   .hl { font-weight: 500; color: var(--secondary); }
+  .feels { margin-left: 12px; }
   .days { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--sep); }
   .day { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 17px; color: var(--secondary); }
   .day b { color: var(--label); font-weight: 600; }
