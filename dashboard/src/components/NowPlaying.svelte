@@ -1,6 +1,6 @@
 <script>
   import Icon from './Icon.svelte';
-  import { haUrl, callService } from '../lib/ha.svelte.js';
+  import { haUrl, tvArt, callService } from '../lib/ha.svelte.js';
   import { haImage } from '../lib/ha-image.js';
   import { nm } from '../lib/demo-media.svelte.js';
   import { ui } from '../lib/state.svelte.js';
@@ -27,12 +27,14 @@
     callService('media_player', 'media_play_pause', {}, { entity_id: player.entity_id }).catch(() => {});
   }
   let failedArt = $state(null); // the picture that didn't load, so the next song's is tried
+  let poster = $derived(tvArt(player)); // a TV show's poster when Home Assistant has no picture
 </script>
 
 <div class="np" class:card class:slim class:tall={cover > 0} class:sheet={card} style={cover ? '--cover:' + cover + 'px' : ''} role="button" tabindex="0" title={player.media_title} onclick={openIt} onkeydown={(e) => e.key === 'Enter' && openIt()}>
   <!-- A cover that fails to load (Home Assistant's art proxy can) shows the note, not a broken image. -->
   {#if player.podcast}{#if player.art && failedArt !== player.art}<img src={player.art} alt="" decoding="async" onerror={() => (failedArt = player.art)} />{:else}<span class="noart"><Icon name="podcast" size={20} /></span>{/if}
-  {:else if player.entity_picture && failedArt !== player.entity_picture}<img {@attach haImage(haUrl(player.entity_picture))} alt="" onerror={() => (failedArt = player.entity_picture)} />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
+  {:else if player.entity_picture && failedArt !== player.entity_picture}<img {@attach haImage(haUrl(player.entity_picture))} alt="" onerror={() => (failedArt = player.entity_picture)} />
+  {:else if poster && failedArt !== poster}<img src={poster} alt="" decoding="async" onerror={() => (failedArt = poster)} />{:else}<span class="noart"><Icon name="music" size={20} /></span>{/if}
   {#if card}
     <div class="txt">
       <div class="title">{player.media_title}</div>

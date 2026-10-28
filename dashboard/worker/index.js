@@ -105,6 +105,7 @@ import { listNotices, addNotice } from './notices.js';
 import { saveStatus, getStatus, getSettings, getSettingsHistory, cleanTimers } from './frame.js';
 import { opsSummary } from './ops.js';
 import { listVideos, thumbResponse, videoIdOf, videoTitle, parseSetting } from './youtube.js';
+import { tvArtResponse } from './tvart.js';
 import { handleAlexa } from './alexa.js';
 import { addLog, heardEntry, readLog } from './alexa-log.js';
 import { demoPhotos, demoPhotoResponse, demoCamResponse } from './demo-photos.js';
@@ -385,6 +386,8 @@ async function handle(req, env, ctx) {
       }
       if (url.pathname === '/api/youtube') return json(await listVideos(env, { force: url.searchParams.has('refresh') }));
       if (url.pathname.startsWith('/api/youtube/thumb/')) return thumbResponse(url.pathname.slice('/api/youtube/thumb/'.length), ctx);
+      // A poster for what a TV plays when Home Assistant has none (tvart.js).
+      if (url.pathname === '/api/tvart') return tvArtResponse(url, ctx);
       if (url.pathname === '/api/messages' && req.method === 'GET') return room(env).fetch('https://room/list');
       if (url.pathname === '/api/notices' && req.method === 'GET') return json(await listNotices(env));
       if (url.pathname === '/api/frame/status' && req.method === 'POST') {
@@ -726,7 +729,7 @@ async function refresh(env, previous, feeds = {}) {
 // response to a request that had the key. That keeps the key out of URLs, and so out of request
 // logs and caches. (A key in the URL, ?key=, how they used to do it, is no longer accepted.)
 const AUTH_COOKIE = 'frame_auth';
-const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/share/media/') || p.startsWith('/api/youtube/thumb/') || p.startsWith('/api/tiles/') || p.startsWith('/api/gtiles/') || p === '/api/staticmap' || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
+const mediaPath = (p) => p.startsWith('/api/photos/') || p.startsWith('/api/videos/') || p.startsWith('/api/share/media/') || p.startsWith('/api/youtube/thumb/') || p === '/api/tvart' || p.startsWith('/api/tiles/') || p.startsWith('/api/gtiles/') || p === '/api/staticmap' || p === '/api/messages/live' || /^\/api\/recipes\/(paprika\/)?[\w-]+\/image$/.test(p);
 // Constant-time comparison, so a key or cookie can't be guessed a character at a time.
 function same(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;

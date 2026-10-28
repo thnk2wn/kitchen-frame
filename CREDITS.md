@@ -25,6 +25,7 @@ description of that work.
 - Weather data by [Open-Meteo](https://open-meteo.com) (CC BY 4.0).
 - Forecast text and alerts from the US [National Weather Service](https://www.weather.gov) (public domain).
 - Recipes from [TheMealDB](https://www.themealdb.com) (free API key for personal use).
+- TV show posters, when Home Assistant has no picture of what the TV plays, from [TVmaze](https://www.tvmaze.com) (CC BY-SA).
 - Demo mode's slideshow photos from [Lorem Picsum](https://picsum.photos), photos from [Unsplash](https://unsplash.com) under the Unsplash License.
 - Demo mode's camera pictures: public-domain photos on Flickr, found through
   [Openverse](https://openverse.org): "Front Entry" by Paul Pakozdi, "Spring Lake" by satguru,

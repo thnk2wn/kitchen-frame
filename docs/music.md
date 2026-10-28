@@ -148,6 +148,13 @@ TV's apps (the ones watched lately first; one tap opens one), power, and an on-s
 is Apple TV, Android TV Remote or Roku. A TV playing shows in Now Playing too; **Settings → Home →
 Now Playing → Music only** leaves TVs out.
 
+**Artwork.** An Apple TV hands Home Assistant artwork only from apps that say what they play (the
+Apple TV app, Disney+). YouTube TV names the show and channel but sends no picture, and Netflix sends
+neither. With no picture, the Worker looks the show up on [TVmaze](https://www.tvmaze.com) by title,
+preferring the version on the channel playing it ("ABC 11" is ABC), and sends its poster
+(`/api/tvart`, `dashboard/worker/tvart.js`; kept a week in the edge cache). Live news and sports
+rarely match a show, and keep the TV icon.
+
 ![The Media tab's TV view: what's playing, controls, apps and an on-screen remote](images/tv-light.jpg)
 
 **Volume behind a soundbar.** Volume steps and mute go to the TV, or to the speaker that plays its

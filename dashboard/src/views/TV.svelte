@@ -4,7 +4,7 @@
   // (lib/ha.svelte.js); nothing here is specific to one household.
   import Icon from '../components/Icon.svelte';
   import MediaSwitch from '../components/MediaSwitch.svelte';
-  import { ha, haUrl, callService, tvAudio } from '../lib/ha.svelte.js';
+  import { ha, haUrl, tvArt, callService, tvAudio } from '../lib/ha.svelte.js';
   import { haImage } from '../lib/ha-image.js';
   import { ui } from '../lib/state.svelte.js';
   import { fakeMedia as fake, nm } from '../lib/demo-media.svelte.js';
@@ -34,6 +34,8 @@
   let off = $derived(!tv || tv.state === 'off' || tv.state === 'standby' || tv.state === 'unavailable');
   let app = $derived(tv ? tv.app_name || tv.source || '' : '');
   let art = $derived(tv && tv.entity_picture && !fake() ? haUrl(tv.entity_picture) : null);
+  let poster = $derived(fake() ? null : tvArt(tv)); // a poster when Home Assistant has no picture
+  let failedPoster = $state(null);
 
   // Apps in the order they were last watched on this TV (as the frame saw them playing), then A–Z,
   // so the ones the household uses come first without a list to keep.
@@ -115,7 +117,7 @@
     <div class="top" class:noremote={!keys}>
       <section class="sheet now">
         <div class="head">
-          <div class="art">{#if art}<img {@attach haImage(art)} alt="" />{:else}<span class="noart" class:demo={fake()}><Icon name="tv" size={48} /></span>{/if}</div>
+          <div class="art">{#if art}<img {@attach haImage(art)} alt="" />{:else if poster && failedPoster !== poster}<img class="poster" src={poster} alt="" decoding="async" onerror={() => (failedPoster = poster)} />{:else}<span class="noart" class:demo={fake()}><Icon name="tv" size={48} /></span>{/if}</div>
           <div class="txt">
             {#if app}<div class="app">{app}</div>{/if}
             {#if off}<h1 class="idle">Off</h1>
@@ -202,6 +204,7 @@
   .head { display: flex; gap: 22px; min-height: 0; }
   .art { flex: none; width: 300px; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: var(--fill); display: grid; place-items: center; }
   .art img { width: 100%; height: 100%; object-fit: cover; }
+  .art img.poster { width: auto; } /* a show's poster is portrait: whole, centred in the 16:9 box */
   .noart { color: var(--tertiary); }
   .noart.demo { width: 100%; height: 100%; display: grid; place-items: center; background: linear-gradient(150deg, #2a9d8f, #264653); color: rgba(255, 255, 255, .8); }
   .txt { min-width: 0; display: flex; flex-direction: column; justify-content: center; }

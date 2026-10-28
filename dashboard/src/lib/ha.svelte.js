@@ -4,6 +4,7 @@
 // WebSocket API does not, so everything here goes over the socket.
 import { limiter } from './limit.js';
 import { log } from './log.svelte.js';
+import { mediaUrl } from './api.js';
 
 export const ha = $state({
   status: 'off',   // off (not set up) | connecting | connected | error
@@ -75,6 +76,12 @@ export function onHAStates(fn) {
 
 // Absolute URL for an entity picture (HA returns a path with its own short-lived token).
 export const haUrl = (path) => (!path ? null : /^https?:/.test(path) ? path : base() + path);
+
+// A poster for what a TV is playing when Home Assistant has no picture of it (YouTube TV, Netflix):
+// looked up on TVmaze by its title and channel (worker/tvart.js). Null when there's nothing to look up.
+export const tvArt = (p) => (p && p.tv && !p.entity_picture && p.media_title
+  ? mediaUrl('/api/tvart?q=' + encodeURIComponent(p.media_title) + (p.media_artist ? '&ch=' + encodeURIComponent(p.media_artist) : ''))
+  : null);
 
 export function connectHA() {
   if (!haConfigured()) { ha.status = 'off'; return; }
