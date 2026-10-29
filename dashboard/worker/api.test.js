@@ -108,7 +108,7 @@ test('weather is reduced to what the screen shows', () => {
       { name: 'Tonight', startTime: '2026-10-12T18:00:00-04:00', isDaytime: false, detailedForecast: 'Clear, with a low around 51.' },
       { name: 'Tuesday', startTime: '2026-10-13T06:00:00-04:00', isDaytime: true, detailedForecast: 'Sunny.' },
     ],
-    alerts: [{ properties: { event: 'Heat Advisory', headline: 'Heat Advisory until 8 PM', severity: 'Moderate', ends: '2026-10-12T20:00:00-04:00', description: 'Hot.', instruction: 'Drink water.' } }],
+    alerts: [{ properties: { id: 'urn:oid:heat.1', event: 'Heat Advisory', headline: 'Heat Advisory until 8 PM', severity: 'Moderate', ends: '2026-10-12T20:00:00-04:00', description: 'Hot.', instruction: 'Drink water.' } }],
   });
   assert.deepEqual({ ...w, updated: undefined }, {
     unit: 'F', temp: 62, feels: 59, code: 3, day: true, uvNow: 3, updated: undefined,
@@ -118,7 +118,7 @@ test('weather is reduced to what the screen shows', () => {
       text: [{ name: 'This Afternoon', night: false, text: 'Cloudy, with a high near 68.' }, { name: 'Tonight', night: true, text: 'Clear, with a low around 51.' }],
       hours: [{ hour: 23, temp: 55, rain: 10, code: 2, day: false }],
     }],
-    alerts: [{ event: 'Heat Advisory', headline: 'Heat Advisory until 8 PM', severity: 'Moderate', ends: '2026-10-12T20:00:00-04:00', text: 'Hot.\n\nDrink water.' }],
+    alerts: [{ id: 'urn:oid:heat.1', event: 'Heat Advisory', headline: 'Heat Advisory until 8 PM', severity: 'Moderate', ends: '2026-10-12T20:00:00-04:00', text: 'Hot.\n\nDrink water.' }],
   });
 });
 

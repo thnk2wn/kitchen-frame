@@ -49,6 +49,16 @@ or every 10 minutes until it clears or is dismissed. Orange notices can be said 
 volume and never at night; blue ones never are. The notices sheet marks the ones said as
 "Announced".
 
+## Weather alerts
+
+Weather Service alerts (US only) can be said too: **Warnings** (tornado, severe thunderstorm, flash
+flood: Severe or Extreme) at the alert volume, day or night, or **All**, which adds statements,
+advisories and watches at the normal volume. Those wait out quiet hours and are said when they end if
+the alert is still in effect, so one issued overnight is heard in the morning. Each is said once, as
+the alert, how long, and its first sentence: "Weather: Special Weather Statement until 9:00 AM. Patchy
+fog has developed this morning…". The weather sheet's **Read aloud** (while Announcements is on) reads
+an alert in full. An alert leaves the screen the minute it ends.
+
 ## Agent messages and timers
 
 **Agent messages** (see [messages.md](messages.md)) are read aloud when that switch is on: "Message

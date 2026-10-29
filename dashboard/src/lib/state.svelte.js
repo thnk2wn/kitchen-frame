@@ -44,6 +44,7 @@ export const ui = $state({
   // { list, id }: the list item whose sheet is open; ?task=<id> opens a task, for screenshots.
   task: q.get('task') ? { list: 'todo', id: q.get('task') } : null,
   weatherDay: /^[0-6]$/.test(q.get('weather') || '') ? Number(q.get('weather')) : null,
+  weatherAlert: false, // opened from Home's alert: the sheet opens with the first alert's text showing
   themePref: pref('theme', 'auto'),          // auto | light | dark
   // Minutes untouched (and the room empty, with a presence area) before the clock screen; 0 = never.
   // 5 was the old default and is no longer offered, so it becomes 30.

@@ -13,7 +13,7 @@
   const DEMO_SPEAKERS = [{ entity_id: 'demo.kitchen', label: 'Kitchen' }, { entity_id: 'demo.living', label: 'Living Room' }, { entity_id: 'demo.office', label: 'Office' }];
   const demoSay = $state({ on: true, speaker: 'demo.kitchen', volume: 0.4, alertVolume: 0.7, messages: true,
     reminders: { cals: { Family: true, 'Tennessee Football': true }, lead: 30, own: true },
-    alerts: { red: true, night: true, repeat: false, orange: false } });
+    alerts: { red: true, night: true, repeat: false, orange: false }, weather: 'warnings' });
   let say = $derived(ui.demo ? demoSay : realSay);
   const setSay = (c) => (ui.demo ? Object.assign(demoSay, c) : realSetSay(c));
   let speakerList = $derived(ui.demo ? DEMO_SPEAKERS : speakers());
@@ -366,6 +366,15 @@
         <div class="seg">
           <button class:on={say.alerts.orange} onclick={() => setSay({ alerts: { ...say.alerts, orange: true } })}>On</button>
           <button class:on={!say.alerts.orange} onclick={() => setSay({ alerts: { ...say.alerts, orange: false } })}>Off</button>
+        </div>
+      </div>
+      <h3 class="sub">Weather alerts</h3>
+      <div class="row">
+        <span>From the Weather Service<small>{say.weather === 'all' ? 'Warnings at the alert volume, day or night; others once quiet hours end' : 'Tornado, severe storm, flash flood: at the alert volume, day or night'}</small></span>
+        <div class="seg">
+          <button class:on={say.weather === 'off'} onclick={() => setSay({ weather: 'off' })}>Off</button>
+          <button class:on={say.weather === 'warnings'} onclick={() => setSay({ weather: 'warnings' })}>Warnings</button>
+          <button class:on={say.weather === 'all'} onclick={() => setSay({ weather: 'all' })}>All</button>
         </div>
       </div>
       <h3 class="sub">Also</h3>

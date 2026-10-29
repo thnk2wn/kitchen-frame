@@ -88,6 +88,7 @@ export function shape(w, unit, nws = null) {
       }] : [])) : [],
     })),
     alerts: (nws ? nws.alerts || [] : []).map((a) => a.properties).filter(Boolean).map((a) => ({
+      id: a.id,
       event: a.event,
       headline: a.headline,
       severity: a.severity,

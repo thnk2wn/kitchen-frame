@@ -6,6 +6,8 @@
   import Radar from './Radar.svelte';
   import { ui, clock, weather } from '../lib/state.svelte.js';
   import { weatherInfo, dayInfo, dow, time, dayKey, formatDate } from '../lib/format.js';
+  import { activeAlerts, isWarning, unwrap, until } from '../lib/wxalerts.js';
+  import { say, speak } from '../lib/announce.svelte.js';
 
   let wx = $derived(weather.data);
   let i = $derived(ui.weatherDay);
@@ -13,6 +15,16 @@
   let info = $derived(d ? dayInfo(d) : null);
   let metric = $derived(wx && wx.unit === 'C');
   let openAlert = $state(-1);
+  // Opened from Home's alert: that alert's text, already open.
+  $effect(() => { if (ui.weatherAlert && d) { openAlert = 0; ui.weatherAlert = false; } });
+  let alerts = $derived(wx ? activeAlerts(wx.alerts, clock.now) : []);
+  // Read aloud, the whole alert (said on its own, it's only the first sentence: lib/alerts.svelte.js).
+  let reading = $state(-1);
+  function readAloud(a, n) {
+    reading = n;
+    speak('Weather: ' + a.event + ' ' + until(a.ends, clock.now) + '. ' + unwrap(a.text).replace(/\n+/g, ' '), { kind: 'weather', max: 1500 })
+      .finally(() => { if (reading === n) reading = -1; });
+  }
   // Radar: shown in place of the day's details, from the button beside the days.
   let radar = $state(new URLSearchParams(location.search).has('radar')); // ?weather=0&radar for screenshots
 
@@ -31,7 +43,6 @@
   const dayLabel = (date, n) => (n === 0 && date === dayKey(clock.now) ? 'Today' : dow(date));
   const uvLabel = (u) => (u <= 2 ? 'Low' : u <= 5 ? 'Moderate' : u <= 7 ? 'High' : u <= 10 ? 'Very high' : 'Extreme');
   const amount = (p) => (p == null ? '—' : p <= 0 ? 'None' : metric ? p.toFixed(1) + ' mm' : p < 0.01 ? 'Trace' : p.toFixed(2) + ' in');
-  const until = (t) => (t ? 'until ' + (dayKey(new Date(t)) === dayKey(clock.now) ? '' : dow(dayKey(new Date(t))) + ' ') + time(new Date(t)) : '');
   const close = () => { ui.weatherDay = null; openAlert = -1; radar = false; };
 </script>
 
@@ -61,15 +72,20 @@
       {#if radar}
         <Radar width={1072} height={470} />
       {:else}
-      {#if i === 0 && wx.alerts && wx.alerts.length}
+      {#if i === 0 && alerts.length}
         <div class="alerts">
-          {#each wx.alerts as a, n (n)}
-            <button class="alert" class:severe={a.severity === 'Severe' || a.severity === 'Extreme'} onclick={() => (openAlert = openAlert === n ? -1 : n)}>
+          {#each alerts as a, n (n)}
+            <button class="alert" class:severe={isWarning(a)} onclick={() => (openAlert = openAlert === n ? -1 : n)}>
               <span class="aic"><Icon name="alert" size={22} /></span>
-              <span class="atitle">{a.event} <span class="aend">{until(a.ends)}</span></span>
+              <span class="atitle">{a.event} <span class="aend">{until(a.ends, clock.now)}</span></span>
               <span class="amore">{openAlert === n ? 'Less' : 'More'}</span>
             </button>
-            {#if openAlert === n}<p class="atext">{a.text}</p>{/if}
+            {#if openAlert === n}
+              <div class="aopen">
+                <p class="atext">{unwrap(a.text)}</p>
+                {#if say.on}<button class="aread" disabled={reading === n} onclick={() => readAloud(a, n)}><Icon name="speaker" size={20} />{reading === n ? 'Reading…' : 'Read aloud'}</button>{/if}
+              </div>
+            {/if}
           {/each}
         </div>
       {/if}
@@ -150,7 +166,10 @@
   .alert.severe { background: var(--red); }
   .atitle { flex: 1; min-width: 0; }
   .aend, .amore { font-weight: 500; opacity: .9; }
-  .atext { margin: 0; max-height: 150px; overflow-y: auto; white-space: pre-line; font-size: 16px; line-height: 1.4; color: var(--secondary); }
+  .aopen { display: flex; align-items: flex-start; gap: 16px; }
+  .aread { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; background: var(--fill); color: var(--label); font-size: 16px; font-weight: 600; }
+  .aread:disabled { opacity: .6; }
+  .atext { flex: 1; margin: 0; max-height: 150px; overflow-y: auto; white-space: pre-line; font-size: 16px; line-height: 1.4; color: var(--secondary); }
 
   .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.45fr 1fr; gap: 28px; }
   .summary { min-height: 0; overflow-y: auto; }
@@ -162,7 +181,7 @@
   .fc b.night { color: var(--blue-text); }
   .fc.none { color: var(--secondary); }
 
-  .facts { display: flex; flex-direction: column; }
+  .facts { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
   .fact { display: flex; align-items: center; gap: 12px; min-height: 46px; border-bottom: 1px solid var(--sep); font-size: 18px; }
   .fact:last-child { border-bottom: 0; }
   .k { flex: 1; color: var(--secondary); }

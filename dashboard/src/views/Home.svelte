@@ -39,6 +39,7 @@
   import { clock, calendar, weather, lists, mealItems, rotationRules, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
   import { mealRows } from '../lib/meals.js';
+  import { activeAlerts, isWarning } from '../lib/wxalerts.js';
   import { drivable, driveOf, loadDrive, leaveIn, SOON_MS } from '../lib/drive.svelte.js';
 
   let events = $derived(calendar.data ? calendar.data.events : []);
@@ -118,6 +119,7 @@
   let info = $derived(wx ? weatherInfo(wx.code, wx.day) : null);
   // UV right now, for sunscreen (the same reading HA's weather shows, give or take the source). Hidden
   // when it's under 1: night, dawn and dusk. The day's peak is in the weather sheet.
+  let alerts = $derived(wx ? activeAlerts(wx.alerts, clock.now) : []);
   let uv = $derived(wx && wx.uvNow != null && wx.uvNow >= 1 ? { value: wx.uvNow, ...uvBand(wx.uvNow) } : null);
   // In its place when it's hidden, the next sunrise or sunset: tomorrow's sunrise in the evening and
   // overnight, today's sunset in the early morning.
@@ -165,14 +167,14 @@
 
     {#if wx}
       <div class="sheet weather">
-        {#if uv}<span class="uv {uv.cls}" title="UV index now">UV {uv.value} · {uv.label}</span>
-        {:else if sun}<span class="uv sun"><Icon name={sun.icon} size={17} />{sun.label}</span>{/if}
-        {#if wx.alerts && wx.alerts.length}
-          {@const a = wx.alerts[0]}
-          <button class="wx-alert" class:severe={a.severity === 'Severe' || a.severity === 'Extreme'} onclick={() => (ui.weatherDay = 0)}>
-            <Icon name="alert" size={20} /><span>{a.event}{wx.alerts.length > 1 ? ' +' + (wx.alerts.length - 1) : ''}</span>
+        <!-- An alert takes the top row; the UV or sunrise badge only shows without one. -->
+        {#if alerts.length}
+          {@const a = alerts[0]}
+          <button class="wx-alert" class:severe={isWarning(a)} onclick={() => { ui.weatherAlert = true; ui.weatherDay = 0; }}>
+            <Icon name="alert" size={20} /><span>{a.event}{alerts.length > 1 ? ' +' + (alerts.length - 1) : ''}</span>
           </button>
-        {/if}
+        {:else if uv}<span class="uv {uv.cls}" title="UV index now">UV {uv.value} · {uv.label}</span>
+        {:else if sun}<span class="uv sun"><Icon name={sun.icon} size={17} />{sun.label}</span>{/if}
         <!-- Tap today or a day for its detail sheet (components/WeatherSheet.svelte). -->
         <button class="wx-now" onclick={() => (ui.weatherDay = 0)}>
           <span class="temp num">{wx.temp}°</span>

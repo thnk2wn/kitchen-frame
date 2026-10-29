@@ -23,7 +23,9 @@ function initial() {
     reminders: { cals: {}, lead: 30, own: true },
     // Home Assistant alerts (lib/alerts.svelte.js): red ones said (at night too, by default), orange
     // optional, and red repeated every 10 minutes until cleared or dismissed if wanted.
-    alerts: { red: true, night: true, repeat: false, orange: false } };
+    alerts: { red: true, night: true, repeat: false, orange: false },
+    // Weather Service alerts (lib/wxalerts.js): 'off', 'warnings' or 'all'.
+    weather: 'off' };
 }
 const saved = read() || {};
 export const say = $state({ ...initial(), ...saved, reminders: { ...initial().reminders, ...(saved.reminders || {}) },
@@ -48,9 +50,9 @@ const hasScript = () => ha.scripts && ha.scripts.includes('script.frame_announce
 // Say something. alert: a red alert, at the louder alert volume. Nothing is said while
 // Announcements is off (it starts off: opt in from Settings). kind: for the event log
 // (reminder, alert, notice, message, test).
-export function speak(text, { alert = false, kind = 'other' } = {}) {
+export function speak(text, { alert = false, kind = 'other', max = 400 } = {}) {
   const s = speaker();
-  const message = String(text).slice(0, 400);
+  const message = String(text).slice(0, max);
   if (ui.demo || !say.on || !s || ha.status !== 'connected') {
     if (!ui.demo) log('announce.skipped', { kind, text: message, why: !say.on ? 'off' : !s ? 'no speaker' : 'not connected' }, 'warn');
     return Promise.resolve(false);
