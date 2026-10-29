@@ -135,16 +135,23 @@
       {#if playing}
         <div class="music"><Icon name="music" size={24} /><span>{playing.media_title}{playing.media_artist ? ' · ' + playing.media_artist : ''}</span></div>
       {/if}
-      {#if notices().length}
-        {@const n = notices()[0]}
-        <div class="notice tone-{n.tone}"><Icon name={iconOf(n)} size={24} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span>{#if startedAt(n, clock.now)}<small class="at">{startedAt(n, clock.now)}</small>{/if}</div>
-      {/if}
+      {#if showPhotos}{@render notice()}{/if}
       {#if next}
         <div class="next"><span><Txt text={next.title} /></span><span class="num">{time(new Date(next.start))}</span></div>
       {/if}
     </div>
   </div>
+  <!-- Without photos, the notice has a row of its own under the clock: beside it, the column is too
+       narrow and its text was cut off. Over photos it stays in the column, under the clock. -->
+  {#if !showPhotos && notices().length}<div class="below">{@render notice()}</div>{/if}
 </button>
+
+{#snippet notice()}
+  {#if notices().length}
+    {@const n = notices()[0]}
+    <div class="notice tone-{n.tone}"><Icon name={iconOf(n)} size={20} /><span>{n.title || n.message}{notices().length > 1 ? ' +' + (notices().length - 1) : ''}</span>{#if startedAt(n, clock.now)}<small class="at">{startedAt(n, clock.now)}</small>{/if}</div>
+  {/if}
+{/snippet}
 
 <style>
   /* touch-action: the browser leaves swipes to us (otherwise it may claim them to scroll). */
@@ -162,9 +169,14 @@
   .photos .music { font-size: 20px; max-width: 520px; }
   /* A Home Assistant notice keeps its own colour over the clock colour, so it stands out. Its tone
      classes are prefixed: a bare "info" would pick up the .info layout above. */
-  .notice { align-self: flex-start; display: flex; align-items: center; gap: 10px; max-width: 560px; padding: 8px 16px; border-radius: 16px; background: #ff9500; color: #fff; font-size: 22px; font-weight: 700; }
+  /* Home's banner size (NoticeBanners.svelte). */
+  .notice { align-self: flex-start; display: flex; align-items: center; gap: 10px; max-width: 560px; padding: 8px 14px; border-radius: 14px; background: #ff9500; color: #fff; font-size: 18px; font-weight: 700; }
   .notice.tone-alert { background: #ff3b30; }
-  .notice .at { flex: none; font-size: 17px; font-weight: 600; opacity: .85; }
+  .notice .at { flex: none; font-size: 15px; font-weight: 600; opacity: .85; }
+  /* The row under the clock (the clock is vertically centred, so there's room below it). */
+  .below { position: absolute; left: 72px; right: 72px; bottom: 64px; display: flex; justify-content: center; }
+  .below .notice { max-width: 100%; }
+  .night .below { opacity: .7; }
   .notice.tone-info { background: #007aff; }
   .notice span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* After sunset: same colour, dimmer, and photos dimmed, so the kitchen isn't lit up. */
