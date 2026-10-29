@@ -133,12 +133,16 @@ onError(() => {
 });
 
 // "Check in now" from the Worker (frame-status.sh --now, the status page, the phone's Remote after a
-// tap) and "reload": at most every 10 s. Other commands (show, screenshot…) don't count, or a
-// check-in asked for right after a tab change would be dropped.
-let lastAsked = 0;
+// tap) at most every 10 s, and "reload"/"restart" at most every 10 s, each kind on its own clock: a
+// check-in asked for just before must never swallow a deploy's reload (on 2026-10-28 one did, and the
+// deploy rolled back). Other commands (show, screenshot…) don't count, or a check-in asked for right
+// after a tab change would be dropped.
+const lastAsked = { checkin: 0, reload: 0 };
 if (typeof window !== 'undefined') window.addEventListener('frame-command', (e) => {
-  if (!kiosk() || !['checkin', 'reload', 'restart'].includes(e.detail) || Date.now() - lastAsked < 10000) return;
-  lastAsked = Date.now();
+  if (!kiosk() || !['checkin', 'reload', 'restart'].includes(e.detail)) return;
+  const kind = e.detail === 'checkin' ? 'checkin' : 'reload';
+  if (Date.now() - lastAsked[kind] < 10000) return;
+  lastAsked[kind] = Date.now();
   if (e.detail === 'checkin') checkIn();
   // A reload sends what's logged first, and says why it happened.
   if (e.detail === 'reload') checkIn().finally(() => { reloadFor('remote'); location.reload(); });
