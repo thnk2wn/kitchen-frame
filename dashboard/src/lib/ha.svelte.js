@@ -5,6 +5,7 @@
 import { limiter } from './limit.js';
 import { log } from './log.svelte.js';
 import { mediaUrl } from './api.js';
+import { pickNowPlaying } from './nowplaying.js';
 
 export const ha = $state({
   status: 'off',   // off (not set up) | connecting | connected | error
@@ -243,28 +244,19 @@ export function callService(domain, service, data = {}, target = undefined) {
 // The speaker currently playing something with a title, for the Home and slideshow "now playing".
 // With hold, the last one that played stays after you pause (Home keeps the card so you can
 // resume), including across page reloads, until another speaker plays, its track is gone, or it
-// hasn't played for HOLD_MS. Some speakers report "idle" instead of "paused" soon after a pause.
-const HOLD_MS = 30 * 60 * 1000;
+// hasn't played for HOLD_MS. The rules are in lib/nowplaying.js.
 let held = localStorage.getItem('frame-np-held');
 let lastPlayed = Number(localStorage.getItem('frame-np-at') || 0);
 
 export function nowPlaying({ hold = false, now = Date.now() } = {}) {
-  // Spotify's player first: an Echo playing Spotify also reports the song through its own player
-  // (Alexa Devices), but only Spotify's knows the playlist.
-  const busy = ha.players.filter((x) => x.state === 'playing' && x.media_title && (nowPrefs.tv || !x.tv));
-  const p = busy.find((x) => x.entity_id.startsWith('media_player.spotify_')) || busy[0];
-  if (p) {
-    // Remember it (saved at most once a minute, or when the speaker changes).
-    if (p.entity_id !== held || now - lastPlayed > 60000) {
-      held = p.entity_id;
-      lastPlayed = now;
-      try { localStorage.setItem('frame-np-held', held); localStorage.setItem('frame-np-at', String(lastPlayed)); } catch {}
-    }
-    return p;
+  const r = pickNowPlaying(ha.players, { tv: nowPrefs.tv, hold, held, lastPlayed, now });
+  // Remember what's playing (saved at most once a minute, or when the speaker changes).
+  if (r.player && r.player.state === 'playing' && (r.held !== held || now - lastPlayed > 60000)) {
+    held = r.held;
+    lastPlayed = now;
+    try { localStorage.setItem('frame-np-held', held); localStorage.setItem('frame-np-at', String(lastPlayed)); } catch {}
   }
-  if (!hold || !held || now - lastPlayed > HOLD_MS) return null;
-  const h = ha.players.find((x) => x.entity_id === held);
-  return h && (nowPrefs.tv || !h.tv) && (h.state === 'paused' || h.state === 'idle') && h.media_title ? h : null;
+  return r.player;
 }
 
 // Have Home Assistant speak text on a speaker. Prefers Piper (local, private). Speakers that
