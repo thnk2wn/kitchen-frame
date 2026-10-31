@@ -310,9 +310,23 @@ export async function paprikaImage(env, uid, w) {
 // "Chicken Tacos!" and "chicken tacos" are the same meal.
 export const mealKey = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
-export async function listMeals(env) {
+// Refresh on the frame's Meals view: just the meal plan from Paprika now (two requests, not the
+// library), for a week being planned on a phone. Taps within SYNC_GAP seconds share the last fetch.
+// Answers with the fresh plan itself: a GET /api/meals right after can be served from KV's edge cache.
+const SYNC_GAP = 30;
+export async function syncMealPlan(env) {
   if (!paprikaConfigured(env)) return { configured: false, meals: [] };
-  const [stored, data] = await Promise.all([env.CALENDAR.get(MEALS_KEY, { type: 'json', cacheTtl: 60 }), load(env)]);
+  const last = Number(await env.CALENDAR.get(MEALS_KEY + '-synced')) || 0;
+  if (Date.now() - last > SYNC_GAP * 1000) {
+    await syncMeals(env, { token: null });
+    await env.CALENDAR.put(MEALS_KEY + '-synced', String(Date.now()), { expirationTtl: 60 });
+  }
+  return listMeals(env, JSON.parse((await env.CALENDAR.get(MEALS_KEY)) || 'null'));
+}
+
+export async function listMeals(env, fresh) {
+  if (!paprikaConfigured(env)) return { configured: false, meals: [] };
+  const [stored, data] = await Promise.all([fresh || env.CALENDAR.get(MEALS_KEY, { type: 'json', cacheTtl: 60 }), load(env)]);
   const live = data.recipes.filter((r) => !r.trashed);
   const byUid = new Map(live.map((r) => [r.uid, r]));
   // A meal typed by name rather than picked from the library still opens its recipe (and shows its

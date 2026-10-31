@@ -22,7 +22,7 @@
   import MealGroceries from '../components/MealGroceries.svelte';
   import { api, cached, remember, mediaUrl } from '../lib/api.js';
   import { recipeTitle, formatDate, compareText, stars } from '../lib/format.js';
-  import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, ui, plainTitle } from '../lib/state.svelte.js';
+  import { recipes, loadRecipes, paprika, loadPaprika, mealItems, loadMeals, refreshMeals, ui, plainTitle } from '../lib/state.svelte.js';
   import { dayKey, addDays } from '../lib/format.js';
 
   // Paprika (our library, synced by the Worker when it has an account), Explore (TheMealDB) and Saved
@@ -54,6 +54,15 @@
 
   // Groceries for the week's meals (components/MealGroceries.svelte).
   let shopping = $state(false);
+  // Refresh: the plan straight from Paprika, for a week being planned on a phone (the Worker's own sync
+  // is every 15 minutes). Spins while it works; says so briefly when it fails.
+  let refreshing = $state(false), refreshFailed = $state(false);
+  async function refresh() {
+    if (refreshing) return;
+    refreshing = true; refreshFailed = false;
+    try { await refreshMeals(); } catch { refreshFailed = true; setTimeout(() => (refreshFailed = false), 4000); }
+    refreshing = false;
+  }
 
   // Meals: the Paprika meal plan, today and the next six days.
   let week = $derived.by(() => {
@@ -242,6 +251,7 @@
           <button class="btn tint" onclick={surprise}><Icon name="shuffle" size={20} />Surprise me</button>
         {/if}
         {#if mode === 'meals' && !ui.demo}
+          <button class="btn tint" class:spinning={refreshing} onclick={refresh} disabled={refreshing}><Icon name="reload" size={20} />{refreshFailed ? 'Couldn’t refresh' : 'Refresh'}</button>
           <button class="btn tint" onclick={() => (shopping = true)}><Icon name="cart" size={20} />Groceries for the week</button>
         {/if}
       </div>
@@ -412,6 +422,8 @@
   .btn { display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 20px; border-radius: 24px; font-size: 18px; font-weight: 600; color: var(--blue-text); }
   .btn.tint { background: var(--track); }
   .btn:active { opacity: .7; }
+  .btn.spinning :global(svg) { animation: spin .9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   /* All categories on one row, stretched to the grid's width. */
   .chips { flex: none; display: flex; gap: 6px; }
   .chip { flex: 1 0 auto; height: 40px; padding: 0 10px; border-radius: 20px; background: var(--track); font-size: 16px; font-weight: 600; white-space: nowrap; text-align: center; }

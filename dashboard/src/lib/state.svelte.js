@@ -139,6 +139,14 @@ export function loadMeals() {
     } catch {}
   });
 }
+// Meals' Refresh: the Worker fetches the plan from Paprika now instead of at its next 15-minute sync.
+export function refreshMeals() {
+  return single('meals-sync', async () => {
+    const data = await api('/api/meals/sync', { method: 'POST' });
+    meals.configured = data.configured;
+    if (changed('meals', data.meals)) meals.items = data.meals;
+  });
+}
 
 // Household rotations (GET /api/rotations; lib/rotations.js), shown on Home's Today card.
 export const rotations = $state({ rules: cached('rotations') || [] });

@@ -41,6 +41,7 @@
 //   /api/recipes...                  Explore (TheMealDB) and Saved recipes (see recipes.js)
 //   /api/recipes/paprika...          our own recipes, synced read-only from Paprika (see paprika.js)
 //   GET  /api/meals                  the Paprika meal plan around today (see paprika.js)
+//   POST /api/meals/sync             fetch the meal plan from Paprika now (Meals' Refresh), and answer with it
 //   GET  /api/meals/groceries        a shopping list for the week's meals, made by Workers AI (see meal-groceries.js)
 //   GET  /api/rotations              who's up early, whose bedtime (ROTATIONS; src/lib/rotations.js)
 //   GET  /api/geo?q=                 an event location's coordinates, for its map (see maps.js)
@@ -125,7 +126,7 @@ const editOf = (b) => ({
   ...(String((b && b.content) || '').trim() ? { content: String(b.content).trim().slice(0, 500) } : {}),
   ...(b && b.priority !== undefined ? { priority: level(b.priority) } : {}),
 });
-import { syncPaprika, listPaprika, getPaprika, paprikaImage, listMeals } from './paprika.js';
+import { syncPaprika, listPaprika, getPaprika, paprikaImage, listMeals, syncMealPlan } from './paprika.js';
 import { mealGroceries, MODEL } from './meal-groceries.js';
 import { saveShared, sharedResponse } from './shared-media.js';
 
@@ -491,6 +492,7 @@ async function handle(req, env, ctx) {
         return json(await explore(url.searchParams), 200, random ? 'no-store' : 'private, max-age=86400');
       }
       if (url.pathname === '/api/meals' && req.method === 'GET') return json(await listMeals(env));
+      if (url.pathname === '/api/meals/sync' && req.method === 'POST') return json(await syncMealPlan(env));
       if (url.pathname === '/api/meals/groceries' && req.method === 'GET') {
         // What's on Groceries now, from wherever that list lives, so the model leaves it out.
         const view = fromReminders(env, 'groceries')
