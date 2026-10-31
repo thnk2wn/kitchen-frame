@@ -28,6 +28,7 @@
   import ShotNote from './components/ShotNote.svelte';
   import DoorbellAlert from './components/DoorbellAlert.svelte';
   import NoticeSheet from './components/NoticeSheet.svelte';
+  import NoticePop from './components/NoticePop.svelte';
   import SharedMedia from './components/SharedMedia.svelte';
   import Safe from './components/Safe.svelte';
   import { noteAlive, startWatchdog } from './lib/watchdog.js';
@@ -37,8 +38,10 @@
   import NowPlaying from './components/NowPlaying.svelte';
   import PinPad from './components/PinPad.svelte';
   import { shown } from './lib/pending.svelte.js';
-  import { unread } from './lib/notices.svelte.js';
+  import { unread, nudges } from './lib/notices.svelte.js';
   let fresh = $derived(unread()); // new notices since the sheet was last opened (the bell's badge)
+  // Off Home (whose banners nudge themselves), the bell rings now and then for an unread one.
+  let ringBell = $derived(ui.tab !== 'home' && fresh.some((n) => n.tone !== 'info' && nudges(n, clock.now)));
   import { timers } from './lib/timers.svelte.js';
   import { connectHA, haConfigured, haDashboard, nowPlaying } from './lib/ha.svelte.js';
   import House from './views/House.svelte';
@@ -136,7 +139,7 @@
       <!-- The bell, on every tab: a badge counts what's new since the notices were last opened, in
            the most urgent one's colour. -->
       <button class="gear bell" onclick={() => (ui.noticesOpen = true)} aria-label={fresh.length ? fresh.length + ' new notices' : 'Notices'}>
-        <Icon name="bell" size={26} />{#if fresh.length}<b class="badge {fresh[0].tone}">{fresh.length}</b>{/if}
+        {#key ringBell && clock.now.getTime()}<span class="bico" class:ring={ringBell}><Icon name="bell" size={26} /></span>{/key}{#if fresh.length}<b class="badge {fresh[0].tone}">{fresh.length}</b>{/if}
       </button>
       <!-- The time drops AM/PM beside the music. -->
       {#if ui.tab !== 'home'}<span class="num now">{mini ? clockTime(clock.now) : time(clock.now)}</span>{/if}
@@ -187,6 +190,8 @@
   <Safe name="Undo" quiet><UndoToast /></Safe>
   <Safe name="Screenshot note" quiet><ShotNote /></Safe>
   <Safe name="Notices" quiet><NoticeSheet /></Safe>
+  <!-- A new notice, large for a few seconds, on any screen (it waits out timer alerts and messages). -->
+  <Safe name="New notice" quiet><NoticePop /></Safe>
   <Safe name="Timers full screen" quiet><TimerFull /></Safe>
   <Safe name="Timer alert" quiet><TimerAlert /></Safe>
   <Safe name="PIN" quiet><PinPad /></Safe>
@@ -209,6 +214,9 @@
   .wx { color: var(--secondary); }
   /* Not the gear's tuck to the right: with a badge it would touch the time beside it. */
   .gear.bell { position: relative; margin-right: 8px; }
+  .bico { display: flex; }
+  .ring { transform-origin: 50% 10%; animation: ring 1s ease-in-out .2s; }
+  @keyframes ring { 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(4deg); } 90% { transform: rotate(0); } }
   .badge { position: absolute; top: 2px; right: 0; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center; background: var(--orange); color: #fff; font-size: 14px; font-weight: 800; line-height: 1; }
   .badge.alert { background: var(--red); }
   .badge.info { background: var(--blue); }

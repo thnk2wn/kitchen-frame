@@ -33,6 +33,7 @@
   }
   import { ha, haConfigured, nowPrefs, setNowTv } from '../lib/ha.svelte.js';
   import { night, setNight, dayBrightness, setDayBrightness } from '../lib/night.svelte.js';
+  import { popPrefs, setPopMode } from '../lib/noticepop.svelte.js';
   import { api } from '../lib/api.js';
   import { checkIn } from '../lib/checkin.js';
   import { time } from '../lib/format.js';
@@ -266,6 +267,15 @@
         </div>
       </div>
     {/if}
+
+    <div class="row">
+      <span>New notices<small>{popPrefs.mode === 'off' ? 'Only the banner and the bell' : popPrefs.mode === 'chime' ? 'Shown large for 10 seconds, with a chime (not for blue ones); only red at night' : 'Shown large for 10 seconds, no sound; only red at night'}</small></span>
+      <div class="seg">
+        <button class:on={popPrefs.mode === 'chime'} onclick={() => setPopMode('chime')}>Chime</button>
+        <button class:on={popPrefs.mode === 'quiet'} onclick={() => setPopMode('quiet')}>Silent</button>
+        <button class:on={popPrefs.mode === 'off'} onclick={() => setPopMode('off')}>Off</button>
+      </div>
+    </div>
 
 
 

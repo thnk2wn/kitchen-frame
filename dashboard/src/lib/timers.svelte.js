@@ -42,14 +42,16 @@ function audio() {
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   return ctx;
 }
-export function chime() {
+export const chime = () => notes([880, 1175, 1568]);
+// Notes one after another, each a soft sine ping (also the new-notice chimes, lib/noticepop.svelte.js).
+export function notes(freqs, { gap = 0.22, vol = 0.5 } = {}) {
   const a = audio();
   if (!a) return;
-  [880, 1175, 1568].forEach((f, i) => {
-    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + i * 0.22;
+  freqs.forEach((f, i) => {
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime + i * gap;
     o.type = 'sine'; o.frequency.value = f;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
     o.connect(g).connect(a.destination);
     o.start(t); o.stop(t + 0.55);

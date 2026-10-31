@@ -15,6 +15,7 @@ import { ui } from './state.svelte.js';
 import { subscribeTo, callService, onHAConnect } from './ha.svelte.js';
 import { api } from './api.js';
 import { time, dayKey, dow } from './format.js';
+import { quietAt } from './night.svelte.js';
 
 const PREFIX = 'frame_';
 const real = $state({ list: [] }); // [{ id, title, message, created, tone }], alerts first, then newest
@@ -126,6 +127,11 @@ const seen = $state({ at: (() => { try { return Number(localStorage.getItem(SEEN
 const seenAt = () => (ui.demo ? seen.demoAt : seen.at);
 export const isNew = (n) => !!n.created && Date.parse(n.created) > seenAt();
 export const unread = () => notices().filter(isNew).sort((a, b) => RANK[a.tone] - RANK[b.tone]);
+// A nudge now and then for an unread notice still on (Home's banners; the bell on other tabs, for red and
+// orange): red each minute, orange every third, blue every fifth, never in quiet hours. Checked with the
+// per-minute clock.
+const EVERY = { alert: 1, warn: 3, info: 5 };
+export const nudges = (n, now) => isNew(n) && !quietAt(now) && now.getMinutes() % EVERY[n.tone] === 0;
 export function markSeen() {
   if (ui.demo) { seen.demoAt = Date.now(); return; }
   seen.at = Date.now();
