@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickNowPlaying, HOLD_MS } from './nowplaying.js';
+import { pickNowPlaying, isPlaying, HOLD_MS, STALE_MS } from './nowplaying.js';
 
 // Shapes as Home Assistant reports them: an Apple TV, and a soundbar that receives its sound over
 // AirPlay and names the TV as the album (while playing) or artist (once paused).
@@ -68,4 +68,24 @@ test('now playing: another player starting takes over from the held one', () => 
   assert.equal(id(r.player), 'media_player.living_tv');
   assert.equal(r.held, 'media_player.living_tv');
   assert.equal(r.lastPlayed, NOW);
+});
+
+test('now playing: an Echo stuck on "playing" hours after its song ended is not playing', () => {
+  // Alexa Devices kept Dinosaur Song "playing", 3 s into 184 s, from 08:18 to past noon.
+  const stuck = echo('playing', { media_title: 'Dinosaur Song', media_artist: 'Blippi', media_duration: 184, media_position: 3,
+    media_position_updated_at: new Date(NOW - 4 * 3600_000).toISOString() });
+  assert.equal(isPlaying(stuck, NOW), false);
+  assert.equal(pick([stuck, spotify('idle')]), null);
+  // Held after a pause, it still isn't brought back as paused.
+  assert.equal(pick([stuck], { hold: true, held: 'media_player.kitchen_echo', lastPlayed: NOW - 60000 }), null);
+});
+
+test('now playing: a song still within its length, or a stream with no length, is playing', () => {
+  const mid = echo('playing', { media_title: 'Golden Hour', media_duration: 240, media_position: 30,
+    media_position_updated_at: new Date(NOW - 120_000).toISOString() });
+  assert.equal(id(pick([mid])), 'media_player.kitchen_echo');
+  // A little past the end (Home Assistant late with the next track) still counts.
+  assert.equal(isPlaying({ ...mid, media_position_updated_at: new Date(NOW - 215_000 - STALE_MS / 2).toISOString() }, NOW), true);
+  const radio = echo('playing', { media_title: 'Morning Show', media_position_updated_at: new Date(NOW - 5 * 3600_000).toISOString() });
+  assert.equal(id(pick([radio])), 'media_player.kitchen_echo');
 });

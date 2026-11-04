@@ -6,7 +6,8 @@
   import MediaSwitch from '../components/MediaSwitch.svelte';
   import { ha, haUrl, callService, send } from '../lib/ha.svelte.js';
   import { haImage } from '../lib/ha-image.js';
-  import { ui } from '../lib/state.svelte.js';
+  import { ui, clock } from '../lib/state.svelte.js';
+  import { isPlaying } from '../lib/nowplaying.js';
   import { api } from '../lib/api.js';
   import { shown, busy, expectFor } from '../lib/pending.svelte.js';
   import { nowList, playlistOf } from '../lib/playlist.svelte.js';
@@ -42,7 +43,7 @@
   let spotify = $derived(players().find((p) => p.entity_id.startsWith('media_player.spotify_')));
   let chosen = $state(localStorage.getItem('frame-music-player'));
   let player = $derived(spotify || players().find((p) => p.entity_id === chosen)
-    || players().find((p) => p.state === 'playing') || ha.players[0]);
+    || players().find((p) => isPlaying(p, clock.now.getTime())) || ha.players[0]);
 
   // Spotify speakers: named devices only (Spotify also lists some by a bare id). The chosen one is
   // remembered; until then, the first with "Kitchen" in its name, else the first.
@@ -235,7 +236,7 @@
       })
       .catch(() => { browsed = false; });
   });
-  let playing = $derived(players().find((p) => p.state === 'playing' && p.entity_id !== player?.entity_id));
+  let playing = $derived(players().find((p) => isPlaying(p, clock.now.getTime()) && p.entity_id !== player?.entity_id));
   let error = $state(null);
 
   function choose(p) {
@@ -391,7 +392,7 @@
       {:else}
       {#each players() as p (p.entity_id)}
         <button class="spk" class:on={p.entity_id === player.entity_id} onclick={() => choose(p)}>
-          <span class="dot" class:live={p.state === 'playing'}></span>{nm(p.label)}
+          <span class="dot" class:live={isPlaying(p, clock.now.getTime())}></span>{nm(p.label)}
         </button>
       {/each}
       {#if playing && player.state !== 'playing' && player.ma && playing.ma}
