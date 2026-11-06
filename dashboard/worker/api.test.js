@@ -118,7 +118,7 @@ test('weather is reduced to what the screen shows', () => {
       text: [{ name: 'This Afternoon', night: false, text: 'Cloudy, with a high near 68.' }, { name: 'Tonight', night: true, text: 'Clear, with a low around 51.' }],
       hours: [{ hour: 23, temp: 55, rain: 10, code: 2, day: false }],
     }],
-    alerts: [{ id: 'urn:oid:heat.1', event: 'Heat Advisory', headline: 'Heat Advisory until 8 PM', severity: 'Moderate', ends: '2026-10-12T20:00:00-04:00', text: 'Hot.\n\nDrink water.' }],
+    alerts: [{ id: 'urn:oid:heat.1', event: 'Heat Advisory', severity: 'Moderate', sent: null, ends: '2026-10-12T20:00:00-04:00', sender: null, description: 'Hot.', instruction: 'Drink water.' }],
   });
 });
 
@@ -640,4 +640,42 @@ test('calendar feeds: a failing feed backs off and keeps its events; CALENDAR_RE
     assert.ok(fetched.includes('games'));
     assert.deepEqual(cal.errors, []);
   } finally { Date.now = realNow; }
+});
+
+import { readAnswer, withAi } from './wx-alert-ai.js';
+test('weather alerts: a cancel notice is dropped', () => {
+  const w = shape({
+    current: { temperature_2m: 20, apparent_temperature: 19, weather_code: 0, is_day: 1 },
+    daily: { time: ['2026-10-12'], temperature_2m_max: [22], temperature_2m_min: [12], precipitation_probability_max: [null], weather_code: [0], sunrise: ['2026-10-12T07:03'], sunset: ['2026-10-12T18:21'] },
+  }, 'fahrenheit', { periods: [], alerts: [
+    { properties: { id: 'a', event: 'Coastal Flood Advisory', messageType: 'Cancel', description: 'The Coastal Flood Advisory has been cancelled.' } },
+    { properties: { id: 'b', event: 'Dense Fog Advisory', messageType: 'Alert', description: 'Fog.' } },
+  ] });
+  assert.deepEqual(w.alerts.map((a) => a.id), ['b']);
+});
+
+test('weather alert summaries: the model\'s JSON read, unusable answers refused', () => {
+  assert.deepEqual(readAnswer('<think></think>{"summary": "Flash flooding underway in the metro.", "speech": "Heavy rain is flooding streets, including Ames. Don\'t drive through water."}'),
+    { summary: 'Flash flooding underway in the metro', speech: 'Heavy rain is flooding streets, including Ames. Don\'t drive through water.' });
+  assert.equal(readAnswer('Sorry, I can\'t help.'), null);
+  assert.deepEqual(readAnswer({ summary: 'Streets flooding near Ames', speech: 'Streets are flooding, including Ames.' }),
+    { summary: 'Streets flooding near Ames', speech: 'Streets are flooding, including Ames.' });
+  assert.equal(readAnswer('{"summary": "x", "speech": "y"}'), null);
+  assert.equal(readAnswer('{"summary": "Flooding", "speech": "' + 'a'.repeat(400) + '"}'), null);
+});
+
+test('weather alert summaries: cached ones used, a failing model leaves the alert as it was', async () => {
+  const kv = new Map();
+  const env = {
+    CALENDAR: { get: async (k) => (kv.has(k) ? JSON.parse(kv.get(k)) : null), put: async (k, v) => { kv.set(k, v); } },
+    AI: { run: async () => ({ response: '{"summary": "Streets flooding around the metro", "speech": "Streets are flooding, including Ames. Stay off flooded roads."}' }) },
+  };
+  const a = { id: 'urn:1', event: 'Flash Flood Warning', severity: 'Severe', ends: new Date(Date.now() + 3600000).toISOString(), description: 'Flooding.', instruction: 'Turn around.' };
+  const [one] = await withAi(env, null, [a], 'Ames, IA');
+  assert.equal(one.ai.summary, 'Streets flooding around the metro');
+  env.AI.run = async () => { throw new Error('should be cached'); };
+  assert.equal((await withAi(env, null, [a], 'Ames, IA'))[0].ai.summary, 'Streets flooding around the metro');
+  const [two] = await withAi(env, null, [{ ...a, id: 'urn:2' }], 'Ames, IA');
+  assert.equal(two.ai, undefined);
+  assert.deepEqual(await withAi({}, null, [a], 'Ames, IA'), [a]);
 });

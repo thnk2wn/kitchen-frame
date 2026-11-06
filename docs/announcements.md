@@ -54,10 +54,13 @@ volume and never at night; blue ones never are. The notices sheet marks the ones
 Weather Service alerts (US only) can be said too: **Warnings** (tornado, severe thunderstorm, flash
 flood: Severe or Extreme) at the alert volume, day or night, or **All**, which adds statements,
 advisories and watches at the normal volume. Those wait out quiet hours and are said when they end if
-the alert is still in effect, so one issued overnight is heard in the morning. Each is said once, as
-the alert, how long, and its first sentence: "Weather: Special Weather Statement until 9:00 AM. Patchy
-fog has developed this morning…". The weather sheet's **Read aloud** (while Announcements is on) reads
-an alert in full. An alert leaves the screen the minute it ends.
+the alert is still in effect, so one issued overnight is heard in the morning. Each kind is said once
+while it's in effect (the Weather Service's updates to a warning stay quiet), as the alert, how long,
+and a couple of sentences: Workers AI's summary when the Worker has one ("Streets are flooding around
+the area, including Ames. Don't drive through flooded roads."), else what's happening and the first
+piece of advice from the alert itself, slogans left out. In the weather sheet's alerts (while
+Announcements is on), **Read all** says each alert's name and end time, worst first, and **Read
+aloud** says the one on show. An alert leaves the screen the minute it ends.
 
 ## Agent messages and timers
 

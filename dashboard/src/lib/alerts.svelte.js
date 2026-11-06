@@ -10,7 +10,7 @@ import { notices } from './notices.svelte.js';
 import { say, speak } from './announce.svelte.js';
 import { quietNow } from './night.svelte.js';
 import { weather } from './state.svelte.js';
-import { toSay, spoken, isWarning, alertKey, activeAlerts } from './wxalerts.js';
+import { toSay, spoken, isWarning, alertKey, eventKey, activeAlerts } from './wxalerts.js';
 
 const MIN = 60000;
 const REPEAT_MS = 10 * MIN;
@@ -39,14 +39,17 @@ function check() {
   // Weather Service alerts (Settings → Announcements → Weather alerts): a warning at the alert volume,
   // day or night; anything else waits out quiet hours and is said then if it's still in effect.
   const wx = weather.data && weather.data.alerts;
+  // Once per kind of alert while one is in effect (eventKey), so an update to it stays quiet.
   for (const a of toSay(wx, { mode: say.weather, quiet: quietNow(), said, now })) {
-    const k = alertKey(a);
-    said[k] = now;
-    speak(spoken(a, now), { alert: isWarning(a), kind: 'weather' }).then((ok) => { if (!ok) delete said[k]; save(); }, () => { delete said[k]; });
+    const k = alertKey(a), e = eventKey(a);
+    said[k] = said[e] = now;
+    const undo = () => { delete said[k]; delete said[e]; };
+    speak(spoken(a, now), { alert: isWarning(a), kind: 'weather' }).then((ok) => { if (!ok) undo(); save(); }, undo);
   }
   // Forget notices that have gone (after a day, so the sheet's "Announced" outlives them a while).
-  const live = new Set([...current.map(keyOf), ...activeAlerts(wx, now).map(alertKey)]);
-  for (const k of Object.keys(said)) if (!live.has(k) && now - said[k] > 24 * 60 * MIN) delete said[k];
+  const live = new Set([...current.map(keyOf), ...activeAlerts(wx, now).flatMap((a) => [alertKey(a), eventKey(a)])]);
+  // A kind of weather alert as soon as none is in effect, so the next one of that kind is said.
+  for (const k of Object.keys(said)) if (!live.has(k) && (k.startsWith('wx:event:') ? wx : now - said[k] > 24 * 60 * MIN)) delete said[k];
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(said)); } catch {} }
 

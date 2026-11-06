@@ -318,7 +318,7 @@ async function handle(req, env, ctx) {
         if (Date.now() - Date.parse(stored.updated) > STALE_MS) ctx.waitUntil(updateCalendar(env, stored));
         return json(stored);
       }
-      if (url.pathname === '/api/weather') return json(await getWeather(env));
+      if (url.pathname === '/api/weather') return json(await getWeather(env, ctx));
       if (url.pathname === '/api/radar') return json(await getRadar(env));
       if (url.pathname === '/api/spotify/playlists') {
         if (!spotifyConfigured(env)) return json({ configured: false });

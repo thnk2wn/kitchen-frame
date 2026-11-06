@@ -3,11 +3,12 @@
 // key) adds its written forecast for each day and night and any active alerts; elsewhere those are
 // simply absent.
 // Vars: WEATHER_LAT, WEATHER_LON, WEATHER_UNIT ("fahrenheit" default, or "celsius").
+import { withAi } from './wx-alert-ai.js';
 const NWS = 'https://api.weather.gov';
 // NWS asks every client to identify itself.
 const NWS_HEADERS = { 'User-Agent': 'kitchen-frame (github.com/thnk2wn/kitchen-frame)', Accept: 'application/geo+json' };
 
-export async function getWeather(env) {
+export async function getWeather(env, ctx) {
   if (!env.WEATHER_LAT || !env.WEATHER_LON) return { error: 'Set WEATHER_LAT and WEATHER_LON' };
   const unit = env.WEATHER_UNIT === 'celsius' ? 'celsius' : 'fahrenheit';
   const us = unit === 'fahrenheit';
@@ -31,7 +32,11 @@ export async function getWeather(env) {
     getNws(env.WEATHER_LAT, env.WEATHER_LON).catch(() => null),
   ]);
   if (!res.ok) throw new Error('Open-Meteo HTTP ' + res.status);
-  return shape(await res.json(), unit, nws);
+  const w = shape(await res.json(), unit, nws);
+  // Each alert summed up by Workers AI (worker/wx-alert-ai.js), naming the town when it's included.
+  w.alerts = await withAi(env, ctx, w.alerts, nws && nws.place);
+  if (nws && nws.place) w.place = nws.place;
+  return w;
 }
 
 // The NWS forecast is two steps: the point lookup (which never changes, so it's cached for a day)
@@ -48,7 +53,10 @@ async function getNws(lat, lon) {
     get(point.properties.forecast, 1800),
     get(NWS + '/alerts/active?point=' + at, 300).catch(() => null),
   ]);
-  return { periods: forecast.properties.periods, alerts: alerts ? alerts.features : [] };
+  // The town the point is in ("Ames, IA"), for the alert summaries.
+  const rel = point.properties.relativeLocation && point.properties.relativeLocation.properties;
+  const place = rel && rel.city ? rel.city + (rel.state ? ', ' + rel.state : '') : null;
+  return { periods: forecast.properties.periods, alerts: alerts ? alerts.features : [], place };
 }
 
 export function shape(w, unit, nws = null) {
@@ -87,13 +95,16 @@ export function shape(w, unit, nws = null) {
         day: h.is_day[j] === 1,
       }] : [])) : [],
     })),
-    alerts: (nws ? nws.alerts || [] : []).map((a) => a.properties).filter(Boolean).map((a) => ({
+    // A cancel notice ("…has been cancelled and is no longer in effect") isn't an alert to show.
+    alerts: (nws ? nws.alerts || [] : []).map((a) => a.properties).filter((a) => a && a.messageType !== 'Cancel').map((a) => ({
       id: a.id,
       event: a.event,
-      headline: a.headline,
       severity: a.severity,
+      sent: a.sent || null,
       ends: a.ends || a.expires || null,
-      text: [a.description, a.instruction].filter(Boolean).join('\n\n'),
+      sender: a.senderName || null,
+      description: a.description || '',
+      instruction: a.instruction || '',
     })),
     updated: new Date().toISOString(),
   };

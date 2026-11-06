@@ -4,9 +4,24 @@
 
 Home shows the temperature, conditions, the UV right now (for sunscreen; hidden when it's under 1)
 and a three-day forecast; the top bar shows the temperature on every tab. Tap the weather for a
-day's sheet: the National Weather Service's written forecast (US), active alerts, the hours ahead,
-chance and amount of rain, wind, the day's peak UV, and sun times. Tap another day along the top to
-switch. The theme follows the same feed's sunrise and sunset.
+day's sheet: the National Weather Service's written forecast (US), the hours ahead, chance and
+amount of rain, wind, the day's peak UV, and sun times. Tap another day along the top to switch. The
+theme follows the same feed's sunrise and sunset.
+
+## Alerts
+
+While the Weather Service has alerts out for home, an **Alerts** button sits beside Radar, in the
+colour of the worst one (the furthest day makes room for it). Today shows a single line for them all,
+and Home's card the worst one with "+2 more". The alerts view lists them worst first (warnings, then
+watches, advisories and statements), two of the same kind merged into one, each with a short summary;
+tap one for its text tidied into sections (What, Where, Impacts, Places…), the Weather Service's
+advice under **What to do**, and "includes Ames" when the home town is named. Product codes, the
+"has issued a" preamble, the end time repeated, links and map coordinates are left out.
+
+The summaries come from Workers AI (`worker/wx-alert-ai.js`, the same Qwen model as the meal
+groceries): one line for the list and a couple of sentences to say, written once per alert and kept
+in KV until it ends. When the model is slow, over its daily allowance or answers badly, the frame uses
+the alert's own first sentence instead. Cancel notices aren't shown.
 
 ## Setup
 

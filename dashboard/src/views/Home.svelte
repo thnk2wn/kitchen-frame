@@ -39,7 +39,7 @@
   import { clock, calendar, weather, lists, mealItems, rotationRules, ui, completeItem, loadCalendar, loadList, listSort, setListSort, sortList } from '../lib/state.svelte.js';
   import { clockTime, longDate, eventsOn, addDays, weatherInfo, dayInfo, time, dow, dayKey, dayName, uvBand } from '../lib/format.js';
   import { mealRows } from '../lib/meals.js';
-  import { activeAlerts, isWarning } from '../lib/wxalerts.js';
+  import { alertList, isWarning } from '../lib/wxalerts.js';
   import { drivable, driveOf, loadDrive, leaveIn, SOON_MS } from '../lib/drive.svelte.js';
 
   let events = $derived(calendar.data ? calendar.data.events : []);
@@ -119,7 +119,7 @@
   let info = $derived(wx ? weatherInfo(wx.code, wx.day) : null);
   // UV right now, for sunscreen (the same reading HA's weather shows, give or take the source). Hidden
   // when it's under 1: night, dawn and dusk. The day's peak is in the weather sheet.
-  let alerts = $derived(wx ? activeAlerts(wx.alerts, clock.now) : []);
+  let alerts = $derived(wx ? alertList(wx.alerts, clock.now) : []); // worst first, repeats merged
   let uv = $derived(wx && wx.uvNow != null && wx.uvNow >= 1 ? { value: wx.uvNow, ...uvBand(wx.uvNow) } : null);
   // In its place when it's hidden, the next sunrise or sunset: tomorrow's sunrise in the evening and
   // overnight, today's sunset in the early morning.
@@ -171,7 +171,7 @@
         {#if alerts.length}
           {@const a = alerts[0]}
           <button class="wx-alert" class:severe={isWarning(a)} onclick={() => { ui.weatherAlert = true; ui.weatherDay = 0; }}>
-            <Icon name="alert" size={20} /><span>{a.event}{alerts.length > 1 ? ' +' + (alerts.length - 1) : ''}</span>
+            <Icon name="alert" size={20} /><span>{a.event}</span>{#if alerts.length > 1}<em>+{alerts.length - 1} more</em>{/if}
           </button>
         {:else if uv}<span class="uv {uv.cls}" title="UV index now">UV {uv.value} · {uv.label}</span>
         {:else if sun}<span class="uv sun"><Icon name={sun.icon} size={17} />{sun.label}</span>{/if}
@@ -337,7 +337,8 @@
   .wx-now:active, .day:active, .wx-alert:active { opacity: .6; }
   .wx-alert { display: flex; align-items: center; gap: 8px; width: 100%; margin: -6px 0 12px; padding: 7px 12px; border-radius: 12px; background: var(--orange); color: #fff; font-size: 17px; font-weight: 700; text-align: left; }
   .wx-alert.severe { background: var(--red); }
-  .wx-alert span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wx-alert span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wx-alert em { flex: none; padding: 1px 8px; border-radius: 10px; background: rgba(255, 255, 255, .25); font-size: 15px; font-style: normal; }
   .temp { font-size: 76px; font-weight: 300; line-height: 1; letter-spacing: -.03em; }
   .cond { display: flex; flex-direction: column; gap: 3px; font-size: 19px; font-weight: 600; }
   .hl { font-weight: 500; color: var(--secondary); }
