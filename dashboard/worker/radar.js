@@ -1,6 +1,8 @@
 // Rain radar for the weather sheet: the last hour, now, and the next two hours, around home.
-//   GET /api/radar -> { lat, lon, zoom, source, frames: [{ time, url, kind }] }
+//   GET /api/radar -> { lat, lon, zoom, source, frames: [{ time, url, kind, grid? }] }
 // time: ms; url: a tile template with {z}/{x}/{y}; kind: 'past' | 'now' | 'forecast'; oldest first.
+// grid: the data's cell size in metres when it's much coarser than the tiles' pixels, so the frame
+// smooths the blocks rather than drawing them.
 // The frame loads the tiles itself (small PNGs), and the street map under them through /api/tiles.
 //
 // In the US: the Iowa Environmental Mesonet's tiles (free, no key). Past and now are the NWS
@@ -10,6 +12,7 @@
 const IEM = 'https://mesonet.agron.iastate.edu';
 const TILES = IEM + '/cache/tile.py/1.0.0/';
 const MIN = 60000;
+const HRRR_GRID = 3000; // HRRR's 3 km cells: about 12 tile pixels at zoom 9
 // Radar tiles' zoom, shown doubled over a street map one zoom closer. In the US 9 (over a zoom 10
 // map, about 130 km across: home and the towns around it); RainViewer's free tiles stop at 7.
 export const RADAR_ZOOM = 9;
@@ -31,7 +34,7 @@ export function iemFrames(nowValid, hrrrInit, now = Date.now()) {
     for (const ahead of [30, 60, 90, 120]) {
       const f = Math.ceil((now + ahead * MIN - hrrrInit) / (15 * MIN)) * 15; // minutes into the run
       if (f <= 0 || f > 1080) continue;
-      frames.push({ time: hrrrInit + f * MIN, url: `${TILES}hrrr::REFD-F${String(f).padStart(4, '0')}-0/{z}/{x}/{y}.png`, kind: 'forecast' });
+      frames.push({ time: hrrrInit + f * MIN, url: `${TILES}hrrr::REFD-F${String(f).padStart(4, '0')}-0/{z}/{x}/{y}.png`, kind: 'forecast', grid: HRRR_GRID });
     }
   }
   // The same tile address shows a newer picture every few minutes: tie each to its time.

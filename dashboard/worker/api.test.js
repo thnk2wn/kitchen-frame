@@ -597,6 +597,7 @@ test('radar: the last hour of NEXRAD, now, then HRRR steps counted from its run'
   assert.match(f[6].url, /hrrr::REFD-F0180-0\//); // 02:00Z: 3 hours into the 23Z run
   assert.equal(new Date(f[6].time).toISOString(), '2026-10-16T02:00:00.000Z');
   assert.match(f[9].url, /REFD-F0270-0/);
+  assert.deepEqual(f.map((x) => x.grid || 0), [0, 0, 0, 0, 0, 0, 3000, 3000, 3000, 3000]); // HRRR's 3 km cells, smoothed on the frame
   assert.equal(iemFrames(valid, NaN, now).length, 6); // no HRRR: past and now only
 });
 

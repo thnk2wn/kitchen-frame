@@ -3,7 +3,8 @@
   // (GET /api/radar; worker/radar.js: NWS radar and NOAA's HRRR forecast in the US, RainViewer's
   // past two hours elsewhere). The street map is drawn once (Google's tiles, or OpenStreetMap's:
   // lib/maptiles.js), one zoom closer than the radar: each radar frame is drawn once at the Worker's zoom onto its own
-  // small canvas and shown at twice the size, light on the frame's slow Wi-Fi. In the US that's
+  // small canvas and shown at twice the size, light on the frame's slow Wi-Fi. A forecast's coarse
+  // model cells are smoothed rather than drawn as blocks (smooth()). In the US that's
   // about 130 km across: home and the towns around it. Canvases rather than tile images, so the
   // frame doesn't keep ~60 decoded PNGs. Drag along the timeline to pick a time.
   // Loads only while the sheet shows it; the loop stops when it closes.
@@ -96,7 +97,18 @@
           }
         }
         await Promise.all(parts);
-        return cv;
+        return f.grid ? smooth(cv, f.grid / (40075016.7 * Math.cos(centre.lat * Math.PI / 180) / (n7 * TILE))) : cv;
+      }
+      // A model's coarse cells (HRRR's 3 km: about 12 radar pixels) arrive as hard-edged blocks. Shrunk
+      // to roughly one pixel per cell, draw() stretches them back with bilinear smoothing into soft
+      // gradients, as radar apps show forecasts. Once per frame; the smaller canvas is cheaper to keep too.
+      function smooth(cv, cell) {
+        const k = cell * 0.75; // a little under one sample per cell, so no block survives between two
+        if (k < 3) return cv;
+        const s = document.createElement('canvas'); s.width = Math.max(1, Math.round(w / k)); s.height = Math.max(1, Math.round(h / k));
+        const g = s.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+        g.drawImage(cv, 0, 0, s.width, s.height);
+        return s;
       }
       frames = r.frames.map((f) => ({ ...f }));
       source = r.source || '';

@@ -30,6 +30,7 @@ OpenStreetMap's otherwise. In the US the past and present frames are NWS radar a
 frames are NOAA's HRRR model, both through the
 [Iowa Environmental Mesonet](https://mesonet.agron.iastate.edu); elsewhere it's
 [RainViewer](https://www.rainviewer.com)'s past two hours. All free, no key. Nothing loads until the
-radar is opened; it starts on Now, forecast frames are marked in blue, and dragging along the
+radar is opened; it starts on Now, forecast frames are marked in blue (and smoothed: HRRR's 3 km
+cells would otherwise show as blocks), and dragging along the
 timeline picks a time. Each frame is drawn once onto a small canvas, so the frame's slow Wi-Fi and
 CPU see one set of tiles per frame rather than a pile of images.
