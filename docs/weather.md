@@ -18,7 +18,7 @@ tap one for its text tidied into sections (What, Where, Impacts, Places…), the
 advice under **What to do**, and "includes Ames" when the home town is named. Product codes, the
 "has issued a" preamble, the end time repeated, links and map coordinates are left out.
 
-The summaries come from Workers AI (`worker/wx-alert-ai.js`, the same Qwen model as the meal
+The summaries come from Workers AI (`worker/wx-alert-ai.js`, the same Gemma model as the meal
 groceries): one line for the list and a couple of sentences to say, written once per alert and kept
 in KV until it ends. When the model is slow, over its daily allowance or answers badly, the frame uses
 the alert's own first sentence instead. Cancel notices aren't shown.

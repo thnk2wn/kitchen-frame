@@ -3,7 +3,7 @@
 // or the same facts read out plainly when the model is slow, out of allowance or says nothing usable.
 // The facts are worked out here; the model only words them, so it can't invent numbers.
 import { view, nudge } from '../src/lib/fitness.js';
-import { MODEL, aiError } from './meal-groceries.js';
+import { ANSWER_ONLY, MODEL, aiError } from './meal-groceries.js';
 
 const CACHE = 'fitness-speech:';   // the same facts within half an hour say the same thing
 const CACHE_TTL = 30 * 60;
@@ -79,10 +79,10 @@ function prompt(facts) {
       'For each person: say how today is going (status and what is left), one pattern from the past days, the latest workout if any,',
       'and one small practical suggestion for the rest of today when a ring is open and it is before 9 PM (like a 10 minute walk).',
       'Warm and encouraging, never guilt or shame, no medical or diet advice. About 3 sentences per person, under 70 words each.',
-      facts.length === 1 ? 'There is one person: talk to them as "you".' : 'Name each person.',
+      facts.length === 1 ? 'There is one person: talk to them as "you".' : 'Name each person and talk about them by name, never as "you" or "your".',
       'Calories are active calories. hour is the local hour (24h). minutesOld over 180 means the numbers may be out of date: say so briefly.',
     ].join(' ') },
-    { role: 'user', content: JSON.stringify(facts) + '\n/no_think' },
+    { role: 'user', content: JSON.stringify(facts) },
   ];
 }
 
@@ -107,7 +107,7 @@ export async function fitnessSpeech(env, facts) {
   if (cached) return { speech: cached, source: 'cache' };
   try {
     const res = await Promise.race([
-      env.AI.run(MODEL, { messages: prompt(facts), max_tokens: 400, temperature: 0.4 }),
+      env.AI.run(MODEL, { ...ANSWER_ONLY, messages: prompt(facts), max_tokens: 400, temperature: 0.4 }),
       new Promise((_, no) => setTimeout(() => no(new Error('the model took too long')), AI_WAIT_MS)),
     ]);
     const text = typeof res === 'string' ? res : res?.response ?? res?.choices?.[0]?.message?.content ?? '';

@@ -4,7 +4,7 @@
 // costs nothing after the first. Without the model (slow, over its allowance, or a bad answer) the
 // alert goes out as it came, and the frame reads it from the Weather Service's text
 // (src/lib/wxalerts.js summary() / speech()).
-import { MODEL, aiError } from './meal-groceries.js';
+import { ANSWER_ONLY, MODEL, aiError } from './meal-groceries.js';
 
 const CACHE = 'wxai4:';  // the number goes up when the prompt changes, so old answers aren't reused
 const AI_WAIT_MS = 7000;   // the frame waits on /api/weather; past this it gets the summary next poll
@@ -23,7 +23,7 @@ function prompt(a, place) {
       'Never invent facts, numbers or places. No codes, no "Doppler radar", no time zones, no markdown, no emoji, no slogans like "Turn around, don\'t drown": say the practical step instead (for example "Don\'t drive through flooded roads.").',
       'The alert name and end time are shown and said already.',
     ].filter(Boolean).join(' ') },
-    { role: 'user', content: JSON.stringify({ event: a.event, severity: a.severity, description: a.description, instruction: a.instruction }) + '\n/no_think' },
+    { role: 'user', content: JSON.stringify({ event: a.event, severity: a.severity, description: a.description, instruction: a.instruction }) },
   ];
 }
 
@@ -48,7 +48,7 @@ async function hash(s) {
 }
 
 async function write(env, a, place, key) {
-  const res = await env.AI.run(MODEL, { messages: prompt(a, place), max_tokens: 300, temperature: 0.2 });
+  const res = await env.AI.run(MODEL, { ...ANSWER_ONLY, messages: prompt(a, place), max_tokens: 300, temperature: 0.2 });
   const raw = typeof res === 'string' ? res : res?.response ?? res?.choices?.[0]?.message?.content ?? null;
   const ai = readAnswer(raw);
   if (!ai) throw new Error('the model gave no usable answer: ' + (typeof raw === 'string' ? raw : JSON.stringify(raw)).slice(0, 160));

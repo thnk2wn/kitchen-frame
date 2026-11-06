@@ -15,7 +15,11 @@
 // nothing, and any change to those asks again.
 import { listMeals, loadSynced } from './paprika.js';
 
-export const MODEL = '@cf/qwen/qwen3-30b-a3b-fp8';
+// Gemma 4 26B (4B active): fast and cheap enough for a week of recipes. Workers AI retires the Qwen3
+// 30B used before on 2026-11-20. Gemma reasons before answering unless told not to, which spends the
+// whole token budget on thinking for these tasks, so every call passes ANSWER_ONLY.
+export const MODEL = '@cf/google/gemma-4-26b-a4b-it';
+export const ANSWER_ONLY = { chat_template_kwargs: { enable_thinking: false } };
 const DAYS = 7;
 const KEY = 'meal-groceries-2:'; // -2: lines read by the model, merged here
 const CHUNK = 50; // ingredient lines per request
@@ -188,7 +192,7 @@ export function align(lines, got) {
 
 export function prompt(lines, set) {
   return [
-    { role: 'system', content: 'You read recipe ingredient lines for a grocery list. Answer with JSON only, no explanation: {"lines":[{"n":1,"src":"first three words","name":"...","qty":1.5,"unit":"cup"}]}, one entry for every line, in order. /no_think' },
+    { role: 'system', content: 'You read recipe ingredient lines for a grocery list. Answer with JSON only, no explanation: {"lines":[{"n":1,"src":"first three words","name":"...","qty":1.5,"unit":"cup"}]}, one entry for every line, in order.' },
     { role: 'user', content: [
       'For each numbered ingredient line, give:',
       '- n: its number, and src: its first three words exactly as written.',
@@ -224,7 +228,7 @@ export async function readRecipes(env, model, recipes, set, list) {
   const ask = async (chunk) => {
     const local = chunk.map((l, i) => ({ ...l, n: i + 1 }));
     for (let tries = 0; tries < 2; tries++) {
-      const res = await env.AI.run(model, { messages: prompt(local, set), max_tokens: 4000, temperature: 0.1 });
+      const res = await env.AI.run(model, { ...ANSWER_ONLY, messages: prompt(local, set), max_tokens: 4000, temperature: 0.1 });
       const text = typeof res === 'string' ? res : res?.response ?? res?.choices?.[0]?.message?.content ?? '';
       const got = [...align(local, parseLines(typeof text === 'string' ? text : JSON.stringify(text))).values()];
       if (got.length) return { got: got.map((x) => ({ ...x, n: chunk[x.n - 1].n })), neurons: res?.usage?.neurons || 0 };

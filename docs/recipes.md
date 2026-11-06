@@ -142,7 +142,7 @@ Groceries. Nothing is added until you've looked: tap a row to leave it off, then
 takes back exactly the items it just added.
 
 The reading is done by an open-weight model on [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
-(Qwen3 30B, the `AI` binding in `wrangler.jsonc`), which turns each ingredient line into the thing to
+(Gemma 4 26B, the `AI` binding in `wrangler.jsonc`), which turns each ingredient line into the thing to
 buy, a quantity and a unit ("1 ½ cups halved grape tomatoes" → Grape tomato, 1.5, cup). Adding up is
 done by the Worker, not the model (models asked to do the sums too repeat items and get the arithmetic
 wrong): the same thing across recipes becomes one row, with like units added (½ cup + 4 tbsp → ¾ cup;
