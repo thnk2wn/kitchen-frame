@@ -12,12 +12,12 @@
     "check": "scripts/check.sh"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.63.1",
+    "@cloudflare/vite-plugin": "^1.66.0",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "lucide-static": "^1.55.0",
     "svelte": "^5.57.2",
     "vite": "^8.3.4",
-    "wrangler": "^4.149.0"
+    "wrangler": "^4.154.0"
   },
   "dependencies": {
     "ical.js": "^2.2.1",
